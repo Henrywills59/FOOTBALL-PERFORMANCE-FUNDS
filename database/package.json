@@ -1,0 +1,21 @@
+{
+  "name": "@fpf/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma validate",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "typecheck": "prisma validate"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.16.2"
+  },
+  "devDependencies": {
+    "prisma": "^5.16.2"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  }
+}
