@@ -29,6 +29,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/football_performance_fund?schema=public
       FRONTEND_URL: http://localhost:5173
+      JWT_SECRET: replace-with-a-long-random-secret
     ports:
       - "3000:3000"
 

@@ -10,10 +10,11 @@
     "database"
   ],
   "scripts": {
-    "build": "npm run build -w shared && npm run build -w backend && npm run build -w database && npm run build -w frontend",
+    "build": "npm run build -w shared && npm run build -w database && npm run build -w backend && npm run build -w frontend",
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run build -w shared && npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w database && npm run typecheck -w backend && npm run typecheck -w frontend",
     "health": "node backend/dist/server.js"
   },
   "devDependencies": {

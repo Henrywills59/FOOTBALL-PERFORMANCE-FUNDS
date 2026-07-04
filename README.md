@@ -76,6 +76,7 @@ Included:
 - Clean monorepo scaffold
 - Frontend placeholder
 - Backend health endpoint
+- Authentication and user roles
 - Shared types package
 - Prisma database package
 - Environment templates
@@ -88,3 +89,15 @@ Not included yet:
 - Football APIs
 - AI features
 - Investor features
+
+## Authentication
+
+Phase 2 adds:
+
+- Public registration for Subscriber, Investor, and Analyst roles
+- Admin role support without public Admin registration
+- Login with JWT sessions and a remember me option
+- Forgot/reset password token flow with a placeholder email handoff
+- Protected profile and role-based dashboard routes
+
+API routes are mounted under `/api`.
