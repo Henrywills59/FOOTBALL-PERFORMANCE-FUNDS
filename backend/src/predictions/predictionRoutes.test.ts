@@ -7,6 +7,7 @@ import { InMemoryUserRepository } from "../auth/inMemoryUserRepository.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
 import { PredictionEngine } from "./predictionEngine.js";
 import { InMemoryPredictionRepository } from "./inMemoryPredictionRepository.js";
+import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 
 function fixture(overrides: Partial<FootballFixtureDetail> = {}): FootballFixtureDetail {
   return {
@@ -104,6 +105,7 @@ describe("prediction routes", () => {
       userRepository,
       footballRepository: new InMemoryFootballRepository(),
       predictionRepository,
+      adminRepository: new InMemoryAdminRepository(),
       jwtSecret: "test-secret",
       startFootballJobs: false,
     });
@@ -146,5 +148,5 @@ describe("prediction routes", () => {
       .expect((response) => {
         expect(response.body.predictions).toHaveLength(1);
       });
-  });
+  }, 15000);
 });

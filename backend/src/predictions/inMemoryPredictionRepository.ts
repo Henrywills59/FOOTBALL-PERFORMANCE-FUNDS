@@ -32,4 +32,11 @@ export class InMemoryPredictionRepository implements PredictionRepository {
     prediction.approvalStatus = approvalStatus;
     return prediction;
   }
+
+  async updateNotes(id: string, adminNotes: string) {
+    const prediction = this.predictions.find((item) => item.id === id);
+    if (!prediction) return null;
+    prediction.adminNotes = adminNotes;
+    return prediction;
+  }
 }

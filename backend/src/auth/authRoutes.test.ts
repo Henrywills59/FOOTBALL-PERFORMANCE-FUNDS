@@ -4,12 +4,14 @@ import { createApp } from "../app.js";
 import { InMemoryUserRepository } from "./inMemoryUserRepository.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
+import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 
 function testApp() {
   return createApp({
     userRepository: new InMemoryUserRepository(),
     footballRepository: new InMemoryFootballRepository(),
     predictionRepository: new InMemoryPredictionRepository([]),
+    adminRepository: new InMemoryAdminRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });

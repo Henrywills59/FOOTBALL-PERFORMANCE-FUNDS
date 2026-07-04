@@ -55,6 +55,8 @@ model User {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   resetTokens    PasswordResetToken[]
+  auditLogs      AuditLog[]
+  loginHistory   LoginHistory[]
 }
 
 model PasswordResetToken {
@@ -218,6 +220,7 @@ model MatchPrediction {
   riskScore          Float
   valueRating        String
   explanation        String
+  adminNotes         String?
   dataQualityStatus  PredictionDataQualityStatus
   approvalStatus     PredictionApprovalStatus    @default(PENDING)
   edge               Float?
@@ -232,6 +235,40 @@ model MatchPrediction {
 
   @@index([fixtureId])
   @@index([approvalStatus])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String?
+  email     String
+  success   Boolean
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([createdAt])
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model FootballSyncRun {

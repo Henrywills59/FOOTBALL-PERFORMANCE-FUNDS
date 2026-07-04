@@ -80,6 +80,7 @@ Included:
 - Football data sync and fixture display
 - Prediction generation and admin review
 - Subscriber dashboard, match center, smart slip, opportunities, and profile
+- Secure admin dashboard, audit logs, settings, and platform controls
 - Shared types package
 - Prisma database package
 - Environment templates
@@ -104,6 +105,10 @@ Phase 4 adds a prediction engine that reads stored football fixtures, standings,
 ## Subscriber Platform
 
 Phase 5 adds the subscriber workspace: dashboard, match center, smart bet slip, daily opportunities, prediction details, and profile/password management. It uses approved predictions only and does not add payment, wallet, investor, or admin portal features.
+
+## Admin Dashboard
+
+Phase 6 adds admin-only platform management for users, predictions, fixtures, audit logs, settings, and system health. Investor management, payments, and wallet functionality remain out of scope.
 
 ## Authentication
 

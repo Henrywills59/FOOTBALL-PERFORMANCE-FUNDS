@@ -3,6 +3,10 @@ import express from "express";
 import helmet from "helmet";
 import type { HealthStatus } from "@fpf/shared";
 import { AuthService } from "./auth/authService.js";
+import { PrismaAdminRepository } from "./admin/adminRepository.js";
+import { createAdminRouter } from "./admin/adminRoutes.js";
+import { AdminService } from "./admin/adminService.js";
+import type { AdminRepository } from "./admin/types.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
@@ -27,6 +31,7 @@ export function createApp(options?: {
   userRepository?: UserRepository;
   footballRepository?: FootballRepository;
   predictionRepository?: PredictionRepository;
+  adminRepository?: AdminRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -47,6 +52,7 @@ export function createApp(options?: {
   const predictionService = new PredictionService(
     options?.predictionRepository ?? new PrismaPredictionRepository(),
   );
+  const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -86,6 +92,16 @@ export function createApp(options?: {
     createPredictionRouter({
       authService,
       predictionService,
+      adminService,
+    }),
+  );
+  app.use(
+    "/api",
+    createAdminRouter({
+      adminService,
+      authService,
+      footballRepository,
+      footballScheduler,
     }),
   );
   app.use(errorHandler);

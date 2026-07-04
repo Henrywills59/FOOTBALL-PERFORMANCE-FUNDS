@@ -29,6 +29,7 @@ function toPrediction(row: {
     riskScore: row.riskScore,
     valueRating: row.valueRating as PredictionResult["valueRating"],
     explanation: row.explanation,
+    adminNotes: "adminNotes" in row ? row.adminNotes as string | null : null,
     dataQualityStatus: row.dataQualityStatus,
     approvalStatus: row.approvalStatus,
     edge: row.edge,
@@ -138,6 +139,15 @@ export class PrismaPredictionRepository implements PredictionRepository {
     const prediction = await this.prisma.matchPrediction.update({
       where: { id },
       data: { approvalStatus },
+    });
+
+    return toPrediction(prediction);
+  }
+
+  async updateNotes(id: string, adminNotes: string) {
+    const prediction = await this.prisma.matchPrediction.update({
+      where: { id },
+      data: { adminNotes },
     });
 
     return toPrediction(prediction);

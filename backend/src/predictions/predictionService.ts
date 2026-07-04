@@ -36,4 +36,8 @@ export class PredictionService {
   async reject(id: string) {
     return this.repository.updateApprovalStatus(id, "REJECTED");
   }
+
+  async updateNotes(id: string, adminNotes: string) {
+    return this.repository.updateNotes(id, adminNotes);
+  }
 }

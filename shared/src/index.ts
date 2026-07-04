@@ -100,6 +100,7 @@ export type PredictionResult = {
   riskScore: number;
   valueRating: "NONE" | "LOW" | "MEDIUM" | "HIGH";
   explanation: string;
+  adminNotes?: string | null;
   dataQualityStatus: PredictionDataQualityStatus;
   approvalStatus: PredictionApprovalStatus;
   edge: number | null;
@@ -108,4 +109,35 @@ export type PredictionResult = {
   staleOdds: boolean;
   riskyMarket: boolean;
   createdAt?: string;
+};
+
+export type AdminOverview = {
+  totalUsers: number;
+  activeSubscribers: number;
+  activeInvestors: number;
+  todaysFixtures: number;
+  pendingPredictions: number;
+  approvedPredictions: number;
+  systemHealth: "OK" | "DEGRADED";
+};
+
+export type AdminUser = AuthUser & {
+  subscriptionPlan: string;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  actorUserId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  createdAt: string;
+};
+
+export type AdminSettings = {
+  predictionConfidenceThreshold: number;
+  riskThreshold: number;
+  maximumSelections: number;
+  scheduledSyncEnabled: boolean;
+  maintenanceMode: boolean;
 };

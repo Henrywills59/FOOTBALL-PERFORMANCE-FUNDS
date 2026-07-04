@@ -80,4 +80,6 @@ export class InMemoryUserRepository implements UserRepository {
       user.passwordHash = passwordHash;
     }
   }
+
+  async recordLogin(): Promise<void> {}
 }

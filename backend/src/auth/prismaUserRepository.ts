@@ -82,4 +82,10 @@ export class PrismaUserRepository implements UserRepository {
       data: { passwordHash },
     });
   }
+
+  async recordLogin(input: { userId?: string | null; email: string; success: boolean }): Promise<void> {
+    await this.prisma.loginHistory.create({
+      data: input,
+    });
+  }
 }

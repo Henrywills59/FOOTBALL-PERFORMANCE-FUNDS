@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type {
+  AdminOverview,
+  AdminSettings,
+  AdminUser,
+  AuditLogEntry,
   AuthResponse,
   AuthUser,
   FootballFixtureDetail,
@@ -12,9 +16,11 @@ import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const navItems = ["Dashboard", "Match Center", "Smart Bet Slip", "Daily Opportunities", "Profile"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
+type AdminNavItem = (typeof adminNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
@@ -38,6 +44,8 @@ export default function App() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [session, setSession] = useState<AuthResponse | null>(() => getStoredSession());
   const [activeView, setActiveView] = useState<NavItem>("Dashboard");
+  const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
+  const [adminMode, setAdminMode] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
@@ -47,10 +55,17 @@ export default function App() {
   const [slip, setSlip] = useState<PredictionWithFixture[]>([]);
   const [filters, setFilters] = useState({ search: "", league: "", date: "" });
   const [loadingLabel, setLoadingLabel] = useState("Loading");
+  const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
+  const [adminPredictions, setAdminPredictions] = useState<PredictionResult[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
 
   useEffect(() => {
     if (!session) return;
     void loadSubscriberData(session.token);
+    if (session.user.role === "ADMIN") void loadAdminData(session.token);
   }, [session]);
 
   const combinedOdds = useMemo(
@@ -147,6 +162,44 @@ export default function App() {
     } catch (caughtError) {
       setLoadingLabel(caughtError instanceof Error ? caughtError.message : "Unable to load data");
     }
+  }
+
+  async function loadAdminData(token: string) {
+    try {
+      const [overview, predictionsData, usersData, logsData, settingsData, syncData] = await Promise.all([
+        apiGet<AdminOverview>("/admin/overview", token),
+        apiGet<{ predictions: PredictionResult[] }>("/admin/predictions", token),
+        apiGet<{ users: AdminUser[] }>("/admin/users", token),
+        apiGet<{ logs: AuditLogEntry[] }>("/admin/audit-logs", token),
+        apiGet<AdminSettings>("/admin/settings", token),
+        apiGet<{ logs: AuditLogEntry[] }>("/admin/fixtures/sync-logs", token),
+      ]);
+      setAdminOverview(overview);
+      setAdminPredictions(predictionsData.predictions);
+      setAdminUsers(usersData.users);
+      setAuditLogs(logsData.logs);
+      setAdminSettings(settingsData);
+      setSyncLogs(syncData.logs);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
+    }
+  }
+
+  async function adminAction(path: string, body?: object) {
+    if (!session) return;
+    const method = path.includes("/settings") || path.includes("/notes") ? "PATCH" : "POST";
+    const response = await fetch(`${apiUrl}/api${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${session.token}`,
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? "Request failed");
+    await loadAdminData(session.token);
+    await loadSubscriberData(session.token);
   }
 
   async function loadFixtureDetail(id: string, token = session?.token) {
@@ -288,19 +341,32 @@ export default function App() {
             <h1 className="mt-2 text-xl font-bold">Command Center</h1>
           </div>
           <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1">
-            {navItems.map((item) => (
+            {(adminMode ? adminNavItems : navItems).map((item) => (
               <button
                 className={`rounded-md px-3 py-3 text-left text-sm font-medium transition ${
-                  activeView === item ? "bg-emerald-300 text-zinc-950" : "bg-zinc-900 text-zinc-300 hover:text-white"
+                  (adminMode ? activeAdminView === item : activeView === item)
+                    ? "bg-emerald-300 text-zinc-950"
+                    : "bg-zinc-900 text-zinc-300 hover:text-white"
                 }`}
                 key={item}
                 type="button"
-                onClick={() => setActiveView(item)}
+                onClick={() =>
+                  adminMode ? setActiveAdminView(item as AdminNavItem) : setActiveView(item as NavItem)
+                }
               >
                 {item}
               </button>
             ))}
           </nav>
+          {session.user.role === "ADMIN" ? (
+            <button
+              className="mt-4 w-full rounded-md border border-emerald-800 px-3 py-3 text-sm text-emerald-200 transition hover:border-emerald-300"
+              type="button"
+              onClick={() => setAdminMode((current) => !current)}
+            >
+              {adminMode ? "Subscriber View" : "Admin Portal"}
+            </button>
+          ) : null}
           <button
             className="mt-4 w-full rounded-md border border-zinc-800 px-3 py-3 text-sm text-zinc-300 transition hover:border-emerald-300"
             type="button"
@@ -324,10 +390,24 @@ export default function App() {
           {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
           {message ? <p className="mt-4 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
 
-          {activeView === "Dashboard" ? (
+          {adminMode ? (
+            <AdminPortal
+              activeView={activeAdminView}
+              auditLogs={auditLogs}
+              fixtures={fixtures}
+              overview={adminOverview}
+              predictions={adminPredictions}
+              settings={adminSettings}
+              syncLogs={syncLogs}
+              users={adminUsers}
+              onAction={adminAction}
+            />
+          ) : null}
+
+          {!adminMode && activeView === "Dashboard" ? (
             <DashboardView featured={featured} recent={recent} predictions={predictions} onAdd={addToSlip} />
           ) : null}
-          {activeView === "Match Center" ? (
+          {!adminMode && activeView === "Match Center" ? (
             <MatchCenterView
               filters={filters}
               fixtures={fixtures}
@@ -339,7 +419,7 @@ export default function App() {
               onSelectPrediction={setSelectedPrediction}
             />
           ) : null}
-          {activeView === "Smart Bet Slip" ? (
+          {!adminMode && activeView === "Smart Bet Slip" ? (
             <SmartSlipView
               combinedOdds={combinedOdds}
               overallConfidence={overallConfidence}
@@ -348,19 +428,176 @@ export default function App() {
               onRemove={removeFromSlip}
             />
           ) : null}
-          {activeView === "Daily Opportunities" ? (
+          {!adminMode && activeView === "Daily Opportunities" ? (
             <OpportunityList predictions={daily} onAdd={addToSlip} onSelect={setSelectedPrediction} />
           ) : null}
-          {activeView === "Profile" ? (
+          {!adminMode && activeView === "Profile" ? (
             <ProfileView session={session} onPasswordChange={safelySubmit(handlePasswordChange)} />
           ) : null}
 
-          {activeView !== "Profile" ? (
+          {!adminMode && activeView !== "Profile" ? (
             <PredictionDetail prediction={selectedPrediction} onAdd={addToSlip} />
           ) : null}
         </section>
       </div>
     </main>
+  );
+}
+
+function AdminPortal({
+  activeView,
+  auditLogs,
+  fixtures,
+  onAction,
+  overview,
+  predictions,
+  settings,
+  syncLogs,
+  users,
+}: {
+  activeView: AdminNavItem;
+  auditLogs: AuditLogEntry[];
+  fixtures: FootballFixtureSummary[];
+  onAction: (path: string, body?: object) => Promise<void>;
+  overview: AdminOverview | null;
+  predictions: PredictionResult[];
+  settings: AdminSettings | null;
+  syncLogs: AuditLogEntry[];
+  users: AdminUser[];
+}) {
+  const pending = predictions.filter((prediction) => prediction.approvalStatus === "PENDING");
+
+  if (activeView === "Admin Dashboard") {
+    return (
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Total users" value={String(overview?.totalUsers ?? 0)} />
+        <Metric label="Active subscribers" value={String(overview?.activeSubscribers ?? 0)} />
+        <Metric label="Active investors" value={String(overview?.activeInvestors ?? 0)} />
+        <Metric label="Today's fixtures" value={String(overview?.todaysFixtures ?? 0)} />
+        <Metric label="Pending predictions" value={String(overview?.pendingPredictions ?? pending.length)} />
+        <Metric label="Approved predictions" value={String(overview?.approvedPredictions ?? 0)} />
+        <Metric label="System health" value={overview?.systemHealth ?? "OK"} />
+      </div>
+    );
+  }
+
+  if (activeView === "Prediction Review") {
+    return (
+      <Panel title="Prediction Review">
+        <div className="space-y-3">
+          {predictions.map((prediction) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={prediction.id}>
+              <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{prediction.approvalStatus}</p>
+                  <h3 className="mt-2 text-lg font-semibold">{prediction.predictedOutcome}</h3>
+                  <p className="mt-2 text-sm text-zinc-400">{prediction.explanation}</p>
+                  <p className="mt-2 text-sm text-zinc-500">{prediction.adminNotes ?? "No admin notes yet."}</p>
+                </div>
+                <div className="grid gap-2 text-sm">
+                  <MiniStat label="Confidence" value={`${prediction.confidenceScore}%`} />
+                  <MiniStat label="Risk" value={String(prediction.riskScore)} />
+                  <MiniStat label="Value" value={prediction.valueRating} />
+                </div>
+              </div>
+              <form
+                className="mt-3 flex flex-col gap-2 sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  void onAction(`/admin/predictions/${prediction.id}/notes`, {
+                    adminNotes: form.get("adminNotes"),
+                  });
+                }}
+              >
+                <input className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white" name="adminNotes" placeholder="Edit prediction notes" />
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="submit">Save notes</button>
+              </form>
+              <div className="mt-3 flex gap-2">
+                <button className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/predictions/${prediction.id}/approve`)}>Approve</button>
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/predictions/${prediction.id}/reject`)}>Reject</button>
+              </div>
+            </div>
+          ))}
+          {!predictions.length ? <p className="text-sm text-zinc-400">No generated predictions yet.</p> : null}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (activeView === "Fixture Management") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Panel title="Synchronized Fixtures">
+          <button className="mb-4 rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction("/admin/fixtures/sync")}>Force manual sync</button>
+          <CompactFixtureList fixtures={fixtures} />
+        </Panel>
+        <Panel title="Sync Logs & API Status">
+          <CompactAuditList logs={syncLogs} emptyLabel="No sync logs yet." />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "User Management") {
+    return (
+      <Panel title="User Management">
+        <div className="space-y-3">
+          {users.map((user) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={user.id}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">{user.name}</p>
+                  <p className="text-sm text-zinc-400">{user.email} · {user.role} · {user.status}</p>
+                  <p className="text-sm text-zinc-500">Subscription: {user.subscriptionPlan}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/users/${user.id}/suspend`)}>Suspend</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/users/${user.id}/activate`)}>Activate</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/users/${user.id}/reset-password`)}>Reset password</button>
+                  <button className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/users/${user.id}/role`, { role: "SUBSCRIBER" })}>Subscriber</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!users.length ? <p className="text-sm text-zinc-400">No users found.</p> : null}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (activeView === "Audit Logs") {
+    return (
+      <Panel title="Audit Logs">
+        <CompactAuditList logs={auditLogs} emptyLabel="No audit logs yet." />
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Settings">
+      <form
+        className="grid gap-4 md:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void onAction("/admin/settings", {
+            predictionConfidenceThreshold: Number(form.get("predictionConfidenceThreshold")),
+            riskThreshold: Number(form.get("riskThreshold")),
+            maximumSelections: Number(form.get("maximumSelections")),
+            scheduledSyncEnabled: form.get("scheduledSyncEnabled") === "on",
+            maintenanceMode: form.get("maintenanceMode") === "on",
+          });
+        }}
+      >
+        <TextField label="Prediction confidence threshold" name="predictionConfidenceThreshold" type="number" value={String(settings?.predictionConfidenceThreshold ?? 60)} />
+        <TextField label="Risk threshold" name="riskThreshold" type="number" value={String(settings?.riskThreshold ?? 70)} />
+        <TextField label="Maximum selections" name="maximumSelections" type="number" value={String(settings?.maximumSelections ?? 5)} />
+        <label className="flex items-center gap-3 text-sm text-zinc-300"><input name="scheduledSyncEnabled" defaultChecked={settings?.scheduledSyncEnabled} type="checkbox" /> Enable scheduled sync</label>
+        <label className="flex items-center gap-3 text-sm text-zinc-300"><input name="maintenanceMode" defaultChecked={settings?.maintenanceMode} type="checkbox" /> Enable maintenance mode</label>
+        <div className="md:col-span-2"><SubmitButton>Save settings</SubmitButton></div>
+      </form>
+    </Panel>
   );
 }
 
@@ -689,6 +926,34 @@ function CompactPredictionList({ predictions }: { predictions: PredictionWithFix
   );
 }
 
+function CompactFixtureList({ fixtures }: { fixtures: FootballFixtureSummary[] }) {
+  return (
+    <div className="space-y-2">
+      {fixtures.map((fixture) => (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={fixture.id}>
+          <p className="font-semibold">{fixture.homeTeamName} vs {fixture.awayTeamName}</p>
+          <p className="mt-1 text-sm text-zinc-400">{fixture.leagueName} · {fixture.status} · {new Date(fixture.kickoffAt).toLocaleString()}</p>
+        </div>
+      ))}
+      {!fixtures.length ? <p className="text-sm text-zinc-400">No synchronized fixtures available.</p> : null}
+    </div>
+  );
+}
+
+function CompactAuditList({ emptyLabel, logs }: { emptyLabel: string; logs: AuditLogEntry[] }) {
+  return (
+    <div className="space-y-2">
+      {logs.map((log) => (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={log.id}>
+          <p className="font-semibold">{log.action}</p>
+          <p className="mt-1 text-sm text-zinc-400">{log.entityType} · {log.entityId ?? "System"} · {new Date(log.createdAt).toLocaleString()}</p>
+        </div>
+      ))}
+      {!logs.length ? <p className="text-sm text-zinc-400">{emptyLabel}</p> : null}
+    </div>
+  );
+}
+
 function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl shadow-black/10">
@@ -763,7 +1028,8 @@ function TextField({
         onChange={(event) => onChange?.(event.target.value)}
         required={!onChange}
         type={type}
-        value={value}
+        value={onChange ? value : undefined}
+        defaultValue={!onChange ? value : undefined}
       />
     </label>
   );

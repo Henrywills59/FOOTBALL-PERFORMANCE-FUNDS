@@ -67,14 +67,17 @@ export class AuthService {
   }): Promise<AuthResponse> {
     const user = await this.users.findUserByEmail(input.email);
     if (!user || user.status !== "ACTIVE") {
+      await this.users.recordLogin({ email: input.email, success: false });
       throw new AuthError("Invalid email or password", 401);
     }
 
     const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
     if (!passwordMatches) {
+      await this.users.recordLogin({ userId: user.id, email: input.email, success: false });
       throw new AuthError("Invalid email or password", 401);
     }
 
+    await this.users.recordLogin({ userId: user.id, email: input.email, success: true });
     return this.createAuthResponse(user, input.rememberMe);
   }
 

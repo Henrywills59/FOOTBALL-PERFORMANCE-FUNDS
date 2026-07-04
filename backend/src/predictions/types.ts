@@ -7,6 +7,7 @@ export type PredictionRepository = {
   createPrediction(input: PredictionResult & { oddId: string }): Promise<PredictionResult>;
   listPredictions(input: { approvalStatus?: PredictionApprovalStatus }): Promise<PredictionResult[]>;
   updateApprovalStatus(id: string, approvalStatus: Exclude<PredictionApprovalStatus, "PENDING">): Promise<PredictionResult | null>;
+  updateNotes(id: string, adminNotes: string): Promise<PredictionResult | null>;
 };
 
 export type PredictionEngineResult = PredictionResult & {

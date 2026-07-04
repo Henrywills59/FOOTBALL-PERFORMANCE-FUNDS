@@ -32,6 +32,7 @@ export type UserRepository = {
   findPasswordResetToken(tokenHash: string): Promise<PasswordResetRecord | null>;
   markPasswordResetTokenUsed(id: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
+  recordLogin(input: { userId?: string | null; email: string; success: boolean }): Promise<void>;
 };
 
 export type JwtUser = {
