@@ -79,6 +79,7 @@ Included:
 - Authentication and user roles
 - Football data sync and fixture display
 - Prediction generation and admin review
+- Subscriber dashboard, match center, smart slip, opportunities, and profile
 - Shared types package
 - Prisma database package
 - Environment templates
@@ -99,6 +100,10 @@ Phase 3 adds API-Football and The Odds API integration through backend services.
 ## Prediction Review
 
 Phase 4 adds a prediction engine that reads stored football fixtures, standings, injuries, head-to-head records, and odds. Predictions remain pending until Admin approval, and only approved predictions appear in the subscriber-facing preview.
+
+## Subscriber Platform
+
+Phase 5 adds the subscriber workspace: dashboard, match center, smart bet slip, daily opportunities, prediction details, and profile/password management. It uses approved predictions only and does not add payment, wallet, investor, or admin portal features.
 
 ## Authentication
 

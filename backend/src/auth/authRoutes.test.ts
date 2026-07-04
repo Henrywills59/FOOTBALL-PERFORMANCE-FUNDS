@@ -119,4 +119,27 @@ describe("auth routes", () => {
       })
       .expect(200);
   });
+
+  it("changes password for the signed-in user", async () => {
+    const app = testApp();
+    const registered = await request(app).post("/api/auth/register").send(validRegistration).expect(201);
+
+    await request(app)
+      .post("/api/users/me/password")
+      .set("Authorization", `Bearer ${registered.body.token}`)
+      .send({
+        currentPassword: validRegistration.password,
+        newPassword: "ChangedPassword123",
+      })
+      .expect(200);
+
+    await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: validRegistration.email,
+        password: "ChangedPassword123",
+        rememberMe: false,
+      })
+      .expect(200);
+  });
 });

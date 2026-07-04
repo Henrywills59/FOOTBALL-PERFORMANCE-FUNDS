@@ -22,6 +22,9 @@ export function createFootballRouter(input: {
         fixtures: await input.repository.listFixtures({
           live: request.query.live === "true",
           limit: request.query.limit ? Number(request.query.limit) : undefined,
+          search: request.query.search ? String(request.query.search) : undefined,
+          league: request.query.league ? String(request.query.league) : undefined,
+          date: request.query.date ? String(request.query.date) : undefined,
         }),
       });
     } catch (error) {

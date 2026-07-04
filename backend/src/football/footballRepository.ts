@@ -188,9 +188,34 @@ export class PrismaFootballRepository implements FootballRepository {
     });
   }
 
-  async listFixtures(input: { live?: boolean; limit?: number }): Promise<FootballFixtureSummary[]> {
+  async listFixtures(input: {
+    live?: boolean;
+    limit?: number;
+    search?: string;
+    league?: string;
+    date?: string;
+  }): Promise<FootballFixtureSummary[]> {
+    const dateFilter = input.date
+      ? {
+          gte: new Date(`${input.date}T00:00:00.000Z`),
+          lt: new Date(`${input.date}T23:59:59.999Z`),
+        }
+      : undefined;
     const fixtures = await this.prisma.footballFixture.findMany({
-      where: input.live ? { status: "LIVE" } : undefined,
+      where: {
+        ...(input.live ? { status: "LIVE" as const } : {}),
+        ...(dateFilter ? { kickoffAt: dateFilter } : {}),
+        ...(input.league ? { league: { name: { contains: input.league, mode: "insensitive" as const } } } : {}),
+        ...(input.search
+          ? {
+              OR: [
+                { homeTeam: { name: { contains: input.search, mode: "insensitive" as const } } },
+                { awayTeam: { name: { contains: input.search, mode: "insensitive" as const } } },
+                { league: { name: { contains: input.search, mode: "insensitive" as const } } },
+              ],
+            }
+          : {}),
+      },
       orderBy: { kickoffAt: "asc" },
       take: input.limit ?? 25,
       include: { league: true, homeTeam: true, awayTeam: true },

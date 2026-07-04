@@ -29,3 +29,8 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(32),
   password: passwordSchema,
 });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordSchema,
+});

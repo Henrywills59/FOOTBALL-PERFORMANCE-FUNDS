@@ -58,6 +58,17 @@ describe("football routes", () => {
     expect(response.body.fixtures[0].homeTeamName).toBe("Home FC");
   });
 
+  it("filters fixtures by search, league, and date", async () => {
+    const { app, token } = await signedInApp();
+
+    const response = await request(app)
+      .get("/api/football/fixtures?search=Home&league=Premier&date=2026-08-01")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body.fixtures).toHaveLength(1);
+  });
+
   it("returns match details", async () => {
     const { app, token } = await signedInApp();
 

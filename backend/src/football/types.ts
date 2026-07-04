@@ -75,7 +75,13 @@ export type FootballRepository = {
   upsertOdd(input: OddUpsert): Promise<void>;
   startSyncRun(input: { provider: string; jobName: string }): Promise<string>;
   finishSyncRun(id: string, input: { status: "SUCCESS" | "FAILED"; message?: string; recordsRead?: number; recordsSaved?: number }): Promise<void>;
-  listFixtures(input: { live?: boolean; limit?: number }): Promise<FootballFixtureSummary[]>;
+  listFixtures(input: {
+    live?: boolean;
+    limit?: number;
+    search?: string;
+    league?: string;
+    date?: string;
+  }): Promise<FootballFixtureSummary[]>;
   getFixture(id: string): Promise<FootballFixtureDetail | null>;
   getSyncStatus(jobsEnabled: boolean, jobsStarted: boolean): Promise<FootballSyncStatus>;
 };

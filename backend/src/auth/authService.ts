@@ -116,6 +116,29 @@ export class AuthService {
     };
   }
 
+  async changePassword(input: {
+    userId: string;
+    currentPassword: string;
+    newPassword: string;
+  }) {
+    const user = await this.users.findUserById(input.userId);
+    if (!user) {
+      throw new AuthError("Unauthorized", 401);
+    }
+
+    const passwordMatches = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    if (!passwordMatches) {
+      throw new AuthError("Current password is incorrect", 400);
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, passwordSaltRounds);
+    await this.users.updatePassword(user.id, passwordHash);
+
+    return {
+      message: "Password updated successfully.",
+    };
+  }
+
   async getUserFromToken(token: string): Promise<AuthUser> {
     try {
       const payload = jwt.verify(token, this.jwtSecret) as JwtUser;

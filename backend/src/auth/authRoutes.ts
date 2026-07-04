@@ -5,6 +5,7 @@ import { AuthError, AuthService } from "./authService.js";
 import { requireAuth, requireRole } from "./authMiddleware.js";
 import {
   forgotPasswordSchema,
+  changePasswordSchema,
   loginSchema,
   registerSchema,
   resetPasswordSchema,
@@ -70,6 +71,21 @@ export function createAuthRouter(authService: AuthService) {
 
   router.get("/users/me", requireSignedIn, (request, response) => {
     response.status(200).json({ user: request.user });
+  });
+
+  router.post("/users/me/password", requireSignedIn, async (request, response, next) => {
+    try {
+      const input = changePasswordSchema.parse(request.body);
+      response.status(200).json(
+        await authService.changePassword({
+          userId: request.user!.id,
+          currentPassword: input.currentPassword,
+          newPassword: input.newPassword,
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.get("/dashboards/me", requireSignedIn, (request, response) => {

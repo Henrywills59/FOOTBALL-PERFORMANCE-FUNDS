@@ -88,9 +88,24 @@ export class InMemoryFootballRepository implements FootballRepository {
     if (run) run.status = input.status;
   }
 
-  async listFixtures(input: { live?: boolean; limit?: number }): Promise<FootballFixtureSummary[]> {
+  async listFixtures(input: {
+    live?: boolean;
+    limit?: number;
+    search?: string;
+    league?: string;
+    date?: string;
+  }): Promise<FootballFixtureSummary[]> {
     const fixtures = Array.from(this.fixtures.values())
       .filter((fixture) => (input.live ? fixture.status === "LIVE" : true))
+      .filter((fixture) => (input.league ? fixture.leagueName.toLowerCase().includes(input.league.toLowerCase()) : true))
+      .filter((fixture) =>
+        input.search
+          ? `${fixture.homeTeamName} ${fixture.awayTeamName} ${fixture.leagueName}`
+              .toLowerCase()
+              .includes(input.search.toLowerCase())
+          : true,
+      )
+      .filter((fixture) => (input.date ? fixture.kickoffAt.startsWith(input.date) : true))
       .slice(0, input.limit ?? 25);
 
     return fixtures.map(({ standings, injuries, odds, headToHeadRecords, season, round, referee, ...fixture }) => fixture);
