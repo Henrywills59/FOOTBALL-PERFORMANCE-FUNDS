@@ -219,6 +219,7 @@ export class PrismaFootballRepository implements FootballRepository {
         awayTeam: true,
         injuries: { include: { team: true } },
         odds: true,
+        headToHeadRecords: true,
       },
     });
     if (!fixture) return null;
@@ -252,10 +253,16 @@ export class PrismaFootballRepository implements FootballRepository {
         reason: injury.reason,
       })),
       odds: fixture.odds.map((odd) => ({
+        id: odd.id,
         bookmaker: odd.bookmaker,
         market: odd.market,
         outcome: odd.outcome,
         price: odd.price,
+        updatedAt: odd.updatedAt.toISOString(),
+      })),
+      headToHeadRecords: fixture.headToHeadRecords.map((record) => ({
+        id: record.id,
+        updatedAt: record.updatedAt.toISOString(),
       })),
     };
   }

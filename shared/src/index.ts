@@ -67,10 +67,16 @@ export type FootballFixtureDetail = FootballFixtureSummary & {
     reason: string | null;
   }>;
   odds: Array<{
+    id: string;
     bookmaker: string;
     market: string;
     outcome: string;
     price: number;
+    updatedAt: string;
+  }>;
+  headToHeadRecords: Array<{
+    id: string;
+    updatedAt: string;
   }>;
 };
 
@@ -80,4 +86,26 @@ export type FootballSyncStatus = {
   lastRunAt: string | null;
   lastRunStatus: "SUCCESS" | "FAILED" | "RUNNING" | null;
   nextRunHint: string;
+};
+
+export type PredictionApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type PredictionDataQualityStatus = "READY" | "INSUFFICIENT_DATA" | "STALE_ODDS";
+
+export type PredictionResult = {
+  id?: string;
+  fixtureId: string;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  confidenceScore: number;
+  riskScore: number;
+  valueRating: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+  explanation: string;
+  dataQualityStatus: PredictionDataQualityStatus;
+  approvalStatus: PredictionApprovalStatus;
+  edge: number | null;
+  impliedProbability: number | null;
+  modelProbability: number | null;
+  staleOdds: boolean;
+  riskyMarket: boolean;
+  createdAt?: string;
 };

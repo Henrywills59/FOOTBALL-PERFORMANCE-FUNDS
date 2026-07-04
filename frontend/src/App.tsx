@@ -4,6 +4,7 @@ import type {
   AuthUser,
   FootballFixtureDetail,
   FootballFixtureSummary,
+  PredictionResult,
   PublicUserRole,
 } from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
@@ -47,6 +48,8 @@ export default function App() {
   const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
   const [selectedFixture, setSelectedFixture] = useState<FootballFixtureDetail | null>(null);
   const [footballStatus, setFootballStatus] = useState("Loading fixtures");
+  const [approvedPredictions, setApprovedPredictions] = useState<PredictionResult[]>([]);
+  const [adminPredictions, setAdminPredictions] = useState<PredictionResult[]>([]);
 
   const dashboardTitle = useMemo(() => {
     if (!session) {
@@ -62,6 +65,7 @@ export default function App() {
     }
 
     void loadFixtures(session.token);
+    void loadPredictions(session.token, session.user.role);
   }, [session]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
@@ -108,6 +112,20 @@ export default function App() {
     return data as T;
   }
 
+  async function apiPost<T>(path: string, token: string) {
+    const response = await fetch(`${apiUrl}/api${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error ?? "Request failed");
+    }
+    return data as T;
+  }
+
   async function loadFixtures(token: string) {
     try {
       setFootballStatus("Loading fixtures");
@@ -133,6 +151,26 @@ export default function App() {
     } catch (caughtError) {
       setFootballStatus(caughtError instanceof Error ? caughtError.message : "Unable to load match details");
     }
+  }
+
+  async function loadPredictions(token: string, role: AuthUser["role"]) {
+    try {
+      const approved = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
+      setApprovedPredictions(approved.predictions);
+
+      if (role === "ADMIN") {
+        const admin = await apiGet<{ predictions: PredictionResult[] }>("/admin/predictions", token);
+        setAdminPredictions(admin.predictions);
+      }
+    } catch {
+      setApprovedPredictions([]);
+    }
+  }
+
+  async function reviewPrediction(id: string, action: "approve" | "reject") {
+    if (!session) return;
+    await apiPost<{ prediction: PredictionResult }>(`/admin/predictions/${id}/${action}`, session.token);
+    await loadPredictions(session.token, session.user.role);
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -278,6 +316,46 @@ export default function App() {
                   <p className="mt-4 text-sm text-zinc-400">Select a fixture to see details.</p>
                 )}
               </div>
+            </section>
+            <section className="mt-4 grid gap-4 lg:grid-cols-2">
+              <PredictionPanel title="Approved Predictions" predictions={approvedPredictions} />
+              {session.user.role === "ADMIN" ? (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                  <h2 className="text-lg font-semibold">Admin Review</h2>
+                  <div className="mt-4 space-y-3">
+                    {adminPredictions.map((prediction) => (
+                      <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={prediction.id}>
+                        <p className="font-semibold">{prediction.predictedOutcome}</p>
+                        <p className="mt-1 text-sm text-zinc-400">{prediction.explanation}</p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.12em] text-zinc-500">
+                          {prediction.approvalStatus} · Confidence {prediction.confidenceScore}
+                        </p>
+                        {prediction.approvalStatus === "PENDING" ? (
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950"
+                              type="button"
+                              onClick={() => void reviewPrediction(prediction.id!, "approve")}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200"
+                              type="button"
+                              onClick={() => void reviewPrediction(prediction.id!, "reject")}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                    {adminPredictions.length === 0 ? (
+                      <p className="text-sm text-zinc-400">No generated predictions awaiting review.</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </section>
           </div>
 
@@ -455,5 +533,33 @@ function SubmitButton({ children }: { children: string }) {
     >
       {children}
     </button>
+  );
+}
+
+function PredictionPanel({
+  predictions,
+  title,
+}: {
+  predictions: PredictionResult[];
+  title: string;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="mt-4 space-y-3">
+        {predictions.map((prediction) => (
+          <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={prediction.id}>
+            <p className="font-semibold">{prediction.predictedOutcome}</p>
+            <p className="mt-1 text-sm text-zinc-400">{prediction.explanation}</p>
+            <p className="mt-2 text-xs uppercase tracking-[0.12em] text-zinc-500">
+              Confidence {prediction.confidenceScore} · Risk {prediction.riskScore} · {prediction.valueRating}
+            </p>
+          </div>
+        ))}
+        {predictions.length === 0 ? (
+          <p className="text-sm text-zinc-400">No approved predictions are available yet.</p>
+        ) : null}
+      </div>
+    </div>
   );
 }

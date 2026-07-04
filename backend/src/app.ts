@@ -14,6 +14,10 @@ import { createFootballRouter } from "./football/footballRoutes.js";
 import { FootballSyncService } from "./football/footballSyncService.js";
 import { OddsApiClient } from "./football/oddsApiClient.js";
 import type { FootballRepository } from "./football/types.js";
+import { PrismaPredictionRepository } from "./predictions/predictionRepository.js";
+import { createPredictionRouter } from "./predictions/predictionRoutes.js";
+import { PredictionService } from "./predictions/predictionService.js";
+import type { PredictionRepository } from "./predictions/types.js";
 
 const serviceVersion = process.env.npm_package_version ?? "0.1.0";
 const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
@@ -22,6 +26,7 @@ const defaultJwtSecret = "development-only-change-me";
 export function createApp(options?: {
   userRepository?: UserRepository;
   footballRepository?: FootballRepository;
+  predictionRepository?: PredictionRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -39,6 +44,9 @@ export function createApp(options?: {
     footballConfig,
   );
   const footballScheduler = new FootballJobScheduler(footballSyncService, footballConfig);
+  const predictionService = new PredictionService(
+    options?.predictionRepository ?? new PrismaPredictionRepository(),
+  );
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -71,6 +79,13 @@ export function createApp(options?: {
       scheduler: footballScheduler,
       config: footballConfig,
       authService,
+    }),
+  );
+  app.use(
+    "/api",
+    createPredictionRouter({
+      authService,
+      predictionService,
     }),
   );
   app.use(errorHandler);

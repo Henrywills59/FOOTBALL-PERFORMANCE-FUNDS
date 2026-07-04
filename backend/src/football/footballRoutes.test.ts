@@ -7,6 +7,7 @@ import { FootballJobScheduler } from "./footballJobs.js";
 import { FootballSyncService } from "./footballSyncService.js";
 import { InMemoryFootballRepository } from "./inMemoryFootballRepository.js";
 import { OddsApiClient } from "./oddsApiClient.js";
+import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 
 async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
   const footballRepository = new InMemoryFootballRepository();
@@ -26,6 +27,7 @@ async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
   const app = createApp({
     userRepository: new InMemoryUserRepository(),
     footballRepository,
+    predictionRepository: new InMemoryPredictionRepository([]),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });

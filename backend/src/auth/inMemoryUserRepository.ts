@@ -10,6 +10,10 @@ export class InMemoryUserRepository implements UserRepository {
   private users = new Map<string, StoredUser>();
   private resetTokens = new Map<string, PasswordResetRecord>();
 
+  seedUser(user: StoredUser) {
+    this.users.set(user.id, user);
+  }
+
   async createUser(input: CreateUserInput): Promise<StoredUser> {
     if (await this.findUserByEmail(input.email)) {
       throw new Error("Email already exists");

@@ -30,6 +30,7 @@ export class InMemoryFootballRepository implements FootballRepository {
       standings: [],
       injuries: [],
       odds: [],
+      headToHeadRecords: [],
     });
   }
 
@@ -66,12 +67,14 @@ export class InMemoryFootballRepository implements FootballRepository {
   async upsertOdd(input: OddUpsert): Promise<void> {
     if (!input.fixtureApiId) return;
     const fixture = this.fixtures.get(String(input.fixtureApiId));
-    fixture?.odds.push({
-      bookmaker: input.bookmaker,
-      market: input.market,
-      outcome: input.outcome,
-      price: input.price,
-    });
+      fixture?.odds.push({
+        id: `${input.fixtureApiId}-${input.bookmaker}-${input.market}-${input.outcome}`,
+        bookmaker: input.bookmaker,
+        market: input.market,
+        outcome: input.outcome,
+        price: input.price,
+        updatedAt: new Date().toISOString(),
+      });
   }
 
   async startSyncRun(): Promise<string> {
@@ -90,7 +93,7 @@ export class InMemoryFootballRepository implements FootballRepository {
       .filter((fixture) => (input.live ? fixture.status === "LIVE" : true))
       .slice(0, input.limit ?? 25);
 
-    return fixtures.map(({ standings, injuries, odds, season, round, referee, ...fixture }) => fixture);
+    return fixtures.map(({ standings, injuries, odds, headToHeadRecords, season, round, referee, ...fixture }) => fixture);
   }
 
   async getFixture(id: string): Promise<FootballFixtureDetail | null> {

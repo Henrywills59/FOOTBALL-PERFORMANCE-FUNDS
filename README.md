@@ -78,6 +78,7 @@ Included:
 - Backend health endpoint
 - Authentication and user roles
 - Football data sync and fixture display
+- Prediction generation and admin review
 - Shared types package
 - Prisma database package
 - Environment templates
@@ -94,6 +95,10 @@ Not included yet:
 ## Football Data
 
 Phase 3 adds API-Football and The Odds API integration through backend services. Provider keys are stored in environment variables, and automatic sync jobs are enabled with `ENABLE_FOOTBALL_JOBS=true`.
+
+## Prediction Review
+
+Phase 4 adds a prediction engine that reads stored football fixtures, standings, injuries, head-to-head records, and odds. Predictions remain pending until Admin approval, and only approved predictions appear in the subscriber-facing preview.
 
 ## Authentication
 

@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { InMemoryUserRepository } from "./inMemoryUserRepository.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
+import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 
 function testApp() {
   return createApp({
     userRepository: new InMemoryUserRepository(),
     footballRepository: new InMemoryFootballRepository(),
+    predictionRepository: new InMemoryPredictionRepository([]),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });

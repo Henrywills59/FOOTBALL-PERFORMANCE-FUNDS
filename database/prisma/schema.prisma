@@ -33,6 +33,18 @@ enum FootballSyncStatus {
   RUNNING
 }
 
+enum PredictionApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PredictionDataQualityStatus {
+  READY
+  INSUFFICIENT_DATA
+  STALE_ODDS
+}
+
 model User {
   id             String               @id @default(uuid())
   name           String
@@ -114,6 +126,7 @@ model FootballFixture {
   injuries             PlayerInjury[]
   headToHeadRecords    HeadToHeadRecord[]
   odds                 MatchOdd[]
+  predictions          MatchPrediction[]
 
   @@index([kickoffAt])
   @@index([status])
@@ -189,9 +202,36 @@ model MatchOdd {
   raw         Json
   updatedAt   DateTime        @updatedAt
   fixture     FootballFixture? @relation(fields: [fixtureId], references: [id], onDelete: SetNull)
+  predictions MatchPrediction[]
 
   @@index([fixtureId])
   @@index([fixtureApiId])
+}
+
+model MatchPrediction {
+  id                 String                      @id @default(uuid())
+  fixtureId          String
+  oddId              String
+  recommendedMarket  String
+  predictedOutcome   String
+  confidenceScore    Float
+  riskScore          Float
+  valueRating        String
+  explanation        String
+  dataQualityStatus  PredictionDataQualityStatus
+  approvalStatus     PredictionApprovalStatus    @default(PENDING)
+  edge               Float?
+  impliedProbability Float?
+  modelProbability   Float?
+  staleOdds          Boolean                     @default(false)
+  riskyMarket        Boolean                     @default(false)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  fixture            FootballFixture             @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  odd                MatchOdd                    @relation(fields: [oddId], references: [id], onDelete: Restrict)
+
+  @@index([fixtureId])
+  @@index([approvalStatus])
 }
 
 model FootballSyncRun {
