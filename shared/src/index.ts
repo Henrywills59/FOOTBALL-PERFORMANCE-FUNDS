@@ -32,3 +32,52 @@ export type DashboardRoute = {
   path: string;
   title: string;
 };
+
+export type FootballFixtureStatus = "SCHEDULED" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED";
+
+export type FootballFixtureSummary = {
+  id: string;
+  apiFootballFixtureId: number;
+  leagueName: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  kickoffAt: string;
+  status: FootballFixtureStatus;
+  homeScore: number | null;
+  awayScore: number | null;
+  venue: string | null;
+};
+
+export type FootballFixtureDetail = FootballFixtureSummary & {
+  season: number;
+  round: string | null;
+  referee: string | null;
+  standings: Array<{
+    teamName: string;
+    rank: number;
+    points: number;
+    played: number;
+    won: number;
+    drawn: number;
+    lost: number;
+  }>;
+  injuries: Array<{
+    playerName: string;
+    teamName: string;
+    reason: string | null;
+  }>;
+  odds: Array<{
+    bookmaker: string;
+    market: string;
+    outcome: string;
+    price: number;
+  }>;
+};
+
+export type FootballSyncStatus = {
+  jobsEnabled: boolean;
+  jobsStarted: boolean;
+  lastRunAt: string | null;
+  lastRunStatus: "SUCCESS" | "FAILED" | "RUNNING" | null;
+  nextRunHint: string;
+};

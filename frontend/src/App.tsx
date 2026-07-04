@@ -1,5 +1,11 @@
-import { FormEvent, useMemo, useState } from "react";
-import type { AuthResponse, AuthUser, PublicUserRole } from "@fpf/shared";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type {
+  AuthResponse,
+  AuthUser,
+  FootballFixtureDetail,
+  FootballFixtureSummary,
+  PublicUserRole,
+} from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -38,6 +44,9 @@ export default function App() {
   const [session, setSession] = useState<AuthResponse | null>(() => getStoredSession());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
+  const [selectedFixture, setSelectedFixture] = useState<FootballFixtureDetail | null>(null);
+  const [footballStatus, setFootballStatus] = useState("Loading fixtures");
 
   const dashboardTitle = useMemo(() => {
     if (!session) {
@@ -45,6 +54,14 @@ export default function App() {
     }
 
     return `${roleLabels[session.user.role]} Dashboard`;
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    void loadFixtures(session.token);
   }, [session]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
@@ -76,6 +93,46 @@ export default function App() {
     }
 
     return data;
+  }
+
+  async function apiGet<T>(path: string, token: string) {
+    const response = await fetch(`${apiUrl}/api${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error ?? "Request failed");
+    }
+    return data as T;
+  }
+
+  async function loadFixtures(token: string) {
+    try {
+      setFootballStatus("Loading fixtures");
+      const data = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=10", token);
+      setFixtures(data.fixtures);
+      setFootballStatus(data.fixtures.length ? "Fixtures loaded" : "No fixtures synced yet");
+      if (data.fixtures[0]) {
+        await loadFixtureDetail(data.fixtures[0].id, token);
+      }
+    } catch (caughtError) {
+      setFootballStatus(caughtError instanceof Error ? caughtError.message : "Unable to load fixtures");
+    }
+  }
+
+  async function loadFixtureDetail(id: string, token = session?.token) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const data = await apiGet<{ fixture: FootballFixtureDetail }>(`/football/fixtures/${id}`, token);
+      setSelectedFixture(data.fixture);
+    } catch (caughtError) {
+      setFootballStatus(caughtError instanceof Error ? caughtError.message : "Unable to load match details");
+    }
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -148,7 +205,7 @@ export default function App() {
   if (session) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white">
-        <section className="mx-auto grid min-h-screen w-full max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[1fr_340px] lg:items-center">
+        <section className="mx-auto grid min-h-screen w-full max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[1fr_340px] lg:items-start">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
               Football Performance Fund
@@ -167,6 +224,61 @@ export default function App() {
                 value={new Date(session.user.createdAt).toLocaleDateString()}
               />
             </div>
+            <section className="mt-8 grid gap-4 lg:grid-cols-[320px_1fr]">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold">Live Fixtures</h2>
+                  <button
+                    className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 transition hover:border-emerald-300"
+                    type="button"
+                    onClick={() => void loadFixtures(session.token)}
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <p className="mt-2 text-sm text-zinc-400">{footballStatus}</p>
+                <div className="mt-4 space-y-2">
+                  {fixtures.map((fixture) => (
+                    <button
+                      className="w-full rounded-md border border-zinc-800 bg-zinc-950 p-3 text-left transition hover:border-emerald-300"
+                      key={fixture.id}
+                      type="button"
+                      onClick={() => void loadFixtureDetail(fixture.id)}
+                    >
+                      <span className="block text-xs uppercase tracking-[0.12em] text-zinc-500">
+                        {fixture.leagueName}
+                      </span>
+                      <span className="mt-1 block font-semibold">
+                        {fixture.homeTeamName} vs {fixture.awayTeamName}
+                      </span>
+                      <span className="mt-1 block text-sm text-zinc-400">
+                        {fixture.status} · {fixture.homeScore ?? "-"}-{fixture.awayScore ?? "-"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                <h2 className="text-lg font-semibold">Match Details</h2>
+                {selectedFixture ? (
+                  <div className="mt-4 space-y-4 text-sm text-zinc-300">
+                    <p className="text-base font-semibold text-white">
+                      {selectedFixture.homeTeamName} vs {selectedFixture.awayTeamName}
+                    </p>
+                    <p>{new Date(selectedFixture.kickoffAt).toLocaleString()}</p>
+                    <p>{selectedFixture.venue ?? "Venue pending"}</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <DashboardTile label="Injuries" value={String(selectedFixture.injuries.length)} />
+                      <DashboardTile label="Odds" value={String(selectedFixture.odds.length)} />
+                      <DashboardTile label="Standings" value={String(selectedFixture.standings.length)} />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-zinc-400">Select a fixture to see details.</p>
+                )}
+              </div>
+            </section>
           </div>
 
           <aside className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">

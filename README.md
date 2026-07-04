@@ -77,6 +77,7 @@ Included:
 - Frontend placeholder
 - Backend health endpoint
 - Authentication and user roles
+- Football data sync and fixture display
 - Shared types package
 - Prisma database package
 - Environment templates
@@ -89,6 +90,10 @@ Not included yet:
 - Football APIs
 - AI features
 - Investor features
+
+## Football Data
+
+Phase 3 adds API-Football and The Odds API integration through backend services. Provider keys are stored in environment variables, and automatic sync jobs are enabled with `ENABLE_FOOTBALL_JOBS=true`.
 
 ## Authentication
 
