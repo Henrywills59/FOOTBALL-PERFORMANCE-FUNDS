@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type { PredictionResult } from "@fpf/shared";
 import type { PredictionRepository } from "./types.js";
 
@@ -42,7 +43,7 @@ function toPrediction(row: {
 }
 
 export class PrismaPredictionRepository implements PredictionRepository {
-  constructor(private readonly prisma = new PrismaClient()) {}
+  constructor(private readonly prisma = sharedPrisma) {}
 
   async getFixtureForPrediction(fixtureId: string) {
     const fixture = await this.prisma.footballFixture.findUnique({

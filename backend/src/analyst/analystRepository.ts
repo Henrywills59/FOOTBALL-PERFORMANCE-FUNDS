@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type {
   AnalystAssignment,
   AnalystDashboard,
@@ -96,7 +97,7 @@ const submissionInclude = {
 };
 
 export class PrismaAnalystRepository implements AnalystRepository {
-  constructor(private readonly prisma = new PrismaClient()) {}
+  constructor(private readonly prisma = sharedPrisma) {}
 
   async dashboard(analystId: string): Promise<AnalystDashboard> {
     const [assignments, submissions] = await Promise.all([

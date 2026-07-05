@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type { InvestorWallet, WalletTransaction } from "@fpf/shared";
 import type { WalletRepository } from "./types.js";
 
@@ -25,7 +26,7 @@ function txRow(tx: {
 }
 
 export class PrismaWalletRepository implements WalletRepository {
-  constructor(private readonly prisma = new PrismaClient()) {}
+  constructor(private readonly prisma = sharedPrisma) {}
 
   async getWallet(userId: string): Promise<InvestorWallet> {
     const wallet = await this.prisma.investorWallet.upsert({

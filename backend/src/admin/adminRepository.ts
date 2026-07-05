@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type { AdminSettings, AdminUser } from "@fpf/shared";
 import type { AdminRepository, AuditInput } from "./types.js";
 
@@ -30,7 +31,7 @@ function userRow(user: {
 }
 
 export class PrismaAdminRepository implements AdminRepository {
-  constructor(private readonly prisma = new PrismaClient()) {}
+  constructor(private readonly prisma = sharedPrisma) {}
 
   async overview() {
     const today = new Date();

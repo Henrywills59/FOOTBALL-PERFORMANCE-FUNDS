@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type {
   CreateUserInput,
   PasswordResetRecord,
@@ -27,7 +28,7 @@ function toStoredUser(user: {
 }
 
 export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly prisma = new PrismaClient()) {}
+  constructor(private readonly prisma = sharedPrisma) {}
 
   async createUser(input: CreateUserInput): Promise<StoredUser> {
     const user = await this.prisma.user.create({

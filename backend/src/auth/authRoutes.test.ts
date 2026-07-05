@@ -1,7 +1,9 @@
 import request from "supertest";
+import bcrypt from "bcryptjs";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { InMemoryUserRepository } from "./inMemoryUserRepository.js";
+import { defaultDemoUserPassword, demoUsers } from "./demoUsers.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
@@ -11,6 +13,33 @@ import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js"
 function testApp() {
   return createApp({
     userRepository: new InMemoryUserRepository(),
+    footballRepository: new InMemoryFootballRepository(),
+    predictionRepository: new InMemoryPredictionRepository([]),
+    adminRepository: new InMemoryAdminRepository(),
+    investorRepository: new InMemoryInvestorRepository(),
+    walletRepository: new InMemoryWalletRepository(),
+    jwtSecret: "test-secret",
+    startFootballJobs: false,
+  });
+}
+
+async function testAppWithDemoUsers() {
+  const userRepository = new InMemoryUserRepository();
+  const passwordHash = await bcrypt.hash(defaultDemoUserPassword, 12);
+  for (const [index, user] of demoUsers.entries()) {
+    userRepository.seedUser({
+      id: `demo-${index}`,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: "ACTIVE",
+      passwordHash,
+      createdAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+    });
+  }
+
+  return createApp({
+    userRepository,
     footballRepository: new InMemoryFootballRepository(),
     predictionRepository: new InMemoryPredictionRepository([]),
     adminRepository: new InMemoryAdminRepository(),
@@ -65,6 +94,35 @@ describe("auth routes", () => {
 
     expect(response.body.expiresIn).toBe("30d");
     expect(response.body.user.email).toBe(validRegistration.email);
+  });
+
+  it("logs in demo users and returns their role dashboards", async () => {
+    const app = await testAppWithDemoUsers();
+    const expectedDashboardPaths = {
+      ADMIN: "/dashboard/admin",
+      INVESTOR: "/dashboard/investor",
+      SUBSCRIBER: "/dashboard/subscriber",
+    };
+
+    for (const user of demoUsers) {
+      const login = await request(app)
+        .post("/api/auth/login")
+        .send({
+          email: user.email,
+          password: defaultDemoUserPassword,
+          rememberMe: false,
+        })
+        .expect(200);
+
+      expect(login.body.user.role).toBe(user.role);
+
+      const dashboard = await request(app)
+        .get("/api/dashboards/me")
+        .set("Authorization", `Bearer ${login.body.token}`)
+        .expect(200);
+
+      expect(dashboard.body.path).toBe(expectedDashboardPaths[user.role]);
+    }
   });
 
   it("routes users to the correct role dashboard", async () => {
