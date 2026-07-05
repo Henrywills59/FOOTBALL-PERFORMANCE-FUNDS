@@ -10,11 +10,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "backend/api/index.ts"
+      "dest": "/backend/api/index.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "backend/api/index.ts"
+      "dest": "/backend/api/index.ts"
     }
   ]
 }
