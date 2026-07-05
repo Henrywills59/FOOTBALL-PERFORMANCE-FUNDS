@@ -61,7 +61,7 @@ export class AdminService {
     return this.repository.syncLogs();
   }
 
-  audit(actorUserId: string, action: string, entityType: string, entityId?: string) {
+  audit(actorUserId: string | null, action: string, entityType: string, entityId?: string) {
     return this.repository.audit({ actorUserId, action, entityType, entityId });
   }
 }

@@ -191,3 +191,28 @@ export type InvestorDashboard = {
   currentStatus: string;
   investmentHistory: InvestorInvestment[];
 };
+
+export type WalletTransaction = {
+  id: string;
+  type: "DEPOSIT" | "WITHDRAWAL" | "INVESTMENT" | "ADJUSTMENT";
+  status: "PENDING" | "CONFIRMED" | "FAILED" | "APPROVED" | "REJECTED";
+  amountCents: number;
+  currency: string;
+  externalPaymentId: string | null;
+  invoiceUrl: string | null;
+  createdAt: string;
+};
+
+export type InvestorWallet = {
+  availableBalanceCents: number;
+  pendingBalanceCents: number;
+  investmentBalanceCents: number;
+  withdrawalBalanceCents: number;
+  transactions: WalletTransaction[];
+};
+
+export type DepositInvoice = {
+  transactionId: string;
+  invoiceUrl: string;
+  status: WalletTransaction["status"];
+};

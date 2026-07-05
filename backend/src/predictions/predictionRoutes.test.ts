@@ -9,6 +9,7 @@ import { PredictionEngine } from "./predictionEngine.js";
 import { InMemoryPredictionRepository } from "./inMemoryPredictionRepository.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
+import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
 
 function fixture(overrides: Partial<FootballFixtureDetail> = {}): FootballFixtureDetail {
   return {
@@ -108,6 +109,7 @@ describe("prediction routes", () => {
       predictionRepository,
       adminRepository: new InMemoryAdminRepository(),
       investorRepository: new InMemoryInvestorRepository(),
+      walletRepository: new InMemoryWalletRepository(),
       jwtSecret: "test-secret",
       startFootballJobs: false,
     });

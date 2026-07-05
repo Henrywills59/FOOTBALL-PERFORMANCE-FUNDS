@@ -26,6 +26,11 @@ import { PrismaPredictionRepository } from "./predictions/predictionRepository.j
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
 import type { PredictionRepository } from "./predictions/types.js";
+import { getNowPaymentsConfig, NowPaymentsClient } from "./wallet/nowPaymentsClient.js";
+import { PrismaWalletRepository } from "./wallet/walletRepository.js";
+import { createWalletRouter } from "./wallet/walletRoutes.js";
+import { WalletService } from "./wallet/walletService.js";
+import type { WalletRepository } from "./wallet/types.js";
 
 const serviceVersion = process.env.npm_package_version ?? "0.1.0";
 const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
@@ -37,6 +42,7 @@ export function createApp(options?: {
   predictionRepository?: PredictionRepository;
   adminRepository?: AdminRepository;
   investorRepository?: InvestorRepository;
+  walletRepository?: WalletRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -60,6 +66,11 @@ export function createApp(options?: {
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
   const investorService = new InvestorService(
     options?.investorRepository ?? new PrismaInvestorRepository(),
+    adminService,
+  );
+  const walletService = new WalletService(
+    options?.walletRepository ?? new PrismaWalletRepository(),
+    new NowPaymentsClient(getNowPaymentsConfig()),
     adminService,
   );
 
@@ -118,6 +129,13 @@ export function createApp(options?: {
     createInvestorRouter({
       authService,
       investorService,
+    }),
+  );
+  app.use(
+    "/api",
+    createWalletRouter({
+      authService,
+      walletService,
     }),
   );
   app.use(errorHandler);

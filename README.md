@@ -115,6 +115,10 @@ Phase 6 adds admin-only platform management for users, predictions, fixtures, au
 
 Phase 7 adds a conventional investor portal with investment plans, portfolio tracking, reports, and withdrawal requests. It does not include payment gateways, NOWPayments, wallet functionality, or cryptocurrency features.
 
+## Wallet & NOWPayments
+
+Phase 8 adds investor wallet balances, transaction history, NOWPayments deposit invoices, verified IPN handling, confirmed-only wallet credits, and admin-approved wallet withdrawals. API keys remain backend-only.
+
 ## Authentication
 
 Phase 2 adds:

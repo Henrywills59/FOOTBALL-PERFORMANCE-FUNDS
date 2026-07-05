@@ -7,6 +7,7 @@ import { InMemoryUserRepository } from "../auth/inMemoryUserRepository.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryInvestorRepository } from "./inMemoryInvestorRepository.js";
+import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
 
 function seedUser(users: InMemoryUserRepository, role: "INVESTOR" | "SUBSCRIBER" | "ADMIN") {
   const id = `${role.toLowerCase()}-user`;
@@ -35,6 +36,7 @@ function testApp() {
     predictionRepository: new InMemoryPredictionRepository([]),
     adminRepository,
     investorRepository,
+    walletRepository: new InMemoryWalletRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });

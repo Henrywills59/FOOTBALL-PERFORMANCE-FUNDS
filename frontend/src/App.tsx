@@ -13,6 +13,7 @@ import type {
   InvestorDashboard,
   InvestorInvestment,
   InvestorReport,
+  InvestorWallet,
   PredictionResult,
   PublicUserRole,
   WithdrawalRequest,
@@ -22,12 +23,12 @@ import { PUBLIC_USER_ROLES } from "@fpf/shared";
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const navItems = ["Dashboard", "Match Center", "Smart Bet Slip", "Daily Opportunities", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
-const investorNavItems = ["Investor Dashboard", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
+const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
-type InvestorNavItem = (typeof investorNavItems)[number];
+type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
@@ -74,6 +75,7 @@ export default function App() {
   const [portfolio, setPortfolio] = useState<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>({ active: [], completed: [] });
   const [investorReports, setInvestorReports] = useState<InvestorReport[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [wallet, setWallet] = useState<InvestorWallet | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -201,18 +203,20 @@ export default function App() {
 
   async function loadInvestorData(token: string) {
     try {
-      const [dashboard, plans, portfolioData, reports, withdrawalData] = await Promise.all([
+      const [dashboard, plans, portfolioData, reports, withdrawalData, walletData] = await Promise.all([
         apiGet<InvestorDashboard>("/investor/dashboard", token),
         apiGet<{ plans: InvestmentPlan[] }>("/investor/plans", token),
         apiGet<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>("/investor/portfolio", token),
         apiGet<{ reports: InvestorReport[] }>("/investor/reports", token),
         apiGet<{ withdrawals: WithdrawalRequest[] }>("/investor/withdrawals", token),
+        apiGet<InvestorWallet>("/wallet", token),
       ]);
       setInvestorDashboard(dashboard);
       setInvestmentPlans(plans.plans);
       setPortfolio(portfolioData);
       setInvestorReports(reports.reports);
       setWithdrawals(withdrawalData.withdrawals);
+      setWallet(walletData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load investor portal");
     }
@@ -373,7 +377,7 @@ export default function App() {
   const navigationItems = adminMode
     ? adminNavItems
     : session.user.role === "INVESTOR"
-      ? investorNavItems
+      ? investorNavItemsWithWallet
       : navItems;
 
   return (
@@ -463,6 +467,7 @@ export default function App() {
               plans={investmentPlans}
               portfolio={portfolio}
               reports={investorReports}
+              wallet={wallet}
               withdrawals={withdrawals}
               onAction={investorAction}
             />
@@ -672,6 +677,7 @@ function InvestorPortal({
   plans,
   portfolio,
   reports,
+  wallet,
   withdrawals,
 }: {
   activeView: InvestorNavItem;
@@ -680,6 +686,7 @@ function InvestorPortal({
   plans: InvestmentPlan[];
   portfolio: { active: InvestorInvestment[]; completed: InvestorInvestment[] };
   reports: InvestorReport[];
+  wallet: InvestorWallet | null;
   withdrawals: WithdrawalRequest[];
 }) {
   if (activeView === "Investor Dashboard") {
@@ -695,6 +702,65 @@ function InvestorPortal({
         </div>
         <Panel title="Investment History">
           <InvestmentList investments={dashboard?.investmentHistory ?? []} />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Wallet") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Available balance" value={money(wallet?.availableBalanceCents ?? 0)} />
+          <Metric label="Pending balance" value={money(wallet?.pendingBalanceCents ?? 0)} />
+          <Metric label="Investment balance" value={money(wallet?.investmentBalanceCents ?? 0)} />
+          <Metric label="Withdrawal balance" value={money(wallet?.withdrawalBalanceCents ?? 0)} />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title="Crypto Deposit Invoice">
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                void onAction("/wallet/deposits", {
+                  amountCents: Math.round(Number(form.get("amount")) * 100),
+                });
+              }}
+            >
+              <p className="text-sm text-zinc-400">Invoices are created securely on the server. API keys are never exposed in the browser.</p>
+              <TextField label="Deposit amount" name="amount" type="number" />
+              <SubmitButton>Create invoice</SubmitButton>
+            </form>
+          </Panel>
+          <Panel title="Wallet Withdrawal">
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                void onAction("/wallet/withdrawals", {
+                  amountCents: Math.round(Number(form.get("amount")) * 100),
+                });
+              }}
+            >
+              <p className="text-sm text-zinc-400">Withdrawal requests require admin approval before payout processing.</p>
+              <TextField label="Withdrawal amount" name="amount" type="number" />
+              <SubmitButton>Request withdrawal</SubmitButton>
+            </form>
+          </Panel>
+        </div>
+        <Panel title="Transaction History">
+          <div className="space-y-2">
+            {(wallet?.transactions ?? []).map((transaction) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={transaction.id}>
+                <p className="font-semibold">{transaction.type} · {transaction.status} · {money(transaction.amountCents)}</p>
+                <p className="mt-1 text-sm text-zinc-400">{new Date(transaction.createdAt).toLocaleString()}</p>
+                {transaction.invoiceUrl ? <a className="text-sm text-emerald-300" href={transaction.invoiceUrl}>Open invoice</a> : null}
+              </div>
+            ))}
+            {!(wallet?.transactions.length) ? <p className="text-sm text-zinc-400">No wallet transactions yet.</p> : null}
+          </div>
         </Panel>
       </div>
     );
