@@ -11,6 +11,10 @@ import {
   resetPasswordSchema,
 } from "./validation.js";
 
+type RegisterInput = Parameters<AuthService["register"]>[0];
+type LoginInput = Parameters<AuthService["login"]>[0];
+type ResetPasswordInput = Parameters<AuthService["resetPassword"]>[0];
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 100,
@@ -31,7 +35,7 @@ export function createAuthRouter(authService: AuthService) {
 
   router.post("/auth/register", authLimiter, async (request, response, next) => {
     try {
-      const input = registerSchema.parse(request.body);
+      const input = registerSchema.parse(request.body) as RegisterInput;
       response.status(201).json(await authService.register(input));
     } catch (error) {
       next(error);
@@ -40,7 +44,7 @@ export function createAuthRouter(authService: AuthService) {
 
   router.post("/auth/login", authLimiter, async (request, response, next) => {
     try {
-      const input = loginSchema.parse(request.body);
+      const input = loginSchema.parse(request.body) as LoginInput;
       response.status(200).json(await authService.login(input));
     } catch (error) {
       next(error);
@@ -62,7 +66,7 @@ export function createAuthRouter(authService: AuthService) {
 
   router.post("/auth/reset-password", passwordResetLimiter, async (request, response, next) => {
     try {
-      const input = resetPasswordSchema.parse(request.body);
+      const input = resetPasswordSchema.parse(request.body) as ResetPasswordInput;
       response.status(200).json(await authService.resetPassword(input));
     } catch (error) {
       next(error);

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { AnalystService } from "./analystService.js";
+import type { CreateAssignmentInput, CreateSubmissionInput } from "./types.js";
 
 const submissionSchema = z.object({
   fixtureId: z.string().min(1),
@@ -63,7 +64,7 @@ export function createAnalystRouter(input: {
 
   router.post("/analyst/intelligence", ...analystOnly, async (request, response, next) => {
     try {
-      const body = submissionSchema.parse(request.body);
+      const body = submissionSchema.parse(request.body) as Omit<CreateSubmissionInput, "analystId">;
       const submission = await input.analystService.createSubmission({
         ...body,
         analystId: request.user!.id,
@@ -105,7 +106,7 @@ export function createAnalystRouter(input: {
 
   router.post("/admin/intelligence/assign", ...adminOnly, async (request, response, next) => {
     try {
-      const body = assignmentSchema.parse(request.body);
+      const body = assignmentSchema.parse(request.body) as CreateAssignmentInput;
       response.status(201).json({
         assignment: await input.analystService.createAssignment(request.user!.id, body),
       });
