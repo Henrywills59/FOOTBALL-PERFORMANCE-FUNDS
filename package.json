@@ -11,8 +11,6 @@
   ],
   "scripts": {
     "build": "npm run build -w shared && npm run build -w database && npm run build -w backend && npm run build -w frontend",
-    "build:backend": "npm run build -w shared && npm run build -w database && npm run build -w backend",
-    "install:backend": "npm ci && npm run build -w shared",
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run build -w shared && npm run test --workspaces --if-present",

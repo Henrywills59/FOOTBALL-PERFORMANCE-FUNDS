@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "installCommand": "npm run install:backend",
-  "buildCommand": "npm run build:backend",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build -w shared && npm run build -w database && npm run build -w backend",
   "builds": [
     {
       "src": "backend/api/index.ts",
