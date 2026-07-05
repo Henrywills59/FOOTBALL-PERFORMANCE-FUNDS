@@ -1,14 +1,15 @@
 {
   "version": 2,
-  "functions": {
-    "backend/api/index.ts": {
-      "runtime": "@vercel/node"
-    }
-  },
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/backend/api/index.ts"
+      "src": "backend/api/index.ts",
+      "use": "@vercel/node@latest"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "backend/api/index.ts"
     }
   ]
 }
