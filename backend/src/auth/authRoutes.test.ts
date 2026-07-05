@@ -5,6 +5,7 @@ import { InMemoryUserRepository } from "./inMemoryUserRepository.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
+import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 
 function testApp() {
   return createApp({
@@ -12,6 +13,7 @@ function testApp() {
     footballRepository: new InMemoryFootballRepository(),
     predictionRepository: new InMemoryPredictionRepository([]),
     adminRepository: new InMemoryAdminRepository(),
+    investorRepository: new InMemoryInvestorRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });

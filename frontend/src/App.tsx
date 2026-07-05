@@ -9,18 +9,25 @@ import type {
   AuthUser,
   FootballFixtureDetail,
   FootballFixtureSummary,
+  InvestmentPlan,
+  InvestorDashboard,
+  InvestorInvestment,
+  InvestorReport,
   PredictionResult,
   PublicUserRole,
+  WithdrawalRequest,
 } from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const navItems = ["Dashboard", "Match Center", "Smart Bet Slip", "Daily Opportunities", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const investorNavItems = ["Investor Dashboard", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
+type InvestorNavItem = (typeof investorNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
@@ -45,6 +52,7 @@ export default function App() {
   const [session, setSession] = useState<AuthResponse | null>(() => getStoredSession());
   const [activeView, setActiveView] = useState<NavItem>("Dashboard");
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
+  const [activeInvestorView, setActiveInvestorView] = useState<InvestorNavItem>("Investor Dashboard");
   const [adminMode, setAdminMode] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -61,11 +69,17 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [investorDashboard, setInvestorDashboard] = useState<InvestorDashboard | null>(null);
+  const [investmentPlans, setInvestmentPlans] = useState<InvestmentPlan[]>([]);
+  const [portfolio, setPortfolio] = useState<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>({ active: [], completed: [] });
+  const [investorReports, setInvestorReports] = useState<InvestorReport[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
 
   useEffect(() => {
     if (!session) return;
     void loadSubscriberData(session.token);
     if (session.user.role === "ADMIN") void loadAdminData(session.token);
+    if (session.user.role === "INVESTOR") void loadInvestorData(session.token);
   }, [session]);
 
   const combinedOdds = useMemo(
@@ -183,6 +197,31 @@ export default function App() {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
+  }
+
+  async function loadInvestorData(token: string) {
+    try {
+      const [dashboard, plans, portfolioData, reports, withdrawalData] = await Promise.all([
+        apiGet<InvestorDashboard>("/investor/dashboard", token),
+        apiGet<{ plans: InvestmentPlan[] }>("/investor/plans", token),
+        apiGet<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>("/investor/portfolio", token),
+        apiGet<{ reports: InvestorReport[] }>("/investor/reports", token),
+        apiGet<{ withdrawals: WithdrawalRequest[] }>("/investor/withdrawals", token),
+      ]);
+      setInvestorDashboard(dashboard);
+      setInvestmentPlans(plans.plans);
+      setPortfolio(portfolioData);
+      setInvestorReports(reports.reports);
+      setWithdrawals(withdrawalData.withdrawals);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load investor portal");
+    }
+  }
+
+  async function investorAction(path: string, body: object) {
+    if (!session) return;
+    await apiPost(path, session.token, body);
+    await loadInvestorData(session.token);
   }
 
   async function adminAction(path: string, body?: object) {
@@ -331,6 +370,11 @@ export default function App() {
   const featured = predictions.slice(0, 3);
   const daily = [...predictions].sort((a, b) => b.confidenceScore - a.confidenceScore);
   const recent = predictions.slice(0, 5);
+  const navigationItems = adminMode
+    ? adminNavItems
+    : session.user.role === "INVESTOR"
+      ? investorNavItems
+      : navItems;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -341,17 +385,25 @@ export default function App() {
             <h1 className="mt-2 text-xl font-bold">Command Center</h1>
           </div>
           <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1">
-            {(adminMode ? adminNavItems : navItems).map((item) => (
+            {navigationItems.map((item) => (
               <button
                 className={`rounded-md px-3 py-3 text-left text-sm font-medium transition ${
-                  (adminMode ? activeAdminView === item : activeView === item)
+                  (adminMode
+                    ? activeAdminView === item
+                    : session.user.role === "INVESTOR"
+                      ? activeInvestorView === item
+                      : activeView === item)
                     ? "bg-emerald-300 text-zinc-950"
                     : "bg-zinc-900 text-zinc-300 hover:text-white"
                 }`}
                 key={item}
                 type="button"
                 onClick={() =>
-                  adminMode ? setActiveAdminView(item as AdminNavItem) : setActiveView(item as NavItem)
+                  adminMode
+                    ? setActiveAdminView(item as AdminNavItem)
+                    : session.user.role === "INVESTOR"
+                      ? setActiveInvestorView(item as InvestorNavItem)
+                      : setActiveView(item as NavItem)
                 }
               >
                 {item}
@@ -404,10 +456,22 @@ export default function App() {
             />
           ) : null}
 
-          {!adminMode && activeView === "Dashboard" ? (
+          {!adminMode && session.user.role === "INVESTOR" ? (
+            <InvestorPortal
+              activeView={activeInvestorView}
+              dashboard={investorDashboard}
+              plans={investmentPlans}
+              portfolio={portfolio}
+              reports={investorReports}
+              withdrawals={withdrawals}
+              onAction={investorAction}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Dashboard" ? (
             <DashboardView featured={featured} recent={recent} predictions={predictions} onAdd={addToSlip} />
           ) : null}
-          {!adminMode && activeView === "Match Center" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Match Center" ? (
             <MatchCenterView
               filters={filters}
               fixtures={fixtures}
@@ -419,7 +483,7 @@ export default function App() {
               onSelectPrediction={setSelectedPrediction}
             />
           ) : null}
-          {!adminMode && activeView === "Smart Bet Slip" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Smart Bet Slip" ? (
             <SmartSlipView
               combinedOdds={combinedOdds}
               overallConfidence={overallConfidence}
@@ -428,14 +492,14 @@ export default function App() {
               onRemove={removeFromSlip}
             />
           ) : null}
-          {!adminMode && activeView === "Daily Opportunities" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Daily Opportunities" ? (
             <OpportunityList predictions={daily} onAdd={addToSlip} onSelect={setSelectedPrediction} />
           ) : null}
-          {!adminMode && activeView === "Profile" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Profile" ? (
             <ProfileView session={session} onPasswordChange={safelySubmit(handlePasswordChange)} />
           ) : null}
 
-          {!adminMode && activeView !== "Profile" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && activeView !== "Profile" ? (
             <PredictionDetail prediction={selectedPrediction} onAdd={addToSlip} />
           ) : null}
         </section>
@@ -598,6 +662,139 @@ function AdminPortal({
         <div className="md:col-span-2"><SubmitButton>Save settings</SubmitButton></div>
       </form>
     </Panel>
+  );
+}
+
+function InvestorPortal({
+  activeView,
+  dashboard,
+  onAction,
+  plans,
+  portfolio,
+  reports,
+  withdrawals,
+}: {
+  activeView: InvestorNavItem;
+  dashboard: InvestorDashboard | null;
+  onAction: (path: string, body: object) => Promise<void>;
+  plans: InvestmentPlan[];
+  portfolio: { active: InvestorInvestment[]; completed: InvestorInvestment[] };
+  reports: InvestorReport[];
+  withdrawals: WithdrawalRequest[];
+}) {
+  if (activeView === "Investor Dashboard") {
+    return (
+      <div className="mt-6 space-y-4">
+        <RiskDisclaimer />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Total investment" value={money(dashboard?.totalInvestmentCents ?? 0)} />
+          <Metric label="Portfolio value" value={money(dashboard?.currentPortfolioValueCents ?? 0)} />
+          <Metric label="Weekly ROI" value={`${(dashboard?.weeklyRoiPercent ?? 0).toFixed(2)}%`} />
+          <Metric label="Lifetime ROI" value={`${(dashboard?.lifetimeRoiPercent ?? 0).toFixed(2)}%`} />
+          <Metric label="Status" value={dashboard?.currentStatus ?? "Pending"} />
+        </div>
+        <Panel title="Investment History">
+          <InvestmentList investments={dashboard?.investmentHistory ?? []} />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Investment Plans") {
+    return (
+      <Panel title="Investment Plans">
+        <RiskDisclaimer />
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {plans.map((plan) => (
+            <form
+              className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+              key={plan.id}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                void onAction("/investor/investments", {
+                  planId: plan.id,
+                  amountCents: Math.round(Number(form.get("amount")) * 100),
+                  riskAccepted: form.get("riskAccepted") === "on",
+                });
+              }}
+            >
+              <h3 className="text-lg font-semibold">{plan.name}</h3>
+              <p className="mt-2 text-sm text-zinc-400">{plan.description}</p>
+              <p className="mt-3 text-sm text-zinc-300">Range: {money(plan.minimumInvestmentCents)} to {money(plan.maximumInvestmentCents)}</p>
+              <p className="mt-2 text-sm text-zinc-400">{plan.historicalPerformanceNote}</p>
+              <p className="mt-2 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">{plan.riskDisclosure}</p>
+              <TextField label="Investment amount" name="amount" type="number" />
+              <label className="mt-3 flex items-center gap-3 text-sm text-zinc-300">
+                <input name="riskAccepted" type="checkbox" />
+                I understand historical results are not guaranteed.
+              </label>
+              <div className="mt-3"><SubmitButton>Record investment interest</SubmitButton></div>
+            </form>
+          ))}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (activeView === "Portfolio") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Panel title="Active Investments"><InvestmentList investments={portfolio.active} /></Panel>
+        <Panel title="Completed Investments"><InvestmentList investments={portfolio.completed} /></Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Investor Reports") {
+    return (
+      <Panel title="Investor Reports">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {reports.map((report) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={report.id}>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{report.periodType}</p>
+              <p className="mt-2 font-semibold">{report.summary}</p>
+              <p className="mt-2 text-sm text-zinc-400">ROI: {report.roiPercent.toFixed(2)}%</p>
+              <p className="text-sm text-zinc-400">Portfolio: {money(report.portfolioValueCents)}</p>
+            </div>
+          ))}
+          {!reports.length ? <p className="text-sm text-zinc-400">Weekly and monthly reports will appear here.</p> : null}
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <div className="mt-6 grid gap-4 lg:grid-cols-[360px_1fr]">
+      <Panel title="Create Withdrawal Request">
+        <RiskDisclaimer />
+        <form
+          className="mt-4 space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void onAction("/investor/withdrawals", {
+              amountCents: Math.round(Number(form.get("amount")) * 100),
+            });
+            event.currentTarget.reset();
+          }}
+        >
+          <TextField label="Withdrawal amount" name="amount" type="number" />
+          <SubmitButton>Request withdrawal</SubmitButton>
+        </form>
+      </Panel>
+      <Panel title="Withdrawal History">
+        <div className="space-y-2">
+          {withdrawals.map((request) => (
+            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={request.id}>
+              <p className="font-semibold">{money(request.amountCents)} · {request.status}</p>
+              <p className="mt-1 text-sm text-zinc-400">Requested {new Date(request.requestedAt).toLocaleString()}</p>
+            </div>
+          ))}
+          {!withdrawals.length ? <p className="text-sm text-zinc-400">No withdrawal requests yet.</p> : null}
+        </div>
+      </Panel>
+    </div>
   );
 }
 
@@ -952,6 +1149,40 @@ function CompactAuditList({ emptyLabel, logs }: { emptyLabel: string; logs: Audi
       {!logs.length ? <p className="text-sm text-zinc-400">{emptyLabel}</p> : null}
     </div>
   );
+}
+
+function InvestmentList({ investments }: { investments: InvestorInvestment[] }) {
+  return (
+    <div className="space-y-2">
+      {investments.map((investment) => (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={investment.id}>
+          <p className="font-semibold">{investment.planName}</p>
+          <p className="mt-1 text-sm text-zinc-400">
+            {money(investment.amountCents)} invested · {money(investment.currentValueCents)} current
+          </p>
+          <p className="text-sm text-zinc-500">
+            Weekly ROI {investment.weeklyRoiPercent.toFixed(2)}% · Lifetime ROI {investment.lifetimeRoiPercent.toFixed(2)}%
+          </p>
+        </div>
+      ))}
+      {!investments.length ? <p className="text-sm text-zinc-400">No investments in this category.</p> : null}
+    </div>
+  );
+}
+
+function RiskDisclaimer() {
+  return (
+    <p className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+      Investment performance is based on historical results only. Returns are never guaranteed, and all investments carry risk.
+    </p>
+  );
+}
+
+function money(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(cents / 100);
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {

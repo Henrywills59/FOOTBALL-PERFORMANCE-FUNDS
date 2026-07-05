@@ -18,6 +18,10 @@ import { createFootballRouter } from "./football/footballRoutes.js";
 import { FootballSyncService } from "./football/footballSyncService.js";
 import { OddsApiClient } from "./football/oddsApiClient.js";
 import type { FootballRepository } from "./football/types.js";
+import { PrismaInvestorRepository } from "./investor/investorRepository.js";
+import { createInvestorRouter } from "./investor/investorRoutes.js";
+import { InvestorService } from "./investor/investorService.js";
+import type { InvestorRepository } from "./investor/types.js";
 import { PrismaPredictionRepository } from "./predictions/predictionRepository.js";
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
@@ -32,6 +36,7 @@ export function createApp(options?: {
   footballRepository?: FootballRepository;
   predictionRepository?: PredictionRepository;
   adminRepository?: AdminRepository;
+  investorRepository?: InvestorRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -53,6 +58,10 @@ export function createApp(options?: {
     options?.predictionRepository ?? new PrismaPredictionRepository(),
   );
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
+  const investorService = new InvestorService(
+    options?.investorRepository ?? new PrismaInvestorRepository(),
+    adminService,
+  );
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -102,6 +111,13 @@ export function createApp(options?: {
       authService,
       footballRepository,
       footballScheduler,
+    }),
+  );
+  app.use(
+    "/api",
+    createInvestorRouter({
+      authService,
+      investorService,
     }),
   );
   app.use(errorHandler);

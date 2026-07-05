@@ -45,6 +45,18 @@ enum PredictionDataQualityStatus {
   STALE_ODDS
 }
 
+enum InvestmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id             String               @id @default(uuid())
   name           String
@@ -57,6 +69,8 @@ model User {
   resetTokens    PasswordResetToken[]
   auditLogs      AuditLog[]
   loginHistory   LoginHistory[]
+  investments    Investment[]
+  withdrawalRequests WithdrawalRequest[]
 }
 
 model PasswordResetToken {
@@ -269,6 +283,69 @@ model PlatformSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model InvestmentPlan {
+  id                         String       @id @default(uuid())
+  name                       String
+  description                String
+  minimumInvestmentCents     Int
+  maximumInvestmentCents     Int
+  historicalPerformanceNote  String
+  riskDisclosure             String
+  active                     Boolean      @default(true)
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  investments                Investment[]
+}
+
+model Investment {
+  id                    String             @id @default(uuid())
+  userId                String
+  planId                String
+  amountCents           Int
+  currentValueCents     Int
+  weeklyRoiPercent      Float              @default(0)
+  lifetimeRoiPercent    Float              @default(0)
+  status                InvestmentStatus   @default(ACTIVE)
+  createdAt             DateTime           @default(now())
+  completedAt           DateTime?
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  InvestmentPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  performanceReports    PerformanceReport[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model PerformanceReport {
+  id                    String      @id @default(uuid())
+  investmentId          String
+  periodType            String
+  periodStart           DateTime
+  periodEnd             DateTime
+  summary               String
+  roiPercent            Float
+  portfolioValueCents   Int
+  createdAt             DateTime    @default(now())
+  investment            Investment  @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([investmentId])
+  @@index([periodType])
+}
+
+model WithdrawalRequest {
+  id              String           @id @default(uuid())
+  userId          String
+  amountCents     Int
+  status          WithdrawalStatus @default(PENDING)
+  requestedAt     DateTime         @default(now())
+  reviewedAt      DateTime?
+  adminNotes      String?
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }
 
 model FootballSyncRun {

@@ -81,6 +81,7 @@ Included:
 - Prediction generation and admin review
 - Subscriber dashboard, match center, smart slip, opportunities, and profile
 - Secure admin dashboard, audit logs, settings, and platform controls
+- Professional investor portal with plans, portfolio, reports, and withdrawal requests
 - Shared types package
 - Prisma database package
 - Environment templates
@@ -109,6 +110,10 @@ Phase 5 adds the subscriber workspace: dashboard, match center, smart bet slip, 
 ## Admin Dashboard
 
 Phase 6 adds admin-only platform management for users, predictions, fixtures, audit logs, settings, and system health. Investor management, payments, and wallet functionality remain out of scope.
+
+## Investor Platform
+
+Phase 7 adds a conventional investor portal with investment plans, portfolio tracking, reports, and withdrawal requests. It does not include payment gateways, NOWPayments, wallet functionality, or cryptocurrency features.
 
 ## Authentication
 

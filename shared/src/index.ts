@@ -141,3 +141,53 @@ export type AdminSettings = {
   scheduledSyncEnabled: boolean;
   maintenanceMode: boolean;
 };
+
+export type InvestmentPlan = {
+  id: string;
+  name: string;
+  description: string;
+  minimumInvestmentCents: number;
+  maximumInvestmentCents: number;
+  historicalPerformanceNote: string;
+  riskDisclosure: string;
+};
+
+export type InvestorInvestment = {
+  id: string;
+  planName: string;
+  amountCents: number;
+  currentValueCents: number;
+  weeklyRoiPercent: number;
+  lifetimeRoiPercent: number;
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  createdAt: string;
+};
+
+export type InvestorReport = {
+  id: string;
+  investmentId: string;
+  periodType: "WEEKLY" | "MONTHLY";
+  summary: string;
+  roiPercent: number;
+  portfolioValueCents: number;
+  periodStart: string;
+  periodEnd: string;
+};
+
+export type WithdrawalRequest = {
+  id: string;
+  amountCents: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  requestedAt: string;
+  reviewedAt: string | null;
+  adminNotes: string | null;
+};
+
+export type InvestorDashboard = {
+  totalInvestmentCents: number;
+  currentPortfolioValueCents: number;
+  weeklyRoiPercent: number;
+  lifetimeRoiPercent: number;
+  currentStatus: string;
+  investmentHistory: InvestorInvestment[];
+};

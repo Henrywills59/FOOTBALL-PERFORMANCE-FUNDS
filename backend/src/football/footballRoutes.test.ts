@@ -9,6 +9,7 @@ import { InMemoryFootballRepository } from "./inMemoryFootballRepository.js";
 import { OddsApiClient } from "./oddsApiClient.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
+import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 
 async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
   const footballRepository = new InMemoryFootballRepository();
@@ -30,6 +31,7 @@ async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
     footballRepository,
     predictionRepository: new InMemoryPredictionRepository([]),
     adminRepository: new InMemoryAdminRepository(),
+    investorRepository: new InMemoryInvestorRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });

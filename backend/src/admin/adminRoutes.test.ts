@@ -5,6 +5,7 @@ import { createApp } from "../app.js";
 import { InMemoryUserRepository } from "../auth/inMemoryUserRepository.js";
 import { InMemoryFootballRepository } from "../football/inMemoryFootballRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
+import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 import { InMemoryAdminRepository } from "./inMemoryAdminRepository.js";
 
 function seedAdmin(users: InMemoryUserRepository) {
@@ -41,6 +42,7 @@ function testApp() {
     footballRepository: new InMemoryFootballRepository(),
     predictionRepository: new InMemoryPredictionRepository([]),
     adminRepository,
+    investorRepository: new InMemoryInvestorRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });
