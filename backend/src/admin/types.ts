@@ -1,4 +1,4 @@
-import type { AdminOverview, AdminSettings, AdminUser, AuditLogEntry, UserRole } from "@fpf/shared";
+import type { AdminOverview, AdminReports, AdminSettings, AdminUser, AuditLogEntry, UserRole } from "@fpf/shared";
 
 export type AuditInput = {
   actorUserId?: string | null;
@@ -15,6 +15,7 @@ export type AdminRepository = {
   updateUserRole(userId: string, role: UserRole): Promise<AdminUser | null>;
   resetUserPassword(userId: string, passwordHash: string): Promise<void>;
   settings(): Promise<AdminSettings>;
+  reports(): Promise<AdminReports>;
   updateSettings(settings: Partial<AdminSettings>): Promise<AdminSettings>;
   audit(input: AuditInput): Promise<void>;
   auditLogs(): Promise<AuditLogEntry[]>;

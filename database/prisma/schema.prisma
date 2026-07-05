@@ -72,6 +72,20 @@ enum WalletTransactionStatus {
   REJECTED
 }
 
+enum AnalystAssignmentStatus {
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+enum IntelligenceSubmissionStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
 model User {
   id             String               @id @default(uuid())
   name           String
@@ -87,6 +101,8 @@ model User {
   investments    Investment[]
   withdrawalRequests WithdrawalRequest[]
   wallet         InvestorWallet?
+  analystAssignments AnalystAssignment[]
+  intelligenceSubmissions AnalystIntelligenceSubmission[]
 }
 
 model PasswordResetToken {
@@ -159,6 +175,8 @@ model FootballFixture {
   headToHeadRecords    HeadToHeadRecord[]
   odds                 MatchOdd[]
   predictions          MatchPrediction[]
+  analystAssignments   AnalystAssignment[]
+  intelligenceSubmissions AnalystIntelligenceSubmission[]
 
   @@index([kickoffAt])
   @@index([status])
@@ -393,6 +411,51 @@ model WalletTransaction {
 
   @@index([walletId])
   @@index([type])
+  @@index([status])
+}
+
+model AnalystAssignment {
+  id            String                  @id @default(uuid())
+  analystId     String
+  fixtureId     String
+  leagueName    String
+  status        AnalystAssignmentStatus @default(ASSIGNED)
+  adminNotes    String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  analyst       User                    @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  fixture       FootballFixture         @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+
+  @@unique([analystId, fixtureId])
+  @@index([analystId])
+  @@index([fixtureId])
+  @@index([status])
+}
+
+model AnalystIntelligenceSubmission {
+  id                   String                       @id @default(uuid())
+  analystId            String
+  fixtureId            String
+  leagueName           String
+  market               String
+  prediction           String
+  confidence           Int
+  riskLevel            String
+  detailedReasoning    String
+  supportingStatistics String
+  sourceNotes          String
+  briefExplanation     String
+  recommendedStake     String
+  adminNotes           String?
+  status               IntelligenceSubmissionStatus @default(DRAFT)
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  publishedAt          DateTime?
+  analyst              User                         @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  fixture              FootballFixture              @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+
+  @@index([analystId])
+  @@index([fixtureId])
   @@index([status])
 }
 

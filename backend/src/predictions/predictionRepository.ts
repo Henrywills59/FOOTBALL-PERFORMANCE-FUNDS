@@ -63,6 +63,7 @@ export class PrismaPredictionRepository implements PredictionRepository {
       id: fixture.id,
       apiFootballFixtureId: fixture.apiFootballFixtureId,
       leagueName: fixture.league.name,
+      leagueCountry: fixture.league.country,
       homeTeamName: fixture.homeTeam.name,
       awayTeamName: fixture.awayTeam.name,
       kickoffAt: fixture.kickoffAt.toISOString(),

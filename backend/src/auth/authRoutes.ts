@@ -131,16 +131,23 @@ export function createAuthRouter(authService: AuthService) {
   return router;
 }
 
-export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, request, response, _next) => {
+  const requestId = response.getHeader("x-request-id");
   if (error instanceof AuthError) {
-    response.status(error.statusCode).json({ error: error.message });
+    response.status(error.statusCode).json({ error: error.message, requestId });
     return;
   }
 
   if (typeof error === "object" && error !== null && "issues" in error) {
-    response.status(400).json({ error: "Invalid request", details: error });
+    response.status(400).json({ error: "Invalid request", requestId });
     return;
   }
 
-  response.status(500).json({ error: "Internal server error" });
+  console.error("Unhandled request error", {
+    method: request.method,
+    path: request.path,
+    requestId,
+    message: error instanceof Error ? error.message : "Unknown error",
+  });
+  response.status(500).json({ error: "Internal server error", requestId });
 };

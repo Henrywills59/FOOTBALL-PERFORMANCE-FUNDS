@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      API_FOOTBALL_KEY: ${API_FOOTBALL_KEY}
+      API_FOOTBALL_BASE_URL: ${API_FOOTBALL_BASE_URL:-https://v3.football.api-sports.io}
+      API_FOOTBALL_LEAGUE_IDS: ${API_FOOTBALL_LEAGUE_IDS}
+      FOOTBALL_SEASON: ${FOOTBALL_SEASON}
+      ODDS_API_KEY: ${ODDS_API_KEY}
+      ODDS_API_BASE_URL: ${ODDS_API_BASE_URL:-https://api.the-odds-api.com}
+      ODDS_API_SPORT: ${ODDS_API_SPORT}
+      ENABLE_FOOTBALL_JOBS: ${ENABLE_FOOTBALL_JOBS:-true}
+      FOOTBALL_SYNC_INTERVAL_MINUTES: ${FOOTBALL_SYNC_INTERVAL_MINUTES:-15}
+      NOWPAYMENTS_API_KEY: ${NOWPAYMENTS_API_KEY}
+      NOWPAYMENTS_IPN_SECRET: ${NOWPAYMENTS_IPN_SECRET}
+      NOWPAYMENTS_BASE_URL: ${NOWPAYMENTS_BASE_URL:-https://api.nowpayments.io}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      VITE_API_URL: ${VITE_API_URL}
+    ports:
+      - "5173:5173"

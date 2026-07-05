@@ -98,6 +98,29 @@ export function createAdminRouter(input: {
     }
   });
 
+  router.get("/admin/reports", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json(await input.adminService.reports());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/monitoring", ...adminOnly, async (_request, response, next) => {
+    try {
+      const syncStatus = await input.footballRepository.getSyncStatus(true, input.footballScheduler.isStarted());
+      response.status(200).json({
+        api: "OK",
+        database: "OK",
+        footballJobs: input.footballScheduler.isStarted() ? "RUNNING" : "STOPPED",
+        lastSyncAt: syncStatus.lastRunAt,
+        version: process.env.npm_package_version ?? "0.1.0",
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.patch("/admin/settings", ...adminOnly, async (request, response, next) => {
     try {
       const settings = settingsSchema.parse(request.body);

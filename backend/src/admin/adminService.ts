@@ -43,6 +43,10 @@ export class AdminService {
     return this.repository.settings();
   }
 
+  reports() {
+    return this.repository.reports();
+  }
+
   async updateSettings(actorUserId: string, settings: Partial<AdminSettings>) {
     const updated = await this.repository.updateSettings(settings);
     await this.repository.audit({ actorUserId, action: "SETTINGS_UPDATED", entityType: "SETTINGS", details: settings });

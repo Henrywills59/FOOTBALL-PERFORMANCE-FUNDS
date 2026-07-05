@@ -98,6 +98,91 @@ export class PrismaAdminRepository implements AdminRepository {
     return settings;
   }
 
+  async reports() {
+    const today = new Date();
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - index));
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      return { date: start.toISOString().slice(0, 10), start, end };
+    }).reverse();
+
+    const [
+      totalSubscribers,
+      activeSubscribers,
+      disabledSubscribers,
+      totalInvestors,
+      activeInvestors,
+      confirmedDeposits,
+      pendingWithdrawals,
+      approvedWithdrawals,
+      submittedIntelligence,
+      approvedIntelligence,
+      publishedIntelligence,
+      rejectedIntelligence,
+      approvedPredictions,
+      activity,
+    ] = await Promise.all([
+      this.prisma.user.count({ where: { role: "SUBSCRIBER" } }),
+      this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "ACTIVE" } }),
+      this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "DISABLED" } }),
+      this.prisma.user.count({ where: { role: "INVESTOR" } }),
+      this.prisma.user.count({ where: { role: "INVESTOR", status: "ACTIVE" } }),
+      this.prisma.walletTransaction.aggregate({
+        where: { type: "DEPOSIT", status: "CONFIRMED" },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.walletTransaction.aggregate({
+        where: { type: "WITHDRAWAL", status: "PENDING" },
+        _count: true,
+        _sum: { amountCents: true },
+      }),
+      this.prisma.walletTransaction.aggregate({
+        where: { type: "WITHDRAWAL", status: "APPROVED" },
+        _count: true,
+        _sum: { amountCents: true },
+      }),
+      this.prisma.analystIntelligenceSubmission.count(),
+      this.prisma.analystIntelligenceSubmission.count({ where: { status: { in: ["APPROVED", "PUBLISHED"] } } }),
+      this.prisma.analystIntelligenceSubmission.count({ where: { status: "PUBLISHED" } }),
+      this.prisma.analystIntelligenceSubmission.count({ where: { status: "REJECTED" } }),
+      this.prisma.matchPrediction.count({ where: { approvalStatus: "APPROVED" } }),
+      Promise.all(
+        days.map(async (day) => ({
+          date: day.date,
+          auditEvents: await this.prisma.auditLog.count({ where: { createdAt: { gte: day.start, lt: day.end } } }),
+          logins: await this.prisma.loginHistory.count({ where: { createdAt: { gte: day.start, lt: day.end } } }),
+        })),
+      ),
+    ]);
+
+    return {
+      subscribers: { total: totalSubscribers, active: activeSubscribers, disabled: disabledSubscribers },
+      investors: { total: totalInvestors, active: activeInvestors },
+      revenue: {
+        trackedWalletDepositsCents: confirmedDeposits._sum.amountCents ?? 0,
+        note: "Tracked deposits are wallet funding records only; no new payment features are introduced here.",
+      },
+      withdrawals: {
+        pendingCount: pendingWithdrawals._count,
+        approvedCount: approvedWithdrawals._count,
+        pendingAmountCents: pendingWithdrawals._sum.amountCents ?? 0,
+        approvedAmountCents: approvedWithdrawals._sum.amountCents ?? 0,
+      },
+      analystPerformance: {
+        submitted: submittedIntelligence,
+        approved: approvedIntelligence,
+        published: publishedIntelligence,
+        rejected: rejectedIntelligence,
+      },
+      predictionAccuracy: {
+        approvedPredictions,
+        publishedIntelligence,
+        accuracyNote: "Accuracy is a production reporting placeholder until settled match result grading is enabled.",
+      },
+      dailyPlatformActivity: activity,
+    };
+  }
+
   async updateSettings(input: Partial<AdminSettings>) {
     for (const [key, value] of Object.entries(input)) {
       await this.prisma.platformSetting.upsert({

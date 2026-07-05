@@ -39,6 +39,7 @@ export type FootballFixtureSummary = {
   id: string;
   apiFootballFixtureId: number;
   leagueName: string;
+  leagueCountry: string | null;
   homeTeamName: string;
   awayTeamName: string;
   kickoffAt: string;
@@ -142,6 +143,52 @@ export type AdminSettings = {
   maintenanceMode: boolean;
 };
 
+export type AdminReports = {
+  subscribers: {
+    total: number;
+    active: number;
+    disabled: number;
+  };
+  investors: {
+    total: number;
+    active: number;
+  };
+  revenue: {
+    trackedWalletDepositsCents: number;
+    note: string;
+  };
+  withdrawals: {
+    pendingCount: number;
+    approvedCount: number;
+    pendingAmountCents: number;
+    approvedAmountCents: number;
+  };
+  analystPerformance: {
+    submitted: number;
+    approved: number;
+    published: number;
+    rejected: number;
+  };
+  predictionAccuracy: {
+    approvedPredictions: number;
+    publishedIntelligence: number;
+    accuracyNote: string;
+  };
+  dailyPlatformActivity: Array<{
+    date: string;
+    auditEvents: number;
+    logins: number;
+  }>;
+};
+
+export type PlatformHealth = {
+  api: "OK";
+  database: "OK" | "DEGRADED";
+  footballJobs: "RUNNING" | "STOPPED";
+  lastSyncAt: string | null;
+  version: string;
+};
+
 export type InvestmentPlan = {
   id: string;
   name: string;
@@ -215,4 +262,71 @@ export type DepositInvoice = {
   transactionId: string;
   invoiceUrl: string;
   status: WalletTransaction["status"];
+};
+
+export type AnalystAssignmentStatus = "ASSIGNED" | "COMPLETED" | "CANCELLED";
+export type IntelligenceSubmissionStatus = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "PUBLISHED";
+
+export type AnalystAssignment = {
+  id: string;
+  fixtureId: string;
+  match: string;
+  leagueName: string;
+  kickoffAt: string;
+  status: AnalystAssignmentStatus;
+  adminNotes: string | null;
+};
+
+export type AnalystIntelligenceSubmission = {
+  id: string;
+  fixtureId: string;
+  match: string;
+  leagueName: string;
+  market: string;
+  prediction: string;
+  confidence: number;
+  riskLevel: string;
+  detailedReasoning: string;
+  supportingStatistics: string;
+  sourceNotes: string;
+  briefExplanation: string;
+  recommendedStake: string;
+  adminNotes: string | null;
+  status: IntelligenceSubmissionStatus;
+  createdAt: string;
+  publishedAt: string | null;
+};
+
+export type AnalystDashboard = {
+  assignedMatches: AnalystAssignment[];
+  assignedLeagues: string[];
+  pendingTasks: number;
+  submittedIntelligence: number;
+  approvedIntelligence: number;
+  rejectedIntelligence: number;
+  analystPerformanceSummary: string;
+  adminNotes: string[];
+};
+
+export type AnalystAssistance = {
+  teamFormSummary: string;
+  headToHeadSummary: string;
+  injurySummary: string;
+  oddsMovement: string;
+  riskWarnings: string[];
+  valueOpportunityNotes: string;
+};
+
+export type PublishedIntelligence = {
+  id: string;
+  fixtureId: string;
+  match: string;
+  leagueName: string;
+  market: string;
+  prediction: string;
+  confidence: number;
+  riskRating: string;
+  briefExplanation: string;
+  recommendedStake: string;
+  publishedAt: string | null;
 };

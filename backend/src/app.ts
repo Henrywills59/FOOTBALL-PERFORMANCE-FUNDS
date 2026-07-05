@@ -1,5 +1,7 @@
 import cors from "cors";
+import crypto from "node:crypto";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import type { HealthStatus } from "@fpf/shared";
 import { AuthService } from "./auth/authService.js";
@@ -7,6 +9,10 @@ import { PrismaAdminRepository } from "./admin/adminRepository.js";
 import { createAdminRouter } from "./admin/adminRoutes.js";
 import { AdminService } from "./admin/adminService.js";
 import type { AdminRepository } from "./admin/types.js";
+import { PrismaAnalystRepository } from "./analyst/analystRepository.js";
+import { createAnalystRouter } from "./analyst/analystRoutes.js";
+import { AnalystService } from "./analyst/analystService.js";
+import type { AnalystRepository } from "./analyst/types.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
@@ -35,6 +41,16 @@ import type { WalletRepository } from "./wallet/types.js";
 const serviceVersion = process.env.npm_package_version ?? "0.1.0";
 const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
 const defaultJwtSecret = "development-only-change-me";
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+function requestId() {
+  return crypto.randomUUID();
+}
 
 export function createApp(options?: {
   userRepository?: UserRepository;
@@ -43,6 +59,7 @@ export function createApp(options?: {
   adminRepository?: AdminRepository;
   investorRepository?: InvestorRepository;
   walletRepository?: WalletRepository;
+  analystRepository?: AnalystRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -73,18 +90,39 @@ export function createApp(options?: {
     new NowPaymentsClient(getNowPaymentsConfig()),
     adminService,
   );
+  const analystService = new AnalystService(
+    options?.analystRepository ?? new PrismaAnalystRepository(),
+    footballRepository,
+    adminService,
+  );
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
   }
 
   app.use(helmet());
+  app.disable("x-powered-by");
+  app.use((request, response, next) => {
+    const id = request.header("x-request-id") ?? requestId();
+    response.setHeader("x-request-id", id);
+    next();
+  });
   app.use(
     cors({
       origin: frontendUrl,
     }),
   );
-  app.use(express.json());
+  app.use((request, response, next) => {
+    const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method);
+    const origin = request.header("origin");
+    if (unsafeMethod && origin && origin !== frontendUrl) {
+      response.status(403).json({ error: "Invalid request origin" });
+      return;
+    }
+    next();
+  });
+  app.use("/api", apiLimiter);
+  app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (_request, response) => {
     const status: HealthStatus = {
@@ -136,6 +174,13 @@ export function createApp(options?: {
     createWalletRouter({
       authService,
       walletService,
+    }),
+  );
+  app.use(
+    "/api",
+    createAnalystRouter({
+      authService,
+      analystService,
     }),
   );
   app.use(errorHandler);

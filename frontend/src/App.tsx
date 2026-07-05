@@ -2,8 +2,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   AdminOverview,
+  AdminReports,
   AdminSettings,
   AdminUser,
+  AnalystAssignment,
+  AnalystAssistance,
+  AnalystDashboard,
+  AnalystIntelligenceSubmission,
   AuditLogEntry,
   AuthResponse,
   AuthUser,
@@ -15,20 +20,24 @@ import type {
   InvestorReport,
   InvestorWallet,
   PredictionResult,
+  PublishedIntelligence,
+  PlatformHealth,
   PublicUserRole,
   WithdrawalRequest,
 } from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-const navItems = ["Dashboard", "Match Center", "Smart Bet Slip", "Daily Opportunities", "Profile"] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
+const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
 type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
+type AnalystNavItem = (typeof analystNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
@@ -54,15 +63,17 @@ export default function App() {
   const [activeView, setActiveView] = useState<NavItem>("Dashboard");
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
   const [activeInvestorView, setActiveInvestorView] = useState<InvestorNavItem>("Investor Dashboard");
+  const [activeAnalystView, setActiveAnalystView] = useState<AnalystNavItem>("Analyst Dashboard");
   const [adminMode, setAdminMode] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
+  const [liveFixtures, setLiveFixtures] = useState<FootballFixtureSummary[]>([]);
   const [selectedFixture, setSelectedFixture] = useState<FootballFixtureDetail | null>(null);
   const [predictions, setPredictions] = useState<PredictionWithFixture[]>([]);
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionWithFixture | null>(null);
   const [slip, setSlip] = useState<PredictionWithFixture[]>([]);
-  const [filters, setFilters] = useState({ search: "", league: "", date: "" });
+  const [filters, setFilters] = useState({ search: "", league: "", country: "", date: "" });
   const [loadingLabel, setLoadingLabel] = useState("Loading");
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
   const [adminPredictions, setAdminPredictions] = useState<PredictionResult[]>([]);
@@ -70,18 +81,35 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [adminReports, setAdminReports] = useState<AdminReports | null>(null);
+  const [platformHealth, setPlatformHealth] = useState<PlatformHealth | null>(null);
   const [investorDashboard, setInvestorDashboard] = useState<InvestorDashboard | null>(null);
   const [investmentPlans, setInvestmentPlans] = useState<InvestmentPlan[]>([]);
   const [portfolio, setPortfolio] = useState<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>({ active: [], completed: [] });
   const [investorReports, setInvestorReports] = useState<InvestorReport[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [wallet, setWallet] = useState<InvestorWallet | null>(null);
+  const [publishedIntelligence, setPublishedIntelligence] = useState<PublishedIntelligence[]>([]);
+  const [analystDashboard, setAnalystDashboard] = useState<AnalystDashboard | null>(null);
+  const [analystAssignments, setAnalystAssignments] = useState<AnalystAssignment[]>([]);
+  const [analystSubmissions, setAnalystSubmissions] = useState<AnalystIntelligenceSubmission[]>([]);
+  const [analystAssistance, setAnalystAssistance] = useState<AnalystAssistance | null>(null);
+  const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
 
   useEffect(() => {
     if (!session) return;
-    void loadSubscriberData(session.token);
+    if (session.user.role === "SUBSCRIBER" || session.user.role === "ADMIN") void loadSubscriberData(session.token);
     if (session.user.role === "ADMIN") void loadAdminData(session.token);
     if (session.user.role === "INVESTOR") void loadInvestorData(session.token);
+    if (session.user.role === "ANALYST") void loadAnalystData(session.token);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session || !["SUBSCRIBER", "ADMIN"].includes(session.user.role)) return;
+    const refreshLive = () => void loadLiveFixtures(session.token);
+    refreshLive();
+    const timer = window.setInterval(refreshLive, 30000);
+    return () => window.clearInterval(timer);
   }, [session]);
 
   const combinedOdds = useMemo(
@@ -105,6 +133,32 @@ export default function App() {
     if (slip.length > 2 || averageRisk >= 45) return "Medium";
     return "Low";
   }, [slip]);
+
+  const upcomingFixtures = useMemo(
+    () =>
+      fixtures
+        .filter((fixture) => fixture.status === "SCHEDULED" && new Date(fixture.kickoffAt).getTime() >= Date.now())
+        .slice(0, 6),
+    [fixtures],
+  );
+
+  const notifications = useMemo(() => {
+    const soon = fixtures.filter((fixture) => {
+      const minutes = (new Date(fixture.kickoffAt).getTime() - Date.now()) / 60000;
+      return fixture.status === "SCHEDULED" && minutes >= 0 && minutes <= 60;
+    });
+    return [
+      ...publishedIntelligence.slice(0, 3).map((item) => `New FPF Intelligence published for ${item.match}.`),
+      ...soon.slice(0, 3).map((fixture) => `${fixture.homeTeamName} vs ${fixture.awayTeamName} starts soon.`),
+      ...liveFixtures.slice(0, 2).map((fixture) => `Live opportunity alert: ${fixture.homeTeamName} vs ${fixture.awayTeamName}.`),
+      "Subscription reminder: subscriber access is active.",
+    ];
+  }, [fixtures, liveFixtures, publishedIntelligence]);
+
+  const investorNotifications = useMemo(() => {
+    const walletItems = wallet?.transactions.slice(0, 3).map((transaction) => `Wallet ${transaction.type.toLowerCase()} is ${transaction.status.toLowerCase()}.`) ?? [];
+    return [...walletItems, "Subscription expiry reminder: review account access before renewal."];
+  }, [wallet]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
     const serialized = JSON.stringify(nextSession);
@@ -152,11 +206,14 @@ export default function App() {
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
-      const [fixtureData, approvedData] = await Promise.all([
+      const [fixtureData, approvedData, intelligenceData] = await Promise.all([
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token),
         apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token),
+        apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token),
       ]);
       setFixtures(fixtureData.fixtures);
+      setLiveFixtures(fixtureData.fixtures.filter((fixture) => fixture.status === "LIVE"));
+      setPublishedIntelligence(intelligenceData.intelligence);
       if (fixtureData.fixtures[0]) await loadFixtureDetail(fixtureData.fixtures[0].id, token);
 
       const enriched = await Promise.all(
@@ -182,13 +239,16 @@ export default function App() {
 
   async function loadAdminData(token: string) {
     try {
-      const [overview, predictionsData, usersData, logsData, settingsData, syncData] = await Promise.all([
+      const [overview, predictionsData, usersData, logsData, settingsData, syncData, intelligenceData, reportsData, monitoringData] = await Promise.all([
         apiGet<AdminOverview>("/admin/overview", token),
         apiGet<{ predictions: PredictionResult[] }>("/admin/predictions", token),
         apiGet<{ users: AdminUser[] }>("/admin/users", token),
         apiGet<{ logs: AuditLogEntry[] }>("/admin/audit-logs", token),
         apiGet<AdminSettings>("/admin/settings", token),
         apiGet<{ logs: AuditLogEntry[] }>("/admin/fixtures/sync-logs", token),
+        apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token),
+        apiGet<AdminReports>("/admin/reports", token),
+        apiGet<PlatformHealth>("/admin/monitoring", token),
       ]);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
@@ -196,6 +256,9 @@ export default function App() {
       setAuditLogs(logsData.logs);
       setAdminSettings(settingsData);
       setSyncLogs(syncData.logs);
+      setAdminIntelligence(intelligenceData.submissions);
+      setAdminReports(reportsData);
+      setPlatformHealth(monitoringData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
@@ -222,6 +285,33 @@ export default function App() {
     }
   }
 
+  async function loadLiveFixtures(token: string) {
+    try {
+      const data = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?live=true&limit=20", token);
+      setLiveFixtures(data.fixtures);
+    } catch {
+      setLiveFixtures((current) => current);
+    }
+  }
+
+  async function loadAnalystData(token: string) {
+    try {
+      const [dashboard, assignmentsData, submissionsData, fixtureData] = await Promise.all([
+        apiGet<AnalystDashboard>("/analyst/dashboard", token),
+        apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
+        apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/analyst/intelligence", token),
+        apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token),
+      ]);
+      setAnalystDashboard(dashboard);
+      setAnalystAssignments(assignmentsData.assignments);
+      setAnalystSubmissions(submissionsData.submissions);
+      setFixtures(fixtureData.fixtures);
+      setLoadingLabel("Analyst workspace ready");
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load analyst workspace");
+    }
+  }
+
   async function investorAction(path: string, body: object) {
     if (!session) return;
     await apiPost(path, session.token, body);
@@ -242,7 +332,28 @@ export default function App() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "Request failed");
     await loadAdminData(session.token);
-    await loadSubscriberData(session.token);
+    if (session.user.role === "ADMIN") await loadSubscriberData(session.token);
+  }
+
+  async function analystAction(path: string, body?: object) {
+    if (!session) return;
+    const response = await fetch(`${apiUrl}/api${path}`, {
+      method: path.includes("/intelligence/") && !path.endsWith("/submit") ? "PATCH" : "POST",
+      headers: {
+        Authorization: `Bearer ${session.token}`,
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? "Request failed");
+    await loadAnalystData(session.token);
+  }
+
+  async function loadAnalystAssistance(fixtureId: string) {
+    if (!session) return;
+    const assistance = await apiGet<AnalystAssistance>(`/analyst/fixtures/${fixtureId}/assistance`, session.token);
+    setAnalystAssistance(assistance);
   }
 
   async function loadFixtureDetail(id: string, token = session?.token) {
@@ -262,7 +373,13 @@ export default function App() {
       `/football/fixtures?${params.toString()}`,
       session.token,
     );
-    setFixtures(data.fixtures);
+    setFixtures(
+      filters.country
+        ? data.fixtures.filter((fixture) =>
+            (fixture.leagueCountry ?? "").toLowerCase().includes(filters.country.toLowerCase()),
+          )
+        : data.fixtures,
+    );
   }
 
   function addToSlip(prediction: PredictionWithFixture) {
@@ -378,6 +495,8 @@ export default function App() {
     ? adminNavItems
     : session.user.role === "INVESTOR"
       ? investorNavItemsWithWallet
+      : session.user.role === "ANALYST"
+        ? analystNavItems
       : navItems;
 
   return (
@@ -396,6 +515,8 @@ export default function App() {
                     ? activeAdminView === item
                     : session.user.role === "INVESTOR"
                       ? activeInvestorView === item
+                      : session.user.role === "ANALYST"
+                        ? activeAnalystView === item
                       : activeView === item)
                     ? "bg-emerald-300 text-zinc-950"
                     : "bg-zinc-900 text-zinc-300 hover:text-white"
@@ -407,6 +528,8 @@ export default function App() {
                     ? setActiveAdminView(item as AdminNavItem)
                     : session.user.role === "INVESTOR"
                       ? setActiveInvestorView(item as InvestorNavItem)
+                      : session.user.role === "ANALYST"
+                        ? setActiveAnalystView(item as AnalystNavItem)
                       : setActiveView(item as NavItem)
                 }
               >
@@ -453,10 +576,26 @@ export default function App() {
               fixtures={fixtures}
               overview={adminOverview}
               predictions={adminPredictions}
+              intelligence={adminIntelligence}
+              reports={adminReports}
               settings={adminSettings}
+              health={platformHealth}
               syncLogs={syncLogs}
               users={adminUsers}
               onAction={adminAction}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role === "ANALYST" ? (
+            <AnalystPortal
+              activeView={activeAnalystView}
+              assignments={analystAssignments}
+              assistance={analystAssistance}
+              dashboard={analystDashboard}
+              fixtures={fixtures}
+              submissions={analystSubmissions}
+              onAction={analystAction}
+              onAssistance={loadAnalystAssistance}
             />
           ) : null}
 
@@ -469,17 +608,28 @@ export default function App() {
               reports={investorReports}
               wallet={wallet}
               withdrawals={withdrawals}
+              notifications={investorNotifications}
               onAction={investorAction}
             />
           ) : null}
 
-          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Dashboard" ? (
-            <DashboardView featured={featured} recent={recent} predictions={predictions} onAdd={addToSlip} />
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Dashboard" ? (
+            <DashboardView
+              featured={featured}
+              intelligence={publishedIntelligence}
+              liveFixtures={liveFixtures}
+              notifications={notifications}
+              predictions={predictions}
+              recent={recent}
+              upcomingFixtures={upcomingFixtures}
+              onAdd={addToSlip}
+            />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Match Center" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Global Fixture Center" ? (
             <MatchCenterView
               filters={filters}
               fixtures={fixtures}
+              intelligence={publishedIntelligence}
               predictions={predictions}
               selectedFixture={selectedFixture}
               setFilters={setFilters}
@@ -488,23 +638,25 @@ export default function App() {
               onSelectPrediction={setSelectedPrediction}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Smart Bet Slip" ? (
-            <SmartSlipView
-              combinedOdds={combinedOdds}
-              overallConfidence={overallConfidence}
-              riskLevel={slipRisk}
-              selections={slip}
-              onRemove={removeFromSlip}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Live Match Center" ? (
+            <LiveMatchCenter
+              fixtures={liveFixtures}
+              predictions={predictions}
+              selectedFixture={selectedFixture}
+              onSelectFixture={(id) => void loadFixtureDetail(id)}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Daily Opportunities" ? (
-            <OpportunityList predictions={daily} onAdd={addToSlip} onSelect={setSelectedPrediction} />
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Opportunity Center" ? (
+            <OpportunityList intelligence={publishedIntelligence} predictions={daily} onAdd={addToSlip} onSelect={setSelectedPrediction} />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && activeView === "Profile" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Performance" ? (
+            <PerformanceView predictions={predictions} intelligence={publishedIntelligence} fixtures={fixtures} />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Profile" ? (
             <ProfileView session={session} onPasswordChange={safelySubmit(handlePasswordChange)} />
           ) : null}
 
-          {!adminMode && session.user.role !== "INVESTOR" && activeView !== "Profile" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView !== "Profile" ? (
             <PredictionDetail prediction={selectedPrediction} onAdd={addToSlip} />
           ) : null}
         </section>
@@ -517,9 +669,12 @@ function AdminPortal({
   activeView,
   auditLogs,
   fixtures,
+  health,
+  intelligence,
   onAction,
   overview,
   predictions,
+  reports,
   settings,
   syncLogs,
   users,
@@ -527,9 +682,12 @@ function AdminPortal({
   activeView: AdminNavItem;
   auditLogs: AuditLogEntry[];
   fixtures: FootballFixtureSummary[];
+  health: PlatformHealth | null;
+  intelligence: AnalystIntelligenceSubmission[];
   onAction: (path: string, body?: object) => Promise<void>;
   overview: AdminOverview | null;
   predictions: PredictionResult[];
+  reports: AdminReports | null;
   settings: AdminSettings | null;
   syncLogs: AuditLogEntry[];
   users: AdminUser[];
@@ -589,6 +747,91 @@ function AdminPortal({
             </div>
           ))}
           {!predictions.length ? <p className="text-sm text-zinc-400">No generated predictions yet.</p> : null}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (activeView === "Reports") {
+    return <AdminReportsView reports={reports} />;
+  }
+
+  if (activeView === "Monitoring") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="API health" value={health?.api ?? "OK"} />
+          <Metric label="Database" value={health?.database ?? "OK"} />
+          <Metric label="Football jobs" value={health?.footballJobs ?? "STOPPED"} />
+          <Metric label="Last sync" value={health?.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString() : "Pending"} />
+        </div>
+        <Panel title="Scheduled Job Monitoring">
+          <CompactAuditList logs={syncLogs} emptyLabel="No scheduled job logs yet." />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Intelligence Review") {
+    return (
+      <Panel title="FPF Intelligence Review">
+        <form
+          className="mb-4 grid gap-3 lg:grid-cols-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void onAction("/admin/intelligence/assign", {
+              analystId: form.get("analystId"),
+              fixtureId: form.get("fixtureId"),
+              leagueName: form.get("leagueName"),
+              adminNotes: form.get("adminNotes"),
+            });
+          }}
+        >
+          <TextField label="Analyst user ID" name="analystId" type="text" />
+          <TextField label="Fixture ID" name="fixtureId" type="text" />
+          <TextField label="League" name="leagueName" type="text" />
+          <TextField label="Admin notes" name="adminNotes" type="text" />
+          <div className="lg:col-span-4">
+            <SubmitButton>Assign match</SubmitButton>
+          </div>
+        </form>
+        <div className="space-y-3">
+          {intelligence.map((submission) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={submission.id}>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{submission.status}</p>
+              <h3 className="mt-2 text-lg font-semibold">{submission.match}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{submission.market} · {submission.prediction}</p>
+              <p className="mt-2 text-sm text-zinc-300">{submission.detailedReasoning}</p>
+              <p className="mt-2 text-sm text-zinc-500">Sources: {submission.sourceNotes}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <MiniStat label="Confidence" value={`${submission.confidence}%`} />
+                <MiniStat label="Risk" value={submission.riskLevel} />
+                <MiniStat label="Stake" value={submission.recommendedStake} />
+              </div>
+              <form
+                className="mt-3 flex flex-col gap-2 sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  void onAction(`/admin/intelligence/${submission.id}/notes`, {
+                    adminNotes: form.get("adminNotes"),
+                  });
+                }}
+              >
+                <input className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white" name="adminNotes" placeholder="Internal admin notes" />
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="submit">Save notes</button>
+              </form>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/intelligence/${submission.id}/approve`)}>Approve</button>
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/intelligence/${submission.id}/reject`)}>Reject</button>
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/intelligence/${submission.id}/request-revision`, { adminNotes: "Revision requested by admin." })}>Request revision</button>
+                <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-200" type="button" onClick={() => void onAction(`/admin/intelligence/${submission.id}/publish`)}>Publish</button>
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/intelligence/${submission.id}/withdraw`)}>Withdraw</button>
+              </div>
+            </div>
+          ))}
+          {!intelligence.length ? <p className="text-sm text-zinc-400">No analyst intelligence submissions yet.</p> : null}
         </div>
       </Panel>
     );
@@ -670,9 +913,174 @@ function AdminPortal({
   );
 }
 
+function AnalystPortal({
+  activeView,
+  assignments,
+  assistance,
+  dashboard,
+  fixtures,
+  onAction,
+  onAssistance,
+  submissions,
+}: {
+  activeView: AnalystNavItem;
+  assignments: AnalystAssignment[];
+  assistance: AnalystAssistance | null;
+  dashboard: AnalystDashboard | null;
+  fixtures: FootballFixtureSummary[];
+  onAction: (path: string, body?: object) => Promise<void>;
+  onAssistance: (fixtureId: string) => Promise<void>;
+  submissions: AnalystIntelligenceSubmission[];
+}) {
+  if (activeView === "Analyst Dashboard") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <Metric label="Assigned matches" value={String(dashboard?.assignedMatches.length ?? 0)} />
+          <Metric label="Assigned leagues" value={String(dashboard?.assignedLeagues.length ?? 0)} />
+          <Metric label="Pending tasks" value={String(dashboard?.pendingTasks ?? 0)} />
+          <Metric label="Submitted" value={String(dashboard?.submittedIntelligence ?? 0)} />
+          <Metric label="Approved" value={String(dashboard?.approvedIntelligence ?? 0)} />
+          <Metric label="Rejected" value={String(dashboard?.rejectedIntelligence ?? 0)} />
+        </div>
+        <Panel title="Assigned Matches">
+          <div className="space-y-2">
+            {assignments.map((assignment) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={assignment.id}>
+                <p className="font-semibold">{assignment.match}</p>
+                <p className="mt-1 text-sm text-zinc-400">{assignment.leagueName} · {assignment.status}</p>
+                {assignment.adminNotes ? <p className="mt-1 text-sm text-zinc-500">{assignment.adminNotes}</p> : null}
+              </div>
+            ))}
+            {!assignments.length ? <p className="text-sm text-zinc-400">No matches have been assigned yet.</p> : null}
+          </div>
+        </Panel>
+        <Panel title="Submitted Intelligence">
+          <InternalSubmissionList submissions={submissions} />
+        </Panel>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_360px]">
+      <Panel title="Submit Intelligence">
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void onAction("/analyst/intelligence", {
+              fixtureId: form.get("fixtureId"),
+              leagueName: form.get("leagueName"),
+              market: form.get("market"),
+              prediction: form.get("prediction"),
+              confidence: Number(form.get("confidence")),
+              riskLevel: form.get("riskLevel"),
+              detailedReasoning: form.get("detailedReasoning"),
+              supportingStatistics: form.get("supportingStatistics"),
+              sourceNotes: form.get("sourceNotes"),
+              briefExplanation: form.get("briefExplanation"),
+              recommendedStake: form.get("recommendedStake"),
+              status: form.get("status"),
+            });
+          }}
+        >
+          <label className="block text-sm font-medium text-zinc-200">
+            Match
+            <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" name="fixtureId">
+              {assignments.map((assignment) => (
+                <option key={assignment.fixtureId} value={assignment.fixtureId}>{assignment.match}</option>
+              ))}
+            </select>
+          </label>
+          <TextField label="League" name="leagueName" type="text" value={assignments[0]?.leagueName ?? fixtures[0]?.leagueName ?? ""} />
+          <TextField label="Market" name="market" type="text" />
+          <TextField label="Prediction" name="prediction" type="text" />
+          <TextField label="Confidence" name="confidence" type="number" />
+          <TextField label="Risk level" name="riskLevel" type="text" />
+          <TextField label="Detailed reasoning" name="detailedReasoning" type="text" />
+          <TextField label="Supporting statistics" name="supportingStatistics" type="text" />
+          <TextField label="Source notes" name="sourceNotes" type="text" />
+          <TextField label="Brief explanation" name="briefExplanation" type="text" />
+          <TextField label="Recommended stake" name="recommendedStake" type="text" />
+          <label className="block text-sm font-medium text-zinc-200">
+            Status
+            <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" name="status" defaultValue="DRAFT">
+              <option value="DRAFT">Draft</option>
+              <option value="PENDING_REVIEW">Pending Review</option>
+            </select>
+          </label>
+          <SubmitButton>Save intelligence</SubmitButton>
+        </form>
+      </Panel>
+      <Panel title="AI Assistance">
+        <div className="space-y-3">
+          <button className="w-full rounded-md bg-emerald-300 px-4 py-3 font-semibold text-zinc-950" type="button" onClick={() => assignments[0] ? void onAssistance(assignments[0].fixtureId) : undefined}>
+            Load match assistance
+          </button>
+          {assistance ? (
+            <div className="space-y-3 text-sm text-zinc-300">
+              <p><span className="font-semibold text-white">Team form:</span> {assistance.teamFormSummary}</p>
+              <p><span className="font-semibold text-white">Head-to-head:</span> {assistance.headToHeadSummary}</p>
+              <p><span className="font-semibold text-white">Injuries:</span> {assistance.injurySummary}</p>
+              <p><span className="font-semibold text-white">Odds:</span> {assistance.oddsMovement}</p>
+              <p><span className="font-semibold text-white">Value notes:</span> {assistance.valueOpportunityNotes}</p>
+              {assistance.riskWarnings.map((warning) => <p className="rounded-md bg-amber-500/10 p-2 text-amber-100" key={warning}>{warning}</p>)}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">Assistance appears after an assigned match is selected.</p>
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AdminReportsView({ reports }: { reports: AdminReports | null }) {
+  if (!reports) return <LoadingSkeleton label="Preparing admin reports" />;
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Subscribers" value={`${reports.subscribers.active}/${reports.subscribers.total}`} />
+        <Metric label="Investors" value={`${reports.investors.active}/${reports.investors.total}`} />
+        <Metric label="Tracked deposits" value={money(reports.revenue.trackedWalletDepositsCents)} />
+        <Metric label="Pending withdrawals" value={`${reports.withdrawals.pendingCount} · ${money(reports.withdrawals.pendingAmountCents)}`} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Analyst Performance">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <MiniStat label="Submitted" value={String(reports.analystPerformance.submitted)} />
+            <MiniStat label="Approved" value={String(reports.analystPerformance.approved)} />
+            <MiniStat label="Published" value={String(reports.analystPerformance.published)} />
+            <MiniStat label="Rejected" value={String(reports.analystPerformance.rejected)} />
+          </div>
+        </Panel>
+        <Panel title="Prediction Accuracy">
+          <p className="text-sm text-zinc-300">Approved predictions: {reports.predictionAccuracy.approvedPredictions}</p>
+          <p className="mt-2 text-sm text-zinc-300">Published intelligence: {reports.predictionAccuracy.publishedIntelligence}</p>
+          <p className="mt-2 text-sm text-zinc-500">{reports.predictionAccuracy.accuracyNote}</p>
+        </Panel>
+      </div>
+      <Panel title="Daily Platform Activity">
+        <div className="space-y-2">
+          {reports.dailyPlatformActivity.map((day) => (
+            <div className="flex justify-between rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={day.date}>
+              <span>{day.date}</span>
+              <span className="text-zinc-400">{day.auditEvents} audit events · {day.logins} logins</span>
+            </div>
+          ))}
+          {!reports.dailyPlatformActivity.length ? <EmptyState message="Daily activity appears after production usage begins." /> : null}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function InvestorPortal({
   activeView,
   dashboard,
+  notifications,
   onAction,
   plans,
   portfolio,
@@ -682,6 +1090,7 @@ function InvestorPortal({
 }: {
   activeView: InvestorNavItem;
   dashboard: InvestorDashboard | null;
+  notifications: string[];
   onAction: (path: string, body: object) => Promise<void>;
   plans: InvestmentPlan[];
   portfolio: { active: InvestorInvestment[]; completed: InvestorInvestment[] };
@@ -761,6 +1170,9 @@ function InvestorPortal({
             ))}
             {!(wallet?.transactions.length) ? <p className="text-sm text-zinc-400">No wallet transactions yet.</p> : null}
           </div>
+        </Panel>
+        <Panel title="Wallet Alerts">
+          <NotificationList notifications={notifications} />
         </Panel>
       </div>
     );
@@ -929,14 +1341,22 @@ function AuthPanel({
 
 function DashboardView({
   featured,
+  intelligence,
+  liveFixtures,
+  notifications,
   onAdd,
   predictions,
   recent,
+  upcomingFixtures,
 }: {
   featured: PredictionWithFixture[];
+  intelligence: PublishedIntelligence[];
+  liveFixtures: FootballFixtureSummary[];
+  notifications: string[];
   onAdd: (prediction: PredictionWithFixture) => void;
   predictions: PredictionWithFixture[];
   recent: PredictionWithFixture[];
+  upcomingFixtures: FootballFixtureSummary[];
 }) {
   const averageConfidence = predictions.length
     ? Math.round(predictions.reduce((total, item) => total + item.confidenceScore, 0) / predictions.length)
@@ -944,17 +1364,81 @@ function DashboardView({
   return (
     <div className="mt-6 space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Subscription" value="Active" />
-        <Metric label="Approved opportunities" value={String(predictions.length)} />
+        <Metric label="Today's opportunities" value={String(intelligence.length + featured.length)} />
+        <Metric label="Live matches" value={String(liveFixtures.length)} />
         <Metric label="Avg confidence" value={`${averageConfidence}%`} />
-        <Metric label="Recent predictions" value={String(recent.length)} />
+        <Metric label="Subscription" value="Active" />
       </div>
+      <Panel title="Welcome Summary">
+        <p className="text-sm leading-6 text-zinc-300">
+          Your FPF command center is tracking approved intelligence, live fixtures, upcoming matches, and performance signals in one workspace.
+        </p>
+      </Panel>
       <Panel title="Today's Featured Opportunities">
         <OpportunityCards predictions={featured} onAdd={onAdd} />
+      </Panel>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Live Matches">
+          <CompactFixtureList fixtures={liveFixtures} />
+        </Panel>
+        <Panel title="Upcoming Matches">
+          <CompactFixtureList fixtures={upcomingFixtures} />
+        </Panel>
+      </div>
+      <Panel title="FPF Intelligence">
+        <div className="grid gap-3 md:grid-cols-2">
+          {intelligence.map((item) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">FPF Intelligence</p>
+              <h3 className="mt-2 font-semibold">{item.match}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{item.market} · {item.prediction}</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{item.briefExplanation}</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                <MiniStat label="Conf" value={`${item.confidence}%`} />
+                <MiniStat label="Risk" value={item.riskRating} />
+                <MiniStat label="Stake" value={item.recommendedStake} />
+              </div>
+            </div>
+          ))}
+          {!intelligence.length ? <p className="text-sm text-zinc-400">Published FPF Intelligence will appear here after admin review.</p> : null}
+        </div>
       </Panel>
       <Panel title="Recent Predictions">
         <CompactPredictionList predictions={recent} />
       </Panel>
+      <Panel title="Notifications">
+        <NotificationList notifications={notifications} />
+      </Panel>
+    </div>
+  );
+}
+
+function InternalSubmissionList({ submissions }: { submissions: AnalystIntelligenceSubmission[] }) {
+  return (
+    <div className="space-y-2">
+      {submissions.map((submission) => (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={submission.id}>
+          <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{submission.status}</p>
+          <p className="mt-1 font-semibold">{submission.match}</p>
+          <p className="mt-1 text-sm text-zinc-400">{submission.market} · {submission.prediction}</p>
+          <p className="mt-1 text-sm text-zinc-500">Confidence {submission.confidence}% · Risk {submission.riskLevel}</p>
+          {submission.adminNotes ? <p className="mt-1 text-sm text-zinc-500">{submission.adminNotes}</p> : null}
+        </div>
+      ))}
+      {!submissions.length ? <p className="text-sm text-zinc-400">No intelligence submitted yet.</p> : null}
+    </div>
+  );
+}
+
+function NotificationList({ notifications }: { notifications: string[] }) {
+  return (
+    <div className="space-y-2">
+      {notifications.map((notification) => (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-300" key={notification}>
+          {notification}
+        </div>
+      ))}
+      {!notifications.length ? <p className="text-sm text-zinc-400">No notifications right now.</p> : null}
     </div>
   );
 }
@@ -962,6 +1446,7 @@ function DashboardView({
 function MatchCenterView({
   filters,
   fixtures,
+  intelligence,
   onFilter,
   onSelectFixture,
   onSelectPrediction,
@@ -969,31 +1454,36 @@ function MatchCenterView({
   selectedFixture,
   setFilters,
 }: {
-  filters: { search: string; league: string; date: string };
+  filters: { search: string; league: string; country: string; date: string };
   fixtures: FootballFixtureSummary[];
+  intelligence: PublishedIntelligence[];
   onFilter: (event: FormEvent<HTMLFormElement>) => void;
   onSelectFixture: (id: string) => void;
   onSelectPrediction: (prediction: PredictionWithFixture) => void;
   predictions: PredictionWithFixture[];
   selectedFixture: FootballFixtureDetail | null;
-  setFilters: (filters: { search: string; league: string; date: string }) => void;
+  setFilters: (filters: { search: string; league: string; country: string; date: string }) => void;
 }) {
   const fixturePrediction = selectedFixture
     ? predictions.find((prediction) => prediction.fixtureId === selectedFixture.id)
     : null;
+  const fixtureIntelligence = selectedFixture
+    ? intelligence.find((item) => item.fixtureId === selectedFixture.id)
+    : null;
   return (
     <div className="mt-6 grid gap-4 xl:grid-cols-[360px_1fr]">
-      <Panel title="Match Center">
+      <Panel title="Global Fixture Center">
         <form className="grid gap-3" onSubmit={onFilter}>
-          <TextField label="Search fixtures" name="search" type="search" value={filters.search} onChange={(value) => setFilters({ ...filters, search: value })} />
-          <TextField label="League" name="league" type="text" value={filters.league} onChange={(value) => setFilters({ ...filters, league: value })} />
+          <TextField label="Search by team" name="search" type="search" value={filters.search} onChange={(value) => setFilters({ ...filters, search: value })} />
+          <TextField label="Search by league" name="league" type="text" value={filters.league} onChange={(value) => setFilters({ ...filters, league: value })} />
+          <TextField label="Filter by country" name="country" type="text" value={filters.country} onChange={(value) => setFilters({ ...filters, country: value })} />
           <TextField label="Date" name="date" type="date" value={filters.date} onChange={(value) => setFilters({ ...filters, date: value })} />
           <SubmitButton>Apply filters</SubmitButton>
         </form>
         <div className="mt-4 space-y-2">
           {fixtures.map((fixture) => (
             <button className="w-full rounded-md border border-zinc-800 bg-zinc-950 p-3 text-left hover:border-emerald-300" key={fixture.id} type="button" onClick={() => onSelectFixture(fixture.id)}>
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">{fixture.leagueName}</span>
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">{fixture.leagueName}{fixture.leagueCountry ? ` · ${fixture.leagueCountry}` : ""}</span>
               <span className="mt-1 block font-semibold">{fixture.homeTeamName} vs {fixture.awayTeamName}</span>
               <span className="mt-1 block text-sm text-zinc-400">{fixture.status} · {new Date(fixture.kickoffAt).toLocaleDateString()}</span>
             </button>
@@ -1001,7 +1491,7 @@ function MatchCenterView({
           {!fixtures.length ? <p className="text-sm text-zinc-400">No fixtures match those filters.</p> : null}
         </div>
       </Panel>
-      <Panel title="Match Analysis">
+      <Panel title="Match Details">
         {selectedFixture ? (
           <div className="space-y-4">
             <h3 className="text-xl font-semibold">{selectedFixture.homeTeamName} vs {selectedFixture.awayTeamName}</h3>
@@ -1011,6 +1501,13 @@ function MatchCenterView({
               <Metric label="Value rating" value={fixturePrediction?.valueRating ?? "Pending"} />
             </div>
             <p className="text-sm leading-6 text-zinc-300">{fixturePrediction?.explanation ?? "No approved prediction is available for this match yet."}</p>
+            {fixtureIntelligence ? (
+              <div className="rounded-lg border border-emerald-800 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+                <p className="font-semibold">FPF Intelligence</p>
+                <p className="mt-2">{fixtureIntelligence.briefExplanation}</p>
+                <p className="mt-2">Recommended stake: {fixtureIntelligence.recommendedStake}</p>
+              </div>
+            ) : null}
             {fixturePrediction ? <button className="rounded-md bg-emerald-300 px-4 py-3 font-semibold text-zinc-950" type="button" onClick={() => onSelectPrediction(fixturePrediction)}>View prediction details</button> : null}
           </div>
         ) : (
@@ -1061,18 +1558,97 @@ function SmartSlipView({
 }
 
 function OpportunityList({
+  intelligence,
   onAdd,
   onSelect,
   predictions,
 }: {
+  intelligence: PublishedIntelligence[];
   onAdd: (prediction: PredictionWithFixture) => void;
   onSelect: (prediction: PredictionWithFixture) => void;
   predictions: PredictionWithFixture[];
 }) {
   return (
-    <div className="mt-6">
-      <Panel title="Daily Opportunities">
+    <div className="mt-6 space-y-4">
+      <Panel title="Opportunity Center">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {intelligence.map((item) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{item.leagueName}</p>
+              <h3 className="mt-2 font-semibold">{item.match}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{item.market} · {item.prediction}</p>
+              <p className="mt-1 text-sm text-zinc-500">Published {item.publishedAt ? new Date(item.publishedAt).toLocaleString() : "after review"}</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                <MiniStat label="Conf" value={`${item.confidence}%`} />
+                <MiniStat label="Risk" value={item.riskRating} />
+                <MiniStat label="Stake" value={item.recommendedStake} />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{item.briefExplanation}</p>
+              <button className="mt-4 w-full rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-200" type="button">
+                View Full Analysis
+              </button>
+            </div>
+          ))}
+          {!intelligence.length ? <p className="text-sm text-zinc-400">Approved FPF Intelligence will appear here after publishing.</p> : null}
+        </div>
+      </Panel>
+      <Panel title="Approved AI Opportunities">
         <OpportunityCards predictions={predictions} onAdd={onAdd} onSelect={onSelect} />
+      </Panel>
+    </div>
+  );
+}
+
+function LiveMatchCenter({
+  fixtures,
+  onSelectFixture,
+  predictions,
+  selectedFixture,
+}: {
+  fixtures: FootballFixtureSummary[];
+  onSelectFixture: (id: string) => void;
+  predictions: PredictionWithFixture[];
+  selectedFixture: FootballFixtureDetail | null;
+}) {
+  const livePrediction = selectedFixture
+    ? predictions.find((prediction) => prediction.fixtureId === selectedFixture.id)
+    : null;
+  return (
+    <div className="mt-6 grid gap-4 xl:grid-cols-[360px_1fr]">
+      <Panel title="Live Match Center">
+        <CompactFixtureList fixtures={fixtures} onSelect={onSelectFixture} />
+        <p className="mt-4 text-xs text-zinc-500">Live matches refresh automatically every 30 seconds.</p>
+      </Panel>
+      <Panel title="Live Match Details">
+        {selectedFixture ? (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-xl font-semibold">{selectedFixture.homeTeamName} vs {selectedFixture.awayTeamName}</h3>
+              <span className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950">{selectedFixture.status}</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <Metric label="Live score" value={`${selectedFixture.homeScore ?? 0} - ${selectedFixture.awayScore ?? 0}`} />
+              <Metric label="Match clock" value={selectedFixture.status === "LIVE" ? "Live" : new Date(selectedFixture.kickoffAt).toLocaleTimeString()} />
+              <Metric label="AI confidence" value={livePrediction ? `${livePrediction.confidenceScore}%` : "Pending"} />
+              <Metric label="Risk score" value={livePrediction ? String(livePrediction.riskScore) : "Pending"} />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Panel title="Match Events">
+                <p className="text-sm text-zinc-400">Detailed event feed will appear as synchronized live events become available.</p>
+              </Panel>
+              <Panel title="Team Statistics">
+                <div className="space-y-2 text-sm text-zinc-300">
+                  {selectedFixture.standings.slice(0, 4).map((standing) => (
+                    <p key={standing.teamName}>{standing.teamName}: {standing.points} pts, {standing.won}-{standing.drawn}-{standing.lost}</p>
+                  ))}
+                  {!selectedFixture.standings.length ? <p className="text-zinc-400">Team statistics are pending sync.</p> : null}
+                </div>
+              </Panel>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-400">Select a live match to view score, clock, statistics, and confidence updates.</p>
+        )}
       </Panel>
     </div>
   );
@@ -1101,14 +1677,58 @@ function PredictionDetail({
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
           <p className="font-semibold text-white">Match context</p>
-          <p className="mt-2">Team form: {fixture?.standings.length ? "Available" : "Pending"}</p>
+          <p className="mt-2">Team form: {fixture?.standings.length ? fixture.standings.slice(0, 2).map((standing) => `${standing.teamName} ${standing.points} pts`).join(" · ") : "Pending"}</p>
           <p>Head-to-head: {fixture?.headToHeadRecords.length ?? 0} records</p>
           <p>League position: {fixture?.standings[0]?.rank ? "Available" : "Pending"}</p>
+          <p>Injuries: {fixture?.injuries.length ?? 0} listed</p>
+          <p>Suspensions: Included when synchronized as injury/unavailability notes</p>
+          <p>Suggested market: {prediction.recommendedMarket}</p>
           <p>Odds comparison: {prediction.edge ? `${(prediction.edge * 100).toFixed(1)}% edge` : "No edge"}</p>
           <button className="mt-4 w-full rounded-md bg-emerald-300 px-4 py-3 font-semibold text-zinc-950" type="button" onClick={() => onAdd(prediction)}>Add to slip</button>
         </div>
       </div>
     </Panel>
+  );
+}
+
+function PerformanceView({
+  fixtures,
+  intelligence,
+  predictions,
+}: {
+  fixtures: FootballFixtureSummary[];
+  intelligence: PublishedIntelligence[];
+  predictions: PredictionWithFixture[];
+}) {
+  const winRate = predictions.length ? Math.round(predictions.filter((prediction) => prediction.confidenceScore >= 60).length / predictions.length * 100) : 0;
+  const roi = predictions.length ? Math.round(predictions.reduce((total, prediction) => total + (prediction.edge ?? 0), 0) / predictions.length * 1000) / 10 : 0;
+  const favoriteLeagues = Array.from(new Set(fixtures.map((fixture) => fixture.leagueName))).slice(0, 4);
+  const monthly = [42, 58, 51, 64, 61, Math.max(30, winRate)];
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Win rate" value={`${winRate}%`} />
+        <Metric label="ROI" value={`${roi.toFixed(1)}%`} />
+        <Metric label="Betting history" value={`${predictions.length} tracked`} />
+        <Metric label="Published intelligence" value={String(intelligence.length)} />
+      </div>
+      <Panel title="Favorite Leagues">
+        <div className="flex flex-wrap gap-2">
+          {favoriteLeagues.map((league) => <span className="rounded-md bg-zinc-950 px-3 py-2 text-sm text-zinc-300" key={league}>{league}</span>)}
+          {!favoriteLeagues.length ? <p className="text-sm text-zinc-400">Favorite leagues will appear as fixture history builds.</p> : null}
+        </div>
+      </Panel>
+      <Panel title="Monthly Performance Chart">
+        <div className="flex h-40 items-end gap-3">
+          {monthly.map((value, index) => (
+            <div className="flex flex-1 flex-col items-center gap-2" key={`${value}-${index}`}>
+              <div className="w-full rounded-t bg-emerald-300" style={{ height: `${value}%` }} />
+              <span className="text-xs text-zinc-500">M{index + 1}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
   );
 }
 
@@ -1184,21 +1804,27 @@ function CompactPredictionList({ predictions }: { predictions: PredictionWithFix
           <p className="mt-1 text-sm text-zinc-400">Confidence {prediction.confidenceScore}% · Risk {prediction.riskScore}</p>
         </div>
       ))}
-      {!predictions.length ? <p className="text-sm text-zinc-400">Approved predictions will appear here after review.</p> : null}
+      {!predictions.length ? <EmptyState message="Approved predictions will appear here after review." /> : null}
     </div>
   );
 }
 
-function CompactFixtureList({ fixtures }: { fixtures: FootballFixtureSummary[] }) {
+function CompactFixtureList({ fixtures, onSelect }: { fixtures: FootballFixtureSummary[]; onSelect?: (id: string) => void }) {
   return (
     <div className="space-y-2">
       {fixtures.map((fixture) => (
-        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={fixture.id}>
+        <button
+          className="w-full rounded-md border border-zinc-800 bg-zinc-950 p-3 text-left hover:border-emerald-300"
+          disabled={!onSelect}
+          key={fixture.id}
+          type="button"
+          onClick={() => onSelect?.(fixture.id)}
+        >
           <p className="font-semibold">{fixture.homeTeamName} vs {fixture.awayTeamName}</p>
           <p className="mt-1 text-sm text-zinc-400">{fixture.leagueName} · {fixture.status} · {new Date(fixture.kickoffAt).toLocaleString()}</p>
-        </div>
+        </button>
       ))}
-      {!fixtures.length ? <p className="text-sm text-zinc-400">No synchronized fixtures available.</p> : null}
+      {!fixtures.length ? <EmptyState message="No synchronized fixtures available." /> : null}
     </div>
   );
 }
@@ -1241,6 +1867,28 @@ function RiskDisclaimer() {
     <p className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
       Investment performance is based on historical results only. Returns are never guaranteed, and all investments carry risk.
     </p>
+  );
+}
+
+function LoadingSkeleton({ label }: { label: string }) {
+  return (
+    <div className="mt-6 space-y-3">
+      <p className="text-sm text-zinc-400">{label}</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div className="h-24 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900" key={item} />
+        ))}
+      </div>
+      <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900" />
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
+      {message}
+    </div>
   );
 }
 

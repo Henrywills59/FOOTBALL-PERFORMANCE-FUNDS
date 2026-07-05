@@ -17,6 +17,7 @@ export class InMemoryFootballRepository implements FootballRepository {
       id,
       apiFootballFixtureId: input.apiFootballFixtureId,
       leagueName: input.league.name,
+      leagueCountry: input.league.country ?? null,
       homeTeamName: input.homeTeam.name,
       awayTeamName: input.awayTeam.name,
       kickoffAt: input.kickoffAt.toISOString(),
