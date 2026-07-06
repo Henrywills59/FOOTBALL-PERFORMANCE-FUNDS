@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cd .. && npm run build -w shared && npm run build:app -w frontend",
+    "build": "npm run build:app",
     "build:app": "tsc -p tsconfig.json && node scripts/build.mjs",
     "dev": "vite --host 0.0.0.0",
     "preview": "vite preview --host 0.0.0.0",

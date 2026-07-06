@@ -1,6 +1,6 @@
 {
-  "installCommand": "cd .. && npm install --ignore-scripts",
-  "buildCommand": "cd .. && npm run build -w shared && npm run build:app -w frontend",
+  "installCommand": "npm install --ignore-scripts",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "env": {
     "VITE_API_BASE_URL": "https://football-performance-funds-backend.vercel.app"

@@ -27,19 +27,20 @@ import type {
 } from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
-const productionApiBaseUrl = "https://football-performance-funds-backend.vercel.app";
-
 function normalizeApiBaseUrl(value?: string) {
   const trimmed = value?.trim().replace(/\/+$/, "");
   if (!trimmed) return "";
   return trimmed.replace(/\/api$/i, "");
 }
 
-const configuredApiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL);
-const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.PROD ? productionApiBaseUrl : "http://localhost:3000");
+const apiUrl = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    "https://football-performance-funds-backend.vercel.app",
+);
 
 function apiEndpoint(path: string) {
-  return `${apiBaseUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
+  return `${apiUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
 }
 const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
