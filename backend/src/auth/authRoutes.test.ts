@@ -252,6 +252,26 @@ describe("auth routes", () => {
       .expect(200);
   });
 
+  it("accepts Vercel forwarded login requests without rate-limit proxy errors", async () => {
+    const app = testApp();
+
+    await request(app).post("/api/auth/register").send(validRegistration).expect(201);
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .set("X-Forwarded-For", "203.0.113.10")
+      .set("X-Forwarded-Proto", "https")
+      .send({
+        email: validRegistration.email,
+        password: validRegistration.password,
+        rememberMe: false,
+      })
+      .expect(200);
+
+    expect(response.body.user.email).toBe(validRegistration.email);
+    expect(response.body.token).toEqual(expect.any(String));
+  });
+
   it("accepts auth requests from comma-separated allowed origins", async () => {
     const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
     process.env.ALLOWED_ORIGINS =

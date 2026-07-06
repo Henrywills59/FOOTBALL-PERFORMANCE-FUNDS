@@ -149,6 +149,7 @@ export function createApp(options?: {
   startFootballJobs?: boolean;
 }) {
   const app = express();
+  app.set("trust proxy", 1);
   const footballConfig = getFootballConfig();
   const authService = new AuthService(
     options?.userRepository ?? new PrismaUserRepository(),
