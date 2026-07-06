@@ -1,23 +1,16 @@
 {
   "version": 2,
   "installCommand": "npm install",
-  "buildCommand": "npm run build -w shared && npm run prisma:generate -w database && npm run build -w backend && npm run build -w frontend",
+  "buildCommand": "npm run build -w shared && npm run prisma:generate -w database && npm run build -w backend",
   "builds": [
     {
       "src": "backend/api/index.ts",
       "use": "@vercel/node@latest"
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
+      "src": "/health/db",
       "dest": "/backend/api/index.ts"
     },
     {
@@ -25,12 +18,12 @@
       "dest": "/backend/api/index.ts"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/frontend/assets/$1"
+      "src": "/api/(.*)",
+      "dest": "/backend/api/index.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/index.html"
+      "dest": "/backend/api/index.ts"
     }
   ]
 }
