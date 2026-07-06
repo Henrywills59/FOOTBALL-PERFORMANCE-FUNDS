@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { prisma as sharedPrisma } from "../database/prismaClient.js";
+import { getPrismaClient } from "../database/prismaClient.js";
 import type { InvestmentPlan, InvestorInvestment, InvestorReport, WithdrawalRequest } from "@fpf/shared";
 import type { InvestorRepository } from "./types.js";
 
@@ -56,7 +56,11 @@ function withdrawalRow(row: {
 }
 
 export class PrismaInvestorRepository implements InvestorRepository {
-  constructor(private readonly prisma = sharedPrisma) {}
+  constructor(private readonly prismaClient?: PrismaClient) {}
+
+  private get prisma() {
+    return this.prismaClient ?? getPrismaClient();
+  }
 
   async dashboard(userId: string) {
     const investments = await this.investments(userId);

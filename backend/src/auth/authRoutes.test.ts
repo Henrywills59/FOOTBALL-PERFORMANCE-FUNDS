@@ -9,6 +9,8 @@ import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionR
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
+import { defaultAdminSeed } from "./adminSeed.js";
+import { InMemoryAnalystRepository } from "../analyst/inMemoryAnalystRepository.js";
 
 function testApp() {
   return createApp({
@@ -18,6 +20,7 @@ function testApp() {
     adminRepository: new InMemoryAdminRepository(),
     investorRepository: new InMemoryInvestorRepository(),
     walletRepository: new InMemoryWalletRepository(),
+    analystRepository: new InMemoryAnalystRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });
@@ -45,6 +48,7 @@ async function testAppWithDemoUsers() {
     adminRepository: new InMemoryAdminRepository(),
     investorRepository: new InMemoryInvestorRepository(),
     walletRepository: new InMemoryWalletRepository(),
+    analystRepository: new InMemoryAnalystRepository(),
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });
@@ -123,6 +127,69 @@ describe("auth routes", () => {
 
       expect(dashboard.body.path).toBe(expectedDashboardPaths[user.role]);
     }
+  });
+
+  it("keeps default admin seed credentials available for production seeding", () => {
+    expect(defaultAdminSeed.email).toBe("admin@footballperformancefund.com");
+    expect(defaultAdminSeed.name).toBe("FPF Admin");
+    expect(defaultAdminSeed.password.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("accepts auth requests from the configured frontend origin", async () => {
+    const app = testApp();
+
+    await request(app)
+      .post("/api/auth/register")
+      .set("Origin", "http://localhost:5173")
+      .send(validRegistration)
+      .expect(201);
+
+    await request(app)
+      .post("/api/auth/login")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        email: validRegistration.email,
+        password: validRegistration.password,
+        rememberMe: false,
+      })
+      .expect(200);
+  });
+
+  it("accepts auth requests from comma-separated allowed origins", async () => {
+    const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
+    process.env.ALLOWED_ORIGINS =
+      "https://football-performance-fund.vercel.app, https://football-performance-fund-git-main.vercel.app/";
+
+    try {
+      const app = testApp();
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("Origin", "https://football-performance-fund.vercel.app")
+        .send(validRegistration)
+        .expect(201);
+
+      await request(app)
+        .post("/api/auth/login")
+        .set("Origin", "https://football-performance-fund-git-main.vercel.app")
+        .send({
+          email: validRegistration.email,
+          password: validRegistration.password,
+          rememberMe: false,
+        })
+        .expect(200);
+    } finally {
+      if (previousAllowedOrigins === undefined) delete process.env.ALLOWED_ORIGINS;
+      else process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
+    }
+  });
+
+  it("blocks auth requests from unconfigured browser origins", async () => {
+    await request(testApp())
+      .post("/api/auth/register")
+      .set("Origin", "https://not-the-frontend.example")
+      .send(validRegistration)
+      .expect(403);
   });
 
   it("routes users to the correct role dashboard", async () => {

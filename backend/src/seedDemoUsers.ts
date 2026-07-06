@@ -12,7 +12,8 @@ async function seedDemoUsers() {
     throw new Error("DATABASE_URL is required to seed demo users.");
   }
 
-  const { prisma } = await import("./database/prismaClient.js");
+  const { getPrismaClient } = await import("./database/prismaClient.js");
+  const prisma = getPrismaClient();
   seededPrisma = prisma;
   const passwordHash = await bcrypt.hash(demoPassword, 12);
 

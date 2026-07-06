@@ -39,7 +39,6 @@ import { WalletService } from "./wallet/walletService.js";
 import type { WalletRepository } from "./wallet/types.js";
 
 const serviceVersion = process.env.npm_package_version ?? "0.1.0";
-const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
 const defaultJwtSecret = "development-only-change-me";
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -50,6 +49,37 @@ const apiLimiter = rateLimit({
 
 function requestId() {
   return crypto.randomUUID();
+}
+
+function normalizeOrigin(origin: string) {
+  const trimmed = origin.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed;
+  }
+}
+
+function getAllowedFrontendOrigins() {
+  const configuredOrigins = [
+    process.env.FRONTEND_URL ?? "http://localhost:5173",
+    process.env.FRONTEND_URLS,
+    process.env.ALLOWED_ORIGINS,
+  ];
+
+  return new Set(
+    configuredOrigins
+      .flatMap((value) => (value ?? "").split(","))
+      .map(normalizeOrigin)
+      .filter(Boolean),
+  );
+}
+
+function isAllowedOrigin(origin?: string) {
+  if (!origin) return true;
+  return getAllowedFrontendOrigins().has(normalizeOrigin(origin));
 }
 
 export function createApp(options?: {
@@ -109,13 +139,20 @@ export function createApp(options?: {
   });
   app.use(
     cors({
-      origin: frontendUrl,
+      origin(origin, callback) {
+        if (isAllowedOrigin(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(null, false);
+      },
     }),
   );
   app.use((request, response, next) => {
     const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method);
     const origin = request.header("origin");
-    if (unsafeMethod && origin && origin !== frontendUrl) {
+    if (unsafeMethod && !isAllowedOrigin(origin)) {
       response.status(403).json({ error: "Invalid request origin" });
       return;
     }

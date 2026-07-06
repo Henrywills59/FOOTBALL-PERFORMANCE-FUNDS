@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/library";
-import { prisma as sharedPrisma } from "../database/prismaClient.js";
+import { getPrismaClient } from "../database/prismaClient.js";
 import type { FootballFixtureDetail, FootballFixtureSummary } from "@fpf/shared";
 import type {
   FixtureUpsert,
@@ -23,7 +23,11 @@ function fixtureStatus(short?: string | null): FixtureUpsert["status"] {
 export { fixtureStatus };
 
 export class PrismaFootballRepository implements FootballRepository {
-  constructor(private readonly prisma = sharedPrisma) {}
+  constructor(private readonly prismaClient?: PrismaClient) {}
+
+  private get prisma() {
+    return this.prismaClient ?? getPrismaClient();
+  }
 
   async upsertFixture(input: FixtureUpsert): Promise<void> {
     const league = await this.prisma.footballLeague.upsert({
