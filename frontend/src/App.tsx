@@ -205,15 +205,15 @@ export default function App() {
   }
 
   async function testApiConnection() {
-    setApiCheck(`Checking ${backendEndpoint("/health")} ...`);
+    setApiCheck(`Checking ${apiEndpoint("/health")} ...`);
     try {
-      const response = await fetch(backendEndpoint("/health"));
+      const response = await fetch(apiEndpoint("/health"));
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
-      setApiCheck(`Backend API OK: ${backendEndpoint("/health")} returned ${data.status}`);
+      setApiCheck(`Backend API OK: ${apiEndpoint("/health")} returned ${data.status}`);
     } catch (caughtError) {
       setApiCheck(
-        `Backend API failed: ${backendEndpoint("/health")} - ${
+        `Backend API failed: ${apiEndpoint("/health")} - ${
           caughtError instanceof Error ? caughtError.message : "Unable to connect"
         }`,
       );
