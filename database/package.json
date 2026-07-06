@@ -4,17 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma generate || node scripts/ensureGeneratedClient.mjs",
-    "db:generate": "prisma generate",
+    "build": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma generate --schema prisma/schema.prisma",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:push": "prisma db push",
     "typecheck": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma validate"
   },
   "dependencies": {
-    "@prisma/client": "^5.16.2"
+    "@prisma/client": "5.22.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "prisma": "^5.16.2"
+    "prisma": "5.22.0"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"

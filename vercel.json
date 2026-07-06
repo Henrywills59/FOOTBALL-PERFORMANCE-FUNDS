@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "installCommand": "npm install && npm run build -w shared",
+  "installCommand": "npm install && npm run build -w shared && npm run build -w database",
   "buildCommand": "npm run build -w shared && npm run build -w database && npm run build -w backend",
   "builds": [
     {
