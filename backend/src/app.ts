@@ -137,6 +137,10 @@ function getJwtSecret() {
   return defaultJwtSecret;
 }
 
+function isLoginDiagnosticPath(path: string) {
+  return ["/api/auth/login", "/api/debug/login", "/auth/login", "/debug/login"].includes(path);
+}
+
 export function createApp(options?: {
   userRepository?: UserRepository;
   footballRepository?: FootballRepository;
@@ -191,6 +195,15 @@ export function createApp(options?: {
   app.use((request, response, next) => {
     const id = request.header("x-request-id") ?? requestId();
     response.setHeader("x-request-id", id);
+    if (isLoginDiagnosticPath(request.path)) {
+      console.info("AUTH_LOGIN_MIDDLEWARE_STAGE", {
+        stage: "requestId",
+        status: "SUCCESS",
+        requestId: id,
+        path: request.path,
+        method: request.method,
+      });
+    }
     next();
   });
   app.use(
@@ -209,12 +222,38 @@ export function createApp(options?: {
     const unsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method);
     const origin = request.header("origin");
     if (unsafeMethod && !isAllowedOrigin(origin)) {
+      if (isLoginDiagnosticPath(request.path)) {
+        console.error("AUTH_LOGIN_MIDDLEWARE_STAGE", {
+          stage: "originValidation",
+          status: "FAILURE",
+          requestId: response.getHeader("x-request-id"),
+          origin,
+        });
+      }
       response.status(403).json({ error: "Invalid request origin" });
       return;
+    }
+    if (isLoginDiagnosticPath(request.path)) {
+      console.info("AUTH_LOGIN_MIDDLEWARE_STAGE", {
+        stage: "originValidation",
+        status: "SUCCESS",
+        requestId: response.getHeader("x-request-id"),
+        origin,
+      });
     }
     next();
   });
   app.use("/api", apiLimiter);
+  app.use("/api", (request, response, next) => {
+    if (isLoginDiagnosticPath(request.path)) {
+      console.info("AUTH_LOGIN_MIDDLEWARE_STAGE", {
+        stage: "globalRateLimiter",
+        status: "SUCCESS",
+        requestId: response.getHeader("x-request-id"),
+      });
+    }
+    next();
+  });
   app.use(express.json({ limit: "1mb" }));
 
   app.get(["/", "/health", "/api/health"], (_request, response) => {

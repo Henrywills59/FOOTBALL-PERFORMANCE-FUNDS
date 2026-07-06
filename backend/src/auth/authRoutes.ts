@@ -98,7 +98,14 @@ export function createAuthRouter(authService: AuthService) {
     }
   });
 
-  router.post("/auth/login", authLimiter, async (request, response, next) => {
+  router.post("/auth/login", authLimiter, (request, response, next) => {
+    console.info("AUTH_LOGIN_MIDDLEWARE_STAGE", {
+      stage: "authRateLimiter",
+      status: "SUCCESS",
+      requestId: response.getHeader("x-request-id"),
+    });
+    next();
+  }, async (request, response, next) => {
     const requestId = response.getHeader("x-request-id");
     try {
       const input = loginSchema.parse(request.body) as LoginInput;
@@ -112,6 +119,31 @@ export function createAuthRouter(authService: AuthService) {
       response.status(200).json(await authService.login(input));
     } catch (error) {
       console.error("Auth login route failed", {
+        requestId,
+        email: maskEmail(typeof request.body?.email === "string" ? request.body.email : undefined),
+        error: safeErrorDetails(error),
+      });
+      next(error);
+    }
+  });
+
+  router.post("/debug/login", async (request, response, next) => {
+    const requestId = response.getHeader("x-request-id");
+    try {
+      const input = loginSchema.parse(request.body) as LoginInput;
+      console.info("Debug login route accepted request", {
+        requestId,
+        email: maskEmail(input.email),
+        rememberMe: input.rememberMe,
+      });
+
+      const diagnostic = await authService.debugLogin(input);
+      response.status(diagnostic.ok ? 200 : 500).json({
+        requestId,
+        ...diagnostic,
+      });
+    } catch (error) {
+      console.error("Debug login route failed", {
         requestId,
         email: maskEmail(typeof request.body?.email === "string" ? request.body.email : undefined),
         error: safeErrorDetails(error),

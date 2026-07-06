@@ -34,6 +34,10 @@ export class PrismaUserRepository implements UserRepository {
     return this.prismaClient ?? getPrismaClient();
   }
 
+  initializeClient(): void {
+    void this.prisma;
+  }
+
   async createUser(input: CreateUserInput): Promise<StoredUser> {
     const user = await this.prisma.user.create({
       data: input,
@@ -92,5 +96,9 @@ export class PrismaUserRepository implements UserRepository {
     await this.prisma.loginHistory.create({
       data: input,
     });
+  }
+
+  async checkConnection(): Promise<void> {
+    await this.prisma.$queryRaw`SELECT 1`;
   }
 }
