@@ -43,8 +43,10 @@ const serviceVersion = process.env.npm_package_version ?? "0.1.0";
 const defaultJwtSecret = "development-only-change-me";
 const defaultFrontendOrigins = [
   "http://localhost:5173",
+  "http://localhost:4173",
   "https://football-performance-fund-frontend.vercel.app",
   "https://football-performance-funds-frontend.vercel.app",
+  "https://we-are-starting-football-performanc.vercel.app",
 ];
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -84,6 +86,15 @@ function getAllowedFrontendOrigins() {
   );
 }
 
+function isTrustedVercelOrigin(origin: string) {
+  try {
+    const url = new URL(origin);
+    return url.protocol === "https:" && url.hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 function getSafeConfigStatus() {
   return {
     status: "ok",
@@ -97,12 +108,14 @@ function getSafeConfigStatus() {
     frontendUrlConfigured: Boolean(process.env.FRONTEND_URL?.trim()),
     allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim()),
     allowedOrigins: Array.from(getAllowedFrontendOrigins()),
+    vercelPreviewOriginsAllowed: true,
   };
 }
 
 function isAllowedOrigin(origin?: string) {
   if (!origin) return true;
-  return getAllowedFrontendOrigins().has(normalizeOrigin(origin));
+  const normalizedOrigin = normalizeOrigin(origin);
+  return getAllowedFrontendOrigins().has(normalizedOrigin) || isTrustedVercelOrigin(normalizedOrigin);
 }
 
 function getJwtSecret() {

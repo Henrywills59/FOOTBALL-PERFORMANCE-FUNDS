@@ -46,6 +46,28 @@ function apiEndpoint(path: string) {
 function backendEndpoint(path: string) {
   return `${apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+function sameOriginApiEndpoint(path: string) {
+  return `/api${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit, fallbackUrl?: string) {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    if (fallbackUrl) return fetchJson<T>(fallbackUrl, init);
+    throw new Error(
+      `Unable to reach Football Performance Fund API at ${url}. ${
+        error instanceof Error ? error.message : "Network request failed"
+      }`,
+    );
+  }
+
+  const data = (await response.json().catch(() => ({}))) as { error?: string } & T;
+  if (!response.ok) throw new Error(data.error ?? `Request failed with HTTP ${response.status}`);
+  return data as T;
+}
 const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
@@ -194,22 +216,25 @@ export default function App() {
   }
 
   async function postPublic(path: string, body: object) {
-    const response = await fetch(apiEndpoint(path), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Something went wrong");
-    return data;
+    return fetchJson(
+      apiEndpoint(path),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      sameOriginApiEndpoint(path),
+    );
   }
 
   async function testApiConnection() {
     setApiCheck(`Checking ${apiEndpoint("/health")} ...`);
     try {
-      const response = await fetch(apiEndpoint("/health"));
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
+      const data = await fetchJson<{ status: string }>(
+        apiEndpoint("/health"),
+        undefined,
+        sameOriginApiEndpoint("/health"),
+      );
       setApiCheck(`Backend API OK: ${apiEndpoint("/health")} returned ${data.status}`);
     } catch (caughtError) {
       setApiCheck(
@@ -221,26 +246,28 @@ export default function App() {
   }
 
   async function apiGet<T>(path: string, token: string) {
-    const response = await fetch(apiEndpoint(path), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Request failed");
-    return data as T;
+    return fetchJson<T>(
+      apiEndpoint(path),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      sameOriginApiEndpoint(path),
+    );
   }
 
   async function apiPost<T>(path: string, token: string, body?: object) {
-    const response = await fetch(apiEndpoint(path), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+    return fetchJson<T>(
+      apiEndpoint(path),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
       },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Request failed");
-    return data as T;
+      sameOriginApiEndpoint(path),
+    );
   }
 
   async function loadSubscriberData(token: string) {
@@ -361,32 +388,36 @@ export default function App() {
   async function adminAction(path: string, body?: object) {
     if (!session) return;
     const method = path.includes("/settings") || path.includes("/notes") ? "PATCH" : "POST";
-    const response = await fetch(apiEndpoint(path), {
-      method,
-      headers: {
-        Authorization: `Bearer ${session.token}`,
-        "Content-Type": "application/json",
+    await fetchJson(
+      apiEndpoint(path),
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
       },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Request failed");
+      sameOriginApiEndpoint(path),
+    );
     await loadAdminData(session.token);
     if (session.user.role === "ADMIN") await loadSubscriberData(session.token);
   }
 
   async function analystAction(path: string, body?: object) {
     if (!session) return;
-    const response = await fetch(apiEndpoint(path), {
-      method: path.includes("/intelligence/") && !path.endsWith("/submit") ? "PATCH" : "POST",
-      headers: {
-        Authorization: `Bearer ${session.token}`,
-        "Content-Type": "application/json",
+    await fetchJson(
+      apiEndpoint(path),
+      {
+        method: path.includes("/intelligence/") && !path.endsWith("/submit") ? "PATCH" : "POST",
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
       },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Request failed");
+      sameOriginApiEndpoint(path),
+    );
     await loadAnalystData(session.token);
   }
 

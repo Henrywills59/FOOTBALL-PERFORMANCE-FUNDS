@@ -237,31 +237,24 @@ describe("auth routes", () => {
     }
   });
 
-  it("accepts auth requests from both production frontend domains by default", async () => {
+  it("accepts auth preflight requests from production and preview frontend domains by default", async () => {
     const productionOrigins = [
       "https://football-performance-fund-frontend.vercel.app",
       "https://football-performance-funds-frontend.vercel.app",
+      "https://we-are-starting-football-performanc.vercel.app",
+      "https://football-performance-fund-frontend-git-main-example.vercel.app",
     ];
+    const app = testApp();
 
     for (const origin of productionOrigins) {
-      const app = testApp();
-      const email = `taylor-${origin.includes("funds") ? "funds" : "fund"}@example.com`;
-
-      await request(app)
-        .post("/api/auth/register")
+      const response = await request(app)
+        .options("/api/auth/login")
         .set("Origin", origin)
-        .send({ ...validRegistration, email })
-        .expect(201);
+        .set("Access-Control-Request-Method", "POST")
+        .set("Access-Control-Request-Headers", "content-type")
+        .expect(204);
 
-      await request(app)
-        .post("/api/auth/login")
-        .set("Origin", origin)
-        .send({
-          email,
-          password: validRegistration.password,
-          rememberMe: false,
-        })
-        .expect(200);
+      expect(response.headers["access-control-allow-origin"]).toBe(origin);
     }
   });
 

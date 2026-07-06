@@ -1,7 +1,9 @@
 const defaultFrontendOrigins = [
   "http://localhost:5173",
+  "http://localhost:4173",
   "https://football-performance-fund-frontend.vercel.app",
   "https://football-performance-funds-frontend.vercel.app",
+  "https://we-are-starting-football-performanc.vercel.app",
 ];
 
 function normalizeOrigin(origin: string) {
@@ -36,5 +38,6 @@ export default function handler(_request: unknown, response: { status: (code: nu
     frontendUrlConfigured: Boolean(process.env.FRONTEND_URL?.trim()),
     allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim()),
     allowedOrigins: allowedOrigins(),
+    vercelPreviewOriginsAllowed: true,
   });
 }
