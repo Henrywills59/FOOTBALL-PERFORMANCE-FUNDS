@@ -27,10 +27,12 @@ import type {
 } from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
-const apiUrl =
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.PROD ? "" : "http://localhost:3000");
+const productionApiUrl = "https://football-performance-funds-backend.vercel.app";
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL;
+const apiUrl = (configuredApiUrl ?? (import.meta.env.PROD ? productionApiUrl : "http://localhost:3000")).replace(
+  /\/+$/,
+  "",
+);
 const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;

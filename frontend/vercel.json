@@ -1,6 +1,9 @@
 {
   "buildCommand": "cd .. && npm run build -w shared && npm run build -w frontend",
   "outputDirectory": "dist",
+  "env": {
+    "VITE_API_BASE_URL": "https://football-performance-funds-backend.vercel.app"
+  },
   "rewrites": [
     {
       "source": "/(.*)",
