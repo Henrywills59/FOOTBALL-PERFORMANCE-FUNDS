@@ -27,12 +27,20 @@ import type {
 } from "@fpf/shared";
 import { PUBLIC_USER_ROLES } from "@fpf/shared";
 
-const productionApiUrl = "https://football-performance-funds-backend.vercel.app";
-const configuredApiUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL;
-const apiUrl = (configuredApiUrl ?? (import.meta.env.PROD ? productionApiUrl : "http://localhost:3000")).replace(
-  /\/+$/,
-  "",
-);
+const productionApiBaseUrl = "https://football-performance-funds-backend.vercel.app";
+
+function normalizeApiBaseUrl(value?: string) {
+  const trimmed = value?.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.replace(/\/api$/i, "");
+}
+
+const configuredApiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL);
+const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.PROD ? productionApiBaseUrl : "http://localhost:3000");
+
+function apiEndpoint(path: string) {
+  return `${apiBaseUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
+}
 const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
@@ -180,7 +188,7 @@ export default function App() {
   }
 
   async function postPublic(path: string, body: object) {
-    const response = await fetch(`${apiUrl}/api${path}`, {
+    const response = await fetch(apiEndpoint(path), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -191,7 +199,7 @@ export default function App() {
   }
 
   async function apiGet<T>(path: string, token: string) {
-    const response = await fetch(`${apiUrl}/api${path}`, {
+    const response = await fetch(apiEndpoint(path), {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();
@@ -200,7 +208,7 @@ export default function App() {
   }
 
   async function apiPost<T>(path: string, token: string, body?: object) {
-    const response = await fetch(`${apiUrl}/api${path}`, {
+    const response = await fetch(apiEndpoint(path), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -331,7 +339,7 @@ export default function App() {
   async function adminAction(path: string, body?: object) {
     if (!session) return;
     const method = path.includes("/settings") || path.includes("/notes") ? "PATCH" : "POST";
-    const response = await fetch(`${apiUrl}/api${path}`, {
+    const response = await fetch(apiEndpoint(path), {
       method,
       headers: {
         Authorization: `Bearer ${session.token}`,
@@ -347,7 +355,7 @@ export default function App() {
 
   async function analystAction(path: string, body?: object) {
     if (!session) return;
-    const response = await fetch(`${apiUrl}/api${path}`, {
+    const response = await fetch(apiEndpoint(path), {
       method: path.includes("/intelligence/") && !path.endsWith("/submit") ? "PATCH" : "POST",
       headers: {
         Authorization: `Bearer ${session.token}`,
