@@ -9,9 +9,16 @@ export function isDatabaseUrlConfigured() {
 }
 
 export function getPrismaClient() {
-  globalForPrisma.fpfPrisma ??= new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  if (!globalForPrisma.fpfPrisma) {
+    console.info("Initializing Prisma client", {
+      databaseUrlConfigured: isDatabaseUrlConfigured(),
+      nodeEnv: process.env.NODE_ENV ?? "development",
+    });
+
+    globalForPrisma.fpfPrisma = new PrismaClient({
+      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    });
+  }
 
   return globalForPrisma.fpfPrisma;
 }
@@ -26,11 +33,19 @@ export async function checkPrismaConnection() {
 
   try {
     await getPrismaClient().$queryRaw`SELECT 1`;
+    console.info("Prisma health check succeeded", {
+      databaseUrlConfigured: true,
+    });
     return {
       ok: true,
       message: "Prisma connected successfully.",
     };
   } catch (error) {
+    console.error("Prisma health check failed", {
+      databaseUrlConfigured: true,
+      message: error instanceof Error ? error.message : "Prisma connection failed.",
+      code: typeof error === "object" && error !== null && "code" in error ? error.code : undefined,
+    });
     return {
       ok: false,
       message: error instanceof Error ? error.message : "Prisma connection failed.",

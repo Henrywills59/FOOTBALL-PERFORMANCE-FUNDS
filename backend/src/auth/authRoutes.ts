@@ -66,6 +66,25 @@ function publicDatabaseError(error: unknown) {
   return "Database connection unavailable. Check backend DATABASE_URL and Prisma deployment.";
 }
 
+function maskEmail(email?: string) {
+  if (!email) return undefined;
+  const [localPart = "", domain = ""] = email.split("@");
+  const visiblePrefix = localPart.slice(0, 2);
+  return domain ? `${visiblePrefix}***@${domain}` : `${visiblePrefix}***`;
+}
+
+function safeErrorDetails(error: unknown) {
+  if (!(error instanceof Error)) {
+    return { message: "Unknown error" };
+  }
+
+  return {
+    name: error.constructor.name,
+    message: error.message,
+    code: typeof error === "object" && error !== null && "code" in error ? error.code : undefined,
+  };
+}
+
 export function createAuthRouter(authService: AuthService) {
   const router = Router();
   const requireSignedIn = requireAuth(authService);
@@ -80,10 +99,23 @@ export function createAuthRouter(authService: AuthService) {
   });
 
   router.post("/auth/login", authLimiter, async (request, response, next) => {
+    const requestId = response.getHeader("x-request-id");
     try {
       const input = loginSchema.parse(request.body) as LoginInput;
+      console.info("Auth login route accepted request", {
+        requestId,
+        email: maskEmail(input.email),
+        rememberMe: input.rememberMe,
+        databaseUrlConfigured: Boolean(process.env.DATABASE_URL?.trim()),
+        jwtSecretConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+      });
       response.status(200).json(await authService.login(input));
     } catch (error) {
+      console.error("Auth login route failed", {
+        requestId,
+        email: maskEmail(typeof request.body?.email === "string" ? request.body.email : undefined),
+        error: safeErrorDetails(error),
+      });
       next(error);
     }
   });

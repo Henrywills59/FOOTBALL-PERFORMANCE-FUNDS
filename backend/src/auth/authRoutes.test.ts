@@ -188,6 +188,50 @@ describe("auth routes", () => {
     expect(response.body.requestId).toEqual(expect.any(String));
   });
 
+  it("does not fail a valid login when login audit storage is unavailable", async () => {
+    const userRepository = new InMemoryUserRepository();
+    const passwordHash = await bcrypt.hash("ChooseAStrongPassword123!", 12);
+    userRepository.seedUser({
+      id: "admin-user",
+      name: "FPF Admin",
+      email: "admin@footballperformancefund.com",
+      role: "ADMIN",
+      status: "ACTIVE",
+      passwordHash,
+      createdAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+    });
+    userRepository.recordLogin = async () => {
+      throw Object.assign(new Error("The table public.LoginHistory does not exist"), {
+        code: "P2021",
+      });
+    };
+
+    const app = createApp({
+      userRepository,
+      footballRepository: new InMemoryFootballRepository(),
+      predictionRepository: new InMemoryPredictionRepository([]),
+      adminRepository: new InMemoryAdminRepository(),
+      investorRepository: new InMemoryInvestorRepository(),
+      walletRepository: new InMemoryWalletRepository(),
+      analystRepository: new InMemoryAnalystRepository(),
+      jwtSecret: "test-secret",
+      startFootballJobs: false,
+    });
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "admin@footballperformancefund.com",
+        password: "ChooseAStrongPassword123!",
+        rememberMe: false,
+      })
+      .expect(200);
+
+    expect(response.body.user.email).toBe("admin@footballperformancefund.com");
+    expect(response.body.user.role).toBe("ADMIN");
+    expect(response.body.token).toEqual(expect.any(String));
+  });
+
   it("accepts auth requests from the configured frontend origin", async () => {
     const app = testApp();
 

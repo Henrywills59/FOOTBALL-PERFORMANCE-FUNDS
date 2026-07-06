@@ -8,6 +8,28 @@ import type { JwtUser, StoredUser, UserRepository } from "./types.js";
 const passwordSaltRounds = 12;
 const resetTokenMinutes = 60;
 
+function maskEmail(email: string) {
+  const [localPart = "", domain = ""] = email.split("@");
+  const visiblePrefix = localPart.slice(0, 2);
+  return domain ? `${visiblePrefix}***@${domain}` : `${visiblePrefix}***`;
+}
+
+function runtimeFlag(name: string) {
+  return Boolean(process.env[name]?.trim());
+}
+
+function safeErrorDetails(error: unknown) {
+  if (!(error instanceof Error)) {
+    return { message: "Unknown error" };
+  }
+
+  return {
+    name: error.constructor.name,
+    message: error.message,
+    code: typeof error === "object" && error !== null && "code" in error ? error.code : undefined,
+  };
+}
+
 function publicUser(user: StoredUser): AuthUser {
   return {
     id: user.id,
@@ -65,19 +87,59 @@ export class AuthService {
     password: string;
     rememberMe: boolean;
   }): Promise<AuthResponse> {
-    const user = await this.users.findUserByEmail(input.email);
+    const maskedEmail = maskEmail(input.email);
+    console.info("Auth login started", {
+      email: maskedEmail,
+      rememberMe: input.rememberMe,
+      databaseUrlConfigured: runtimeFlag("DATABASE_URL"),
+      jwtSecretConfigured: runtimeFlag("JWT_SECRET"),
+    });
+
+    let user: StoredUser | null;
+    try {
+      user = await this.users.findUserByEmail(input.email);
+      console.info("Auth login user lookup completed", {
+        email: maskedEmail,
+        userFound: Boolean(user),
+        userStatus: user?.status,
+        userRole: user?.role,
+      });
+    } catch (error) {
+      console.error("Auth login user lookup failed", {
+        email: maskedEmail,
+        error: safeErrorDetails(error),
+      });
+      throw error;
+    }
+
     if (!user || user.status !== "ACTIVE") {
-      await this.users.recordLogin({ email: input.email, success: false });
+      await this.recordLoginAttempt({ email: input.email, success: false });
       throw new AuthError("Invalid email or password", 401);
     }
 
-    const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
+    let passwordMatches = false;
+    try {
+      passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
+      console.info("Auth login password verification completed", {
+        email: maskedEmail,
+        userId: user.id,
+        passwordMatches,
+      });
+    } catch (error) {
+      console.error("Auth login password verification failed", {
+        email: maskedEmail,
+        userId: user.id,
+        error: safeErrorDetails(error),
+      });
+      throw error;
+    }
+
     if (!passwordMatches) {
-      await this.users.recordLogin({ userId: user.id, email: input.email, success: false });
+      await this.recordLoginAttempt({ userId: user.id, email: input.email, success: false });
       throw new AuthError("Invalid email or password", 401);
     }
 
-    await this.users.recordLogin({ userId: user.id, email: input.email, success: true });
+    await this.recordLoginAttempt({ userId: user.id, email: input.email, success: true });
     return this.createAuthResponse(user, input.rememberMe);
   }
 
@@ -166,22 +228,61 @@ export class AuthService {
 
   private createAuthResponse(user: StoredUser, rememberMe: boolean): AuthResponse {
     const expiresIn = rememberMe ? "30d" : "1d";
-    const token = jwt.sign(
-      {
+    let token: string;
+
+    try {
+      token = jwt.sign(
+        {
+          role: user.role,
+          email: user.email,
+        },
+        this.jwtSecret,
+        {
+          subject: user.id,
+          expiresIn,
+        },
+      );
+      console.info("Auth login JWT generated", {
+        userId: user.id,
         role: user.role,
-        email: user.email,
-      },
-      this.jwtSecret,
-      {
-        subject: user.id,
         expiresIn,
-      },
-    );
+        jwtSecretConfigured: runtimeFlag("JWT_SECRET"),
+      });
+    } catch (error) {
+      console.error("Auth login JWT generation failed", {
+        userId: user.id,
+        role: user.role,
+        error: safeErrorDetails(error),
+      });
+      throw error;
+    }
 
     return {
       user: publicUser(user),
       token,
       expiresIn,
     };
+  }
+
+  private async recordLoginAttempt(input: {
+    userId?: string | null;
+    email: string;
+    success: boolean;
+  }) {
+    try {
+      await this.users.recordLogin(input);
+      console.info("Auth login audit recorded", {
+        email: maskEmail(input.email),
+        userId: input.userId,
+        success: input.success,
+      });
+    } catch (error) {
+      console.error("Auth login audit failed; continuing authentication flow", {
+        email: maskEmail(input.email),
+        userId: input.userId,
+        success: input.success,
+        error: safeErrorDetails(error),
+      });
+    }
   }
 }

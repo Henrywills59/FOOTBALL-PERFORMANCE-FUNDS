@@ -96,19 +96,30 @@ function isTrustedVercelOrigin(origin: string) {
 }
 
 function getSafeConfigStatus() {
+  const requiredEnvironment = {
+    databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
+    jwtSecret: Boolean(process.env.JWT_SECRET?.trim()),
+  };
+
   return {
     status: "ok",
     service: "football-performance-fund-api",
     version: serviceVersion,
     nodeEnv: process.env.NODE_ENV ?? "development",
-    databaseUrlConfigured: isDatabaseUrlConfigured(),
-    jwtSecretConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+    databaseUrlConfigured: requiredEnvironment.databaseUrl,
+    jwtSecretConfigured: requiredEnvironment.jwtSecret,
     nowPaymentsApiKeyConfigured: Boolean(process.env.NOWPAYMENTS_API_KEY?.trim()),
     nowPaymentsIpnSecretConfigured: Boolean(process.env.NOWPAYMENTS_IPN_SECRET?.trim()),
     frontendUrlConfigured: Boolean(process.env.FRONTEND_URL?.trim()),
     allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim()),
     allowedOrigins: Array.from(getAllowedFrontendOrigins()),
     vercelPreviewOriginsAllowed: true,
+    requiredEnvironment,
+    auth: {
+      loginEndpoint: "/api/auth/login",
+      registerEndpoint: "/api/auth/register",
+      passwordResetEndpoint: "/api/auth/reset-password",
+    },
   };
 }
 
