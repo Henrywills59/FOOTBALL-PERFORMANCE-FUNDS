@@ -16,6 +16,7 @@ import type { AnalystRepository } from "./analyst/types.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
+import { checkPrismaConnection, isDatabaseUrlConfigured } from "./database/prismaClient.js";
 import { ApiFootballClient } from "./football/apiFootballClient.js";
 import { getFootballConfig } from "./football/config.js";
 import { FootballJobScheduler } from "./football/footballJobs.js";
@@ -82,6 +83,14 @@ function isAllowedOrigin(origin?: string) {
   return getAllowedFrontendOrigins().has(normalizeOrigin(origin));
 }
 
+function getJwtSecret() {
+  if (process.env.JWT_SECRET?.trim()) {
+    return process.env.JWT_SECRET;
+  }
+
+  return defaultJwtSecret;
+}
+
 export function createApp(options?: {
   userRepository?: UserRepository;
   footballRepository?: FootballRepository;
@@ -97,7 +106,7 @@ export function createApp(options?: {
   const footballConfig = getFootballConfig();
   const authService = new AuthService(
     options?.userRepository ?? new PrismaUserRepository(),
-    options?.jwtSecret ?? process.env.JWT_SECRET ?? defaultJwtSecret,
+    options?.jwtSecret ?? getJwtSecret(),
   );
   const footballRepository = options?.footballRepository ?? new PrismaFootballRepository();
   const footballSyncService = new FootballSyncService(
@@ -169,6 +178,20 @@ export function createApp(options?: {
     };
 
     response.status(200).json(status);
+  });
+
+  app.get("/health/db", async (_request, response) => {
+    const database = await checkPrismaConnection();
+    const status = {
+      status: database.ok ? "ok" : "degraded",
+      service: "football-performance-fund-api",
+      version: serviceVersion,
+      databaseUrlConfigured: isDatabaseUrlConfigured(),
+      jwtSecretConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+      prisma: database,
+    };
+
+    response.status(database.ok ? 200 : 503).json(status);
   });
 
   app.use("/api", createAuthRouter(authService));

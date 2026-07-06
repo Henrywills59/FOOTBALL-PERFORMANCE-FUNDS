@@ -29,6 +29,43 @@ const passwordResetLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+function isPrismaOrDatabaseError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+
+  const errorName = error.constructor.name;
+  const errorCode = "code" in error ? String(error.code) : "";
+  return (
+    errorName.startsWith("PrismaClient") ||
+    errorCode.startsWith("P") ||
+    error.message.includes("DATABASE_URL") ||
+    error.message.includes("database") ||
+    error.message.includes("Can't reach database server")
+  );
+}
+
+function publicDatabaseError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Database connection failed.";
+  const lowerMessage = message.toLowerCase();
+
+  if (lowerMessage.includes("authentication failed") || lowerMessage.includes("p1000")) {
+    return "Database authentication failed. Check DATABASE_URL username, password, and Supabase pooler host.";
+  }
+
+  if (lowerMessage.includes("can't reach database server") || lowerMessage.includes("p1001")) {
+    return "Database server is unreachable. Check DATABASE_URL host, port, SSL mode, and Supabase pooler settings.";
+  }
+
+  if (lowerMessage.includes("environment variable not found") || lowerMessage.includes("database_url")) {
+    return "DATABASE_URL is not configured for the backend deployment.";
+  }
+
+  if (lowerMessage.includes("does not exist") || lowerMessage.includes("table")) {
+    return "Database schema is not initialized. Run the Prisma deployment command against Supabase.";
+  }
+
+  return "Database connection unavailable. Check backend DATABASE_URL and Prisma deployment.";
+}
+
 export function createAuthRouter(authService: AuthService) {
   const router = Router();
   const requireSignedIn = requireAuth(authService);
@@ -144,6 +181,19 @@ export const errorHandler: ErrorRequestHandler = (error, request, response, _nex
 
   if (typeof error === "object" && error !== null && "issues" in error) {
     response.status(400).json({ error: "Invalid request", requestId });
+    return;
+  }
+
+  if (isPrismaOrDatabaseError(error)) {
+    const publicMessage = publicDatabaseError(error);
+    console.error("Database request error", {
+      method: request.method,
+      path: request.path,
+      requestId,
+      message: error instanceof Error ? error.message : "Unknown database error",
+      code: typeof error === "object" && error !== null && "code" in error ? error.code : undefined,
+    });
+    response.status(503).json({ error: publicMessage, requestId });
     return;
   }
 

@@ -50,6 +50,22 @@ describe("production smoke test", () => {
     });
 
     await request(app).get("/health").expect(200);
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    delete process.env.DATABASE_URL;
+    const dbHealth = await request(app).get("/health/db").expect(503);
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+
+    expect(dbHealth.body).toMatchObject({
+      status: "degraded",
+      databaseUrlConfigured: false,
+      jwtSecretConfigured: false,
+      prisma: {
+        ok: false,
+        message: "DATABASE_URL is not configured.",
+      },
+    });
+
     const fixtures = await request(app)
       .get("/api/football/fixtures")
       .set("Authorization", `Bearer ${token}`)

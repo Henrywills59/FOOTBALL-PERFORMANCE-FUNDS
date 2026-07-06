@@ -11,6 +11,7 @@ import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorReposito
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
 import { defaultAdminSeed } from "./adminSeed.js";
 import { InMemoryAnalystRepository } from "../analyst/inMemoryAnalystRepository.js";
+import type { UserRepository } from "./types.js";
 
 function testApp() {
   return createApp({
@@ -132,7 +133,59 @@ describe("auth routes", () => {
   it("keeps default admin seed credentials available for production seeding", () => {
     expect(defaultAdminSeed.email).toBe("admin@footballperformancefund.com");
     expect(defaultAdminSeed.name).toBe("FPF Admin");
-    expect(defaultAdminSeed.password.length).toBeGreaterThanOrEqual(8);
+    expect(defaultAdminSeed.password).toBe("ChooseAStrongPassword123!");
+  });
+
+  it("reports database connection failures as clear JSON errors", async () => {
+    const databaseError = Object.assign(new Error("Authentication failed against database server"), {
+      code: "P1000",
+    });
+    const failingUsers: UserRepository = {
+      createUser: async () => {
+        throw databaseError;
+      },
+      findUserByEmail: async () => {
+        throw databaseError;
+      },
+      findUserById: async () => {
+        throw databaseError;
+      },
+      createPasswordResetToken: async () => {
+        throw databaseError;
+      },
+      findPasswordResetToken: async () => {
+        throw databaseError;
+      },
+      markPasswordResetTokenUsed: async () => {
+        throw databaseError;
+      },
+      updatePassword: async () => {
+        throw databaseError;
+      },
+      recordLogin: async () => {
+        throw databaseError;
+      },
+    };
+
+    const app = createApp({
+      userRepository: failingUsers,
+      footballRepository: new InMemoryFootballRepository(),
+      predictionRepository: new InMemoryPredictionRepository([]),
+      adminRepository: new InMemoryAdminRepository(),
+      investorRepository: new InMemoryInvestorRepository(),
+      walletRepository: new InMemoryWalletRepository(),
+      analystRepository: new InMemoryAnalystRepository(),
+      jwtSecret: "test-secret",
+      startFootballJobs: false,
+    });
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin@footballperformancefund.com", password: "ChooseAStrongPassword123!", rememberMe: false })
+      .expect(503);
+
+    expect(response.body.error).toContain("Database authentication failed");
+    expect(response.body.requestId).toEqual(expect.any(String));
   });
 
   it("accepts auth requests from the configured frontend origin", async () => {
