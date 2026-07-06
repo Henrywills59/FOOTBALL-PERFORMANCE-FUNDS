@@ -7,15 +7,16 @@
     "build": "npm run prisma:generate",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "db:generate": "npm run prisma:generate",
-    "db:push": "prisma db push",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "db:deploy": "prisma db push --schema=prisma/schema.prisma",
     "typecheck": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma validate"
   },
   "dependencies": {
-    "@prisma/client": "5.22.0"
+    "@prisma/client": "5.22.0",
+    "prisma": "5.22.0"
   },
   "devDependencies": {
-    "cross-env": "^7.0.3",
-    "prisma": "5.22.0"
+    "cross-env": "^7.0.3"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
