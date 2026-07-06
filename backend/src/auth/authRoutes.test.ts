@@ -237,6 +237,34 @@ describe("auth routes", () => {
     }
   });
 
+  it("accepts auth requests from both production frontend domains by default", async () => {
+    const productionOrigins = [
+      "https://football-performance-fund-frontend.vercel.app",
+      "https://football-performance-funds-frontend.vercel.app",
+    ];
+
+    for (const origin of productionOrigins) {
+      const app = testApp();
+      const email = `taylor-${origin.includes("funds") ? "funds" : "fund"}@example.com`;
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("Origin", origin)
+        .send({ ...validRegistration, email })
+        .expect(201);
+
+      await request(app)
+        .post("/api/auth/login")
+        .set("Origin", origin)
+        .send({
+          email,
+          password: validRegistration.password,
+          rememberMe: false,
+        })
+        .expect(200);
+    }
+  });
+
   it("blocks auth requests from unconfigured browser origins", async () => {
     await request(testApp())
       .post("/api/auth/register")

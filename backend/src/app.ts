@@ -41,6 +41,11 @@ import type { WalletRepository } from "./wallet/types.js";
 
 const serviceVersion = process.env.npm_package_version ?? "0.1.0";
 const defaultJwtSecret = "development-only-change-me";
+const defaultFrontendOrigins = [
+  "http://localhost:5173",
+  "https://football-performance-fund-frontend.vercel.app",
+  "https://football-performance-funds-frontend.vercel.app",
+];
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 500,
@@ -65,7 +70,8 @@ function normalizeOrigin(origin: string) {
 
 function getAllowedFrontendOrigins() {
   const configuredOrigins = [
-    process.env.FRONTEND_URL ?? "http://localhost:5173",
+    ...defaultFrontendOrigins,
+    process.env.FRONTEND_URL,
     process.env.FRONTEND_URLS,
     process.env.ALLOWED_ORIGINS,
   ];
@@ -76,6 +82,22 @@ function getAllowedFrontendOrigins() {
       .map(normalizeOrigin)
       .filter(Boolean),
   );
+}
+
+function getSafeConfigStatus() {
+  return {
+    status: "ok",
+    service: "football-performance-fund-api",
+    version: serviceVersion,
+    nodeEnv: process.env.NODE_ENV ?? "development",
+    databaseUrlConfigured: isDatabaseUrlConfigured(),
+    jwtSecretConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+    nowPaymentsApiKeyConfigured: Boolean(process.env.NOWPAYMENTS_API_KEY?.trim()),
+    nowPaymentsIpnSecretConfigured: Boolean(process.env.NOWPAYMENTS_IPN_SECRET?.trim()),
+    frontendUrlConfigured: Boolean(process.env.FRONTEND_URL?.trim()),
+    allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim()),
+    allowedOrigins: Array.from(getAllowedFrontendOrigins()),
+  };
 }
 
 function isAllowedOrigin(origin?: string) {
@@ -170,7 +192,7 @@ export function createApp(options?: {
   app.use("/api", apiLimiter);
   app.use(express.json({ limit: "1mb" }));
 
-  app.get("/health", (_request, response) => {
+  app.get(["/", "/health", "/api/health"], (_request, response) => {
     const status: HealthStatus = {
       status: "ok",
       service: "football-performance-fund-api",
@@ -180,7 +202,7 @@ export function createApp(options?: {
     response.status(200).json(status);
   });
 
-  app.get("/health/db", async (_request, response) => {
+  app.get(["/health/db", "/api/health/db"], async (_request, response) => {
     const database = await checkPrismaConnection();
     const status = {
       status: database.ok ? "ok" : "degraded",
@@ -192,6 +214,10 @@ export function createApp(options?: {
     };
 
     response.status(database.ok ? 200 : 503).json(status);
+  });
+
+  app.get("/api/debug/config", (_request, response) => {
+    response.status(200).json(getSafeConfigStatus());
   });
 
   app.use("/api", createAuthRouter(authService));

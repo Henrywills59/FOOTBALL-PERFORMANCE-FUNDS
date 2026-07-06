@@ -42,6 +42,10 @@ const apiUrl = normalizeApiBaseUrl(
 function apiEndpoint(path: string) {
   return `${apiUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+function backendEndpoint(path: string) {
+  return `${apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
+}
 const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
@@ -80,6 +84,7 @@ export default function App() {
   const [activeAnalystView, setActiveAnalystView] = useState<AnalystNavItem>("Analyst Dashboard");
   const [adminMode, setAdminMode] = useState(false);
   const [message, setMessage] = useState("");
+  const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
   const [error, setError] = useState("");
   const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
   const [liveFixtures, setLiveFixtures] = useState<FootballFixtureSummary[]>([]);
@@ -197,6 +202,22 @@ export default function App() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "Something went wrong");
     return data;
+  }
+
+  async function testApiConnection() {
+    setApiCheck(`Checking ${backendEndpoint("/health")} ...`);
+    try {
+      const response = await fetch(backendEndpoint("/health"));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
+      setApiCheck(`Backend API OK: ${backendEndpoint("/health")} returned ${data.status}`);
+    } catch (caughtError) {
+      setApiCheck(
+        `Backend API failed: ${backendEndpoint("/health")} - ${
+          caughtError instanceof Error ? caughtError.message : "Unable to connect"
+        }`,
+      );
+    }
   }
 
   async function apiGet<T>(path: string, token: string) {
@@ -494,9 +515,12 @@ export default function App() {
             </p>
           </div>
           <AuthPanel
+            apiCheck={apiCheck}
+            apiUrl={apiUrl}
             error={error}
             message={message}
             mode={mode}
+            onApiTest={testApiConnection}
             setMode={setMode}
             onLogin={safelySubmit(handleLogin)}
             onRegister={safelySubmit(handleRegister)}
@@ -1296,17 +1320,23 @@ function InvestorPortal({
 }
 
 function AuthPanel({
+  apiCheck,
+  apiUrl,
   error,
   message,
   mode,
+  onApiTest,
   onForgot,
   onLogin,
   onRegister,
   setMode,
 }: {
+  apiCheck: string;
+  apiUrl: string;
   error: string;
   message: string;
   mode: AuthMode;
+  onApiTest: () => void;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
@@ -1314,6 +1344,17 @@ function AuthPanel({
 }) {
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">
+      <div className="mb-4 rounded-md border border-zinc-800 bg-zinc-950 p-3">
+        <p className="break-words text-xs text-zinc-400">API URL: {apiUrl}</p>
+        <p className="mt-2 break-words text-xs text-zinc-500">{apiCheck}</p>
+        <button
+          className="mt-3 w-full rounded-md border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
+          type="button"
+          onClick={onApiTest}
+        >
+          Test API connection
+        </button>
+      </div>
       <div className="grid grid-cols-3 rounded-md bg-zinc-950 p-1 text-sm">
         <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
         <ModeButton active={mode === "register"} onClick={() => setMode("register")}>Register</ModeButton>
