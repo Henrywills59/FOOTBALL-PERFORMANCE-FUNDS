@@ -16,6 +16,10 @@
       "use": "@vercel/node@latest"
     },
     {
+      "src": "api/debug/login.ts",
+      "use": "@vercel/node@latest"
+    },
+    {
       "src": "api/index.ts",
       "use": "@vercel/node@latest"
     }
@@ -40,6 +44,10 @@
     {
       "src": "/api/debug/config",
       "dest": "/api/debug/config.ts"
+    },
+    {
+      "src": "/api/debug/login",
+      "dest": "/api/debug/login.ts"
     },
     {
       "src": "/(.*)",
