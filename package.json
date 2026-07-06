@@ -10,6 +10,7 @@
     "database"
   ],
   "scripts": {
+    "postinstall": "npm run prisma:generate -w database",
     "build": "npm run build -w shared && npm run build -w database && npm run build -w backend && npm run build -w frontend",
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "lint": "npm run lint --workspaces --if-present",

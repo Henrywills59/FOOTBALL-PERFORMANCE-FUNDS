@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma generate --schema prisma/schema.prisma",
-    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "build": "npm run prisma:generate",
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:generate": "npm run prisma:generate",
     "db:push": "prisma db push",
     "typecheck": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma validate"
   },

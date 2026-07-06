@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "prebuild": "npm run build -w shared && npm run build -w database",
+    "prebuild": "npm run build -w shared && npm run prisma:generate -w database",
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/server.ts",
     "seed:demo": "tsx src/seedDemoUsers.ts",
