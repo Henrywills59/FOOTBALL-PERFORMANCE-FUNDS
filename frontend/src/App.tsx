@@ -24,8 +24,8 @@ import type {
   PlatformHealth,
   PublicUserRole,
   WithdrawalRequest,
-} from "@fpf/shared";
-import { PUBLIC_USER_ROLES } from "@fpf/shared";
+} from "./types";
+import { PUBLIC_USER_ROLES } from "./types";
 
 function normalizeApiBaseUrl(value?: string) {
   const trimmed = value?.trim().replace(/\/+$/, "");
