@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type { AdminSettings, AdminUser } from "@fpf/shared";
 import type { AdminRepository, AuditInput } from "./types.js";
@@ -202,7 +203,7 @@ export class PrismaAdminRepository implements AdminRepository {
         action: input.action,
         entityType: input.entityType,
         entityId: input.entityId,
-        details: input.details as Prisma.InputJsonValue,
+        details: input.details as InputJsonValue,
       },
     });
   }

@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { prisma as sharedPrisma } from "../database/prismaClient.js";
 import type { FootballFixtureDetail, FootballFixtureSummary } from "@fpf/shared";
 import type {
@@ -9,7 +10,7 @@ import type {
   StandingUpsert,
 } from "./types.js";
 
-const prismaJson = (value: unknown) => value as Prisma.InputJsonValue;
+const prismaJson = (value: unknown) => value as InputJsonValue;
 
 function fixtureStatus(short?: string | null): FixtureUpsert["status"] {
   if (["1H", "2H", "HT", "ET", "BT", "P", "LIVE"].includes(short ?? "")) return "LIVE";

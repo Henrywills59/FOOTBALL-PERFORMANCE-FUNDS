@@ -1,9 +1,3 @@
 {
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@fpf/shared": ["shared/dist/index.d.ts"],
-      "@fpf/shared/*": ["shared/dist/*"]
-    }
-  }
+  "compilerOptions": {}
 }
