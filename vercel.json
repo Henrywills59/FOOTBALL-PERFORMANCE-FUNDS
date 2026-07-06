@@ -4,11 +4,43 @@
   "buildCommand": "npm run build -w shared && npm run prisma:generate -w database && npm run build -w backend",
   "builds": [
     {
+      "src": "api/health.ts",
+      "use": "@vercel/node@latest"
+    },
+    {
+      "src": "api/health/db.ts",
+      "use": "@vercel/node@latest"
+    },
+    {
+      "src": "api/debug/config.ts",
+      "use": "@vercel/node@latest"
+    },
+    {
       "src": "api/index.ts",
       "use": "@vercel/node@latest"
     }
   ],
   "routes": [
+    {
+      "src": "/health",
+      "dest": "/api/health.ts"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.ts"
+    },
+    {
+      "src": "/health/db",
+      "dest": "/api/health/db.ts"
+    },
+    {
+      "src": "/api/health/db",
+      "dest": "/api/health/db.ts"
+    },
+    {
+      "src": "/api/debug/config",
+      "dest": "/api/debug/config.ts"
+    },
     {
       "src": "/(.*)",
       "dest": "/api/index.ts"

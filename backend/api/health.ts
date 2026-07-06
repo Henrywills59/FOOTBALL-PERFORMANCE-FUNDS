@@ -1,3 +1,6 @@
-import app from "./index.js";
-
-export default app;
+export default function handler(_request: unknown, response: { status: (code: number) => { json: (body: unknown) => void } }) {
+  response.status(200).json({
+    status: "ok",
+    service: "football-performance-fund-api",
+  });
+}
