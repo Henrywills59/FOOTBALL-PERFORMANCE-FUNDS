@@ -25,6 +25,10 @@ $reportPath = Join-Path $root "docs\latest-deploy-result.txt"
 $results = [ordered]@{}
 $warnings = New-Object System.Collections.Generic.List[string]
 $script:FatalError = $null
+$script:FatalErrorDetail = $null
+$script:CurrentStage = "startup"
+$script:FailedStage = $null
+$script:NextAction = "Review the terminal summary."
 $script:DebugFailedStage = $null
 $script:AdminSeedToken = $null
 
@@ -143,9 +147,95 @@ function Get-ErrorDetail {
 
 function Write-Step {
   param([string]$Message)
+  $script:CurrentStage = $Message
   Write-Host ""
   Write-Host "==> $Message" -ForegroundColor Cyan
   Add-ReportSection $Message
+}
+
+function Get-LastFailedStage {
+  if ($results.Keys.Count -gt 0) {
+    foreach ($key in @($results.Keys)[($results.Keys.Count - 1)..0]) {
+      if ($null -ne $key -and -not $results[$key].Passed) {
+        return $key
+      }
+    }
+  }
+
+  if ($script:DebugFailedStage) {
+    return $script:DebugFailedStage
+  }
+
+  if ($script:FailedStage) {
+    return $script:FailedStage
+  }
+
+  return $script:CurrentStage
+}
+
+function Get-ExactError {
+  if ($script:DebugFailedStage) {
+    return "Debug login failed at stage: $script:DebugFailedStage"
+  }
+
+  if ($script:FatalError) {
+    return $script:FatalError
+  }
+
+  if ($results.Keys.Count -gt 0) {
+    foreach ($key in @($results.Keys)[($results.Keys.Count - 1)..0]) {
+      if ($null -ne $key -and -not $results[$key].Passed) {
+        $detail = $results[$key].Detail
+        if (-not [string]::IsNullOrWhiteSpace($detail)) {
+          return $detail
+        }
+        return "$key failed."
+      }
+    }
+  }
+
+  return "<none>"
+}
+
+function Get-NextAction {
+  param(
+    [string]$FailedStage,
+    [string]$ExactError
+  )
+
+  if ($script:NextAction -and $script:NextAction -ne "Review the terminal summary.") {
+    return $script:NextAction
+  }
+
+  if ($FailedStage -match "Add backend production secret|Remove previous backend production secret|remote production admin seed|ADMIN_SEED_TOKEN") {
+    return "Check the Vercel CLI output above for the exact env command error, then rerun the same one-command script after fixing Vercel access."
+  }
+
+  if ($FailedStage -match "Backend deploy") {
+    return "Fix the backend deploy error shown above, then rerun the same one-command script."
+  }
+
+  if ($FailedStage -match "admin password hash sync|seed-default-admin|adminSeed") {
+    return "Check the /api/admin/seed-default-admin response above; it should name the failed seed stage. Fix that backend seed error, then rerun the script."
+  }
+
+  if ($FailedStage -match "auth/login|debug/login|passwordHashVerification") {
+    return "Use the debug login stage printed above to fix the login path, then rerun the script."
+  }
+
+  if ($FailedStage -match "Push|Commit|Stage|Git") {
+    return "Fix the Git error shown above, then rerun the same one-command script."
+  }
+
+  if ($FailedStage -match "health") {
+    return "Fix the backend health route or deployment routing error shown above, then rerun the script."
+  }
+
+  if ($ExactError -match "Vercel") {
+    return "Fix the Vercel CLI/project access error shown above, then rerun the same one-command script."
+  }
+
+  return "Read the exact error above, fix that single failing stage, then rerun the same one-command script."
 }
 
 function Set-Result {
@@ -158,6 +248,13 @@ function Set-Result {
   $results[$Name] = [pscustomobject]@{
     Passed = $Passed
     Detail = $Detail
+  }
+
+  if (-not $Passed) {
+    $script:FailedStage = $Name
+    if (-not [string]::IsNullOrWhiteSpace($Detail)) {
+      $script:FatalError = $Detail
+    }
   }
 
   $status = if ($Passed) { "PASS" } else { "FAIL" }
@@ -423,6 +520,16 @@ function Write-FinalSummary {
   }
 
   Add-ReportLine ""
+  $finalFailedStage = Get-LastFailedStage
+  $finalExactError = Get-ExactError
+  $finalNextAction = Get-NextAction -FailedStage $finalFailedStage -ExactError $finalExactError
+  $finalResult = if ($failed.Count -gt 0 -or $script:FatalError) { "FAIL" } else { "PASS" }
+
+  Add-ReportLine "FINAL RESULT: $finalResult"
+  Add-ReportLine "Failed stage: $(if ($finalResult -eq 'PASS') { '<none>' } else { $finalFailedStage })"
+  Add-ReportLine "Exact error: $(if ($finalResult -eq 'PASS') { '<none>' } else { $finalExactError })"
+  Add-ReportLine "Next action: $(if ($finalResult -eq 'PASS') { 'No action needed.' } else { $finalNextAction })"
+
   if ($script:DebugFailedStage) {
     Add-ReportLine "Exact failedStage: $script:DebugFailedStage"
   } else {
@@ -443,17 +550,25 @@ function Write-FinalSummary {
     Add-ReportLine "Fatal error: $script:FatalError"
   }
 
-  if ($failed.Count -gt 0 -or $script:FatalError) {
-    Add-ReportLine "FINAL RESULT: FAIL"
+  if ($finalResult -eq "FAIL") {
     Write-Host ""
-    Write-Host "FINAL RESULT: FAIL" -ForegroundColor Red
+    Write-Host "================ DEPLOYMENT SUMMARY ================" -ForegroundColor DarkGray
+    Write-Host "FINAL RESULT : FAIL" -ForegroundColor Red
+    Write-Host "Failed stage : $finalFailedStage" -ForegroundColor Yellow
+    Write-Host "Exact error  : $finalExactError" -ForegroundColor Yellow
+    Write-Host "Next action  : $finalNextAction" -ForegroundColor Cyan
+    Write-Host "Report file  : $reportPath" -ForegroundColor DarkGray
+    Write-Host "====================================================" -ForegroundColor DarkGray
   } else {
-    Add-ReportLine "FINAL RESULT: PASS"
     Write-Host ""
-    Write-Host "FINAL RESULT: PASS" -ForegroundColor Green
+    Write-Host "================ DEPLOYMENT SUMMARY ================" -ForegroundColor DarkGray
+    Write-Host "FINAL RESULT : PASS" -ForegroundColor Green
+    Write-Host "Failed stage : <none>" -ForegroundColor Green
+    Write-Host "Exact error  : <none>" -ForegroundColor Green
+    Write-Host "Next action  : No action needed." -ForegroundColor Green
+    Write-Host "Report file  : $reportPath" -ForegroundColor DarkGray
+    Write-Host "====================================================" -ForegroundColor DarkGray
   }
-
-  Write-Host "Full report saved to $reportPath" -ForegroundColor Cyan
 }
 
 try {
@@ -469,13 +584,22 @@ try {
     "Football Performance Fund Production Deploy Result",
     "Generated: $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss zzz'))",
     "FINAL RESULT: FAIL",
+    "Failed stage: report initialization",
+    "Exact error: $($_.Exception.Message)",
+    "Next action: Close any program locking docs/latest-deploy-result.txt, then rerun the same one-command script.",
     "",
     "The deployment script failed before the normal report could be initialized.",
     "Fatal error: $($_.Exception.Message)"
   )
   Set-Content -Path $fallbackReportPath -Value $fallback -Encoding UTF8
-  Write-Host "FINAL RESULT: FAIL" -ForegroundColor Red
-  Write-Host "Full report saved to $fallbackReportPath" -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host "================ DEPLOYMENT SUMMARY ================" -ForegroundColor DarkGray
+  Write-Host "FINAL RESULT : FAIL" -ForegroundColor Red
+  Write-Host "Failed stage : report initialization" -ForegroundColor Yellow
+  Write-Host "Exact error  : $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "Next action  : Close any program locking docs/latest-deploy-result.txt, then rerun the same one-command script." -ForegroundColor Cyan
+  Write-Host "Report file  : $fallbackReportPath" -ForegroundColor DarkGray
+  Write-Host "====================================================" -ForegroundColor DarkGray
   exit 1
 }
 
@@ -625,6 +749,10 @@ try {
 } catch {
   $script:FatalError = $_.Exception.Message
   $fatalDetail = Get-ErrorDetail $_
+  $script:FatalErrorDetail = $fatalDetail
+  if (-not $script:FailedStage) {
+    $script:FailedStage = $script:CurrentStage
+  }
   Add-ReportLine ""
   Add-ReportLine "Caught fatal error:"
   Add-ReportLine $script:FatalError
