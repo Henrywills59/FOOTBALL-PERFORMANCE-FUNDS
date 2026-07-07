@@ -18,12 +18,98 @@ if ([string]::IsNullOrWhiteSpace($AdminPassword)) {
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
+$reportPath = Join-Path $root "docs\latest-deploy-result.txt"
 $results = [ordered]@{}
+$warnings = New-Object System.Collections.Generic.List[string]
+$script:FatalError = $null
+$script:DebugFailedStage = $null
+
+function Initialize-Report {
+  $reportDir = Split-Path $reportPath -Parent
+  if (-not (Test-Path $reportDir)) {
+    New-Item -ItemType Directory -Path $reportDir | Out-Null
+  }
+
+  $header = @(
+    "Football Performance Fund Production Deploy Result",
+    "Generated: $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss zzz'))",
+    "Project root: $root",
+    "Backend URL: $BackendUrl",
+    "Admin email tested: $AdminEmail",
+    "",
+    "IMPORTANT: This file intentionally does not print passwords or secret values.",
+    ""
+  )
+
+  Set-Content -Path $reportPath -Value $header -Encoding UTF8
+}
+
+function Add-ReportLine {
+  param([string]$Line = "")
+  Add-Content -Path $reportPath -Value $Line -Encoding UTF8
+}
+
+function Add-ReportSection {
+  param([string]$Title)
+  Add-ReportLine ""
+  Add-ReportLine "## $Title"
+}
+
+function Add-Warning {
+  param([string]$Warning)
+
+  if ([string]::IsNullOrWhiteSpace($Warning)) {
+    return
+  }
+
+  $warnings.Add($Warning) | Out-Null
+  Add-ReportLine "WARNING: $Warning"
+}
+
+function To-ReportJson {
+  param($Value)
+  if ($null -eq $Value) {
+    return "<null>"
+  }
+
+  try {
+    return ($Value | ConvertTo-Json -Depth 12)
+  } catch {
+    return [string]$Value
+  }
+}
+
+function Get-ErrorDetail {
+  param($ErrorRecord)
+
+  $details = [ordered]@{
+    message = $ErrorRecord.Exception.Message
+    errorDetails = $ErrorRecord.ErrorDetails.Message
+    responseBody = $null
+    statusCode = $null
+  }
+
+  try {
+    if ($ErrorRecord.Exception.Response) {
+      $details.statusCode = [int]$ErrorRecord.Exception.Response.StatusCode
+      $stream = $ErrorRecord.Exception.Response.GetResponseStream()
+      if ($stream) {
+        $reader = New-Object System.IO.StreamReader($stream)
+        $details.responseBody = $reader.ReadToEnd()
+      }
+    }
+  } catch {
+    $details.responseBody = "Unable to read response body: $($_.Exception.Message)"
+  }
+
+  return [pscustomobject]$details
+}
 
 function Write-Step {
   param([string]$Message)
   Write-Host ""
   Write-Host "==> $Message" -ForegroundColor Cyan
+  Add-ReportSection $Message
 }
 
 function Set-Result {
@@ -38,28 +124,61 @@ function Set-Result {
     Detail = $Detail
   }
 
-  if ($Passed) {
-    Write-Host "PASS $Name" -ForegroundColor Green
-  } else {
-    Write-Host "FAIL $Name" -ForegroundColor Red
-  }
+  $status = if ($Passed) { "PASS" } else { "FAIL" }
+  $color = if ($Passed) { "Green" } else { "Red" }
+
+  Write-Host "$status $Name" -ForegroundColor $color
+  Add-ReportLine "$status $Name"
 
   if (-not [string]::IsNullOrWhiteSpace($Detail)) {
     Write-Host "     $Detail"
+    Add-ReportLine $Detail
   }
 }
 
-function Invoke-CheckedCommand {
+function Invoke-LoggedCommand {
   param(
     [string]$Name,
     [scriptblock]$Command
   )
 
+  Add-ReportLine ""
+  Add-ReportLine "### Command: $Name"
+
   try {
-    & $Command
+    $global:LASTEXITCODE = 0
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $output = @(& $Command 2>&1)
+      $exitCode = $global:LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($output.Count -gt 0) {
+      $output | ForEach-Object {
+        $line = [string]$_
+        Add-ReportLine $line
+        if ($line -match '^\s*warning:|^\s*WARN(ING)?:') {
+          Add-Warning $line
+        }
+      }
+    } else {
+      Add-ReportLine "<no output>"
+    }
+
+    if ($exitCode -ne 0) {
+      throw "$Name exited with code $exitCode."
+    }
+
     Set-Result $Name $true
+    return $output
   } catch {
-    Set-Result $Name $false $_.Exception.Message
+    $errorDetail = Get-ErrorDetail $_
+    Add-ReportLine "ERROR:"
+    Add-ReportLine (To-ReportJson $errorDetail)
+    Set-Result $Name $false $errorDetail.message
     throw
   }
 }
@@ -88,139 +207,267 @@ function Invoke-VercelDeploy {
       }
     }
 
+    Add-ReportLine "$Name path: $(Get-Location)"
+    Add-ReportLine "$Name linked project before deploy: $linkedProject"
+    Add-ReportLine "$Name target project: $Project"
+
     if ($linkedProject -ne $Project) {
-      Write-Host "Linking Vercel project '$Project' for $Name..."
+      Add-ReportLine "Linking Vercel project '$Project'..."
       npx vercel link --project $Project --yes
+      if ($LASTEXITCODE -ne 0) {
+        throw "Vercel link failed for project '$Project' with exit code $LASTEXITCODE."
+      }
     }
 
     npx vercel --prod
+    if ($LASTEXITCODE -ne 0) {
+      throw "Vercel production deploy failed for project '$Project' with exit code $LASTEXITCODE."
+    }
   } finally {
     Pop-Location
   }
 }
 
-Write-Step "Checking required tools"
-Invoke-CheckedCommand "Git available" { git --version | Out-Null }
-Invoke-CheckedCommand "Node available" { node --version | Out-Null }
-Invoke-CheckedCommand "npm/npx available" { npm --version | Out-Null; npx --version | Out-Null }
+function Invoke-JsonRequest {
+  param(
+    [string]$Name,
+    [string]$Uri,
+    [string]$Method = "Get",
+    [object]$Body = $null
+  )
 
-Write-Step "Verifying repository state"
-$currentBranch = (git branch --show-current).Trim()
-if ($currentBranch -ne $Branch) {
-  Set-Result "On branch $Branch" $false "Current branch is '$currentBranch'."
-  throw "Switch to '$Branch' before deploying."
-}
-Set-Result "On branch $Branch" $true
+  Add-ReportLine ""
+  Add-ReportLine "### Request: $Name"
+  Add-ReportLine "$Method $Uri"
 
-$statusBefore = Get-GitStatusShort
-if ($statusBefore.Count -gt 0) {
-  Write-Host "Pending changes:"
-  $statusBefore | ForEach-Object { Write-Host "  $_" }
-} else {
-  Write-Host "Working tree is clean."
-}
-Set-Result "Git status checked" $true
+  try {
+    $parameters = @{
+      Uri = $Uri
+      Method = $Method
+      TimeoutSec = 30
+    }
 
-Write-Step "Committing local fixes when needed"
-if ($statusBefore.Count -gt 0) {
-  Invoke-CheckedCommand "Stage changes" { git add -A }
-  $staged = @(git diff --cached --name-only)
-  if ($staged.Count -gt 0) {
-    Invoke-CheckedCommand "Commit changes" { git commit -m $CommitMessage }
-  } else {
-    Set-Result "Commit changes" $true "No staged changes after git add."
+    if ($null -ne $Body) {
+      $parameters.ContentType = "application/json"
+      $parameters.Body = ($Body | ConvertTo-Json -Depth 8)
+    }
+
+    $response = Invoke-RestMethod @parameters
+    Add-ReportLine "Response:"
+    Add-ReportLine (To-ReportJson $response)
+    return [pscustomobject]@{
+      Ok = $true
+      Response = $response
+      Error = $null
+    }
+  } catch {
+    $errorDetail = Get-ErrorDetail $_
+    Add-ReportLine "ERROR:"
+    Add-ReportLine (To-ReportJson $errorDetail)
+    return [pscustomobject]@{
+      Ok = $false
+      Response = $null
+      Error = $errorDetail
+    }
   }
-} else {
-  Set-Result "Stage changes" $true "Skipped; working tree already clean."
-  Set-Result "Commit changes" $true "Skipped; no local changes."
 }
 
-Write-Step "Pushing to origin/$Branch"
-Invoke-CheckedCommand "Push to origin/$Branch" { git push origin $Branch }
+function Write-FinalSummary {
+  Add-ReportSection "Final PASS/FAIL Summary"
 
-Write-Step "Deploying backend"
-Invoke-CheckedCommand "Backend deploy" {
-  Invoke-VercelDeploy -Name "backend" -Path $root -Project $BackendProject
-}
-
-Write-Step "Testing backend health"
-$healthUri = "$BackendUrl/health"
-try {
-  $health = Invoke-RestMethod -Uri $healthUri -Method Get -TimeoutSec 30
-  if ($health.status -eq "ok") {
-    Set-Result "Backend /health" $true "$healthUri returned status ok."
-  } else {
-    Set-Result "Backend /health" $false "$healthUri returned unexpected status '$($health.status)'."
-    throw "Backend health did not return status ok."
+  $failed = @()
+  foreach ($key in $results.Keys) {
+    $result = $results[$key]
+    $status = if ($result.Passed) { "PASS" } else { "FAIL" }
+    Add-ReportLine "$status $key"
+    if (-not [string]::IsNullOrWhiteSpace($result.Detail)) {
+      Add-ReportLine $result.Detail
+    }
+    if (-not $result.Passed) {
+      $failed += $key
+    }
   }
-} catch {
-  Set-Result "Backend /health" $false $_.Exception.Message
-  throw
+
+  Add-ReportLine ""
+  if ($script:DebugFailedStage) {
+    Add-ReportLine "Exact failedStage: $script:DebugFailedStage"
+  } else {
+    Add-ReportLine "Exact failedStage: <not reported>"
+  }
+
+  Add-ReportLine ""
+  Add-ReportLine "Warnings:"
+  if ($warnings.Count -gt 0) {
+    foreach ($warning in $warnings) {
+      Add-ReportLine "- $warning"
+    }
+  } else {
+    Add-ReportLine "- <none>"
+  }
+
+  if ($script:FatalError) {
+    Add-ReportLine "Fatal error: $script:FatalError"
+  }
+
+  if ($failed.Count -gt 0 -or $script:FatalError) {
+    Add-ReportLine "FINAL RESULT: FAIL"
+    Write-Host ""
+    Write-Host "FINAL RESULT: FAIL" -ForegroundColor Red
+  } else {
+    Add-ReportLine "FINAL RESULT: PASS"
+    Write-Host ""
+    Write-Host "FINAL RESULT: PASS" -ForegroundColor Green
+  }
+
+  Write-Host "Full report saved to $reportPath" -ForegroundColor Cyan
 }
 
-Write-Step "Testing production login endpoint"
-$loginUri = "$BackendUrl/api/auth/login"
+Initialize-Report
+
 try {
+  Write-Step "Checking required tools"
+  Invoke-LoggedCommand "Git available" { git --version | Out-Null }
+  Invoke-LoggedCommand "Node available" { node --version | Out-Null }
+  Invoke-LoggedCommand "npm/npx available" { npm --version | Out-Null; npx --version | Out-Null }
+
+  Write-Step "Verifying repository state"
+  $currentBranch = (git branch --show-current).Trim()
+  Add-ReportLine "Current branch: $currentBranch"
+  if ($currentBranch -ne $Branch) {
+    Set-Result "On branch $Branch" $false "Current branch is '$currentBranch'."
+    throw "Switch to '$Branch' before deploying."
+  }
+  Set-Result "On branch $Branch" $true
+
+  $statusBefore = Get-GitStatusShort
+  Add-ReportLine ""
+  Add-ReportLine "Git status before commit:"
+  if ($statusBefore.Count -gt 0) {
+    $statusBefore | ForEach-Object { Add-ReportLine "  $_" }
+    Write-Host "Pending changes:"
+    $statusBefore | ForEach-Object { Write-Host "  $_" }
+  } else {
+    Add-ReportLine "  <clean>"
+    Write-Host "Working tree is clean."
+  }
+  Set-Result "Git status checked" $true
+
+  Write-Step "Committing local fixes when needed"
+  if ($statusBefore.Count -gt 0) {
+    Invoke-LoggedCommand "Stage changes" { git add -A }
+    $staged = @(git diff --cached --name-only)
+    Add-ReportLine ""
+    Add-ReportLine "Staged files:"
+    if ($staged.Count -gt 0) {
+      $staged | ForEach-Object { Add-ReportLine "  $_" }
+      Invoke-LoggedCommand "Commit changes" { git commit -m $CommitMessage }
+    } else {
+      Add-ReportLine "  <none>"
+      Set-Result "Commit changes" $true "No staged changes after git add."
+    }
+  } else {
+    Set-Result "Stage changes" $true "Skipped; working tree already clean."
+    Set-Result "Commit changes" $true "Skipped; no local changes."
+  }
+
+  Add-ReportLine ""
+  Add-ReportLine "Git status after commit:"
+  $statusAfterCommit = Get-GitStatusShort
+  if ($statusAfterCommit.Count -gt 0) {
+    $statusAfterCommit | ForEach-Object { Add-ReportLine "  $_" }
+  } else {
+    Add-ReportLine "  <clean>"
+  }
+
+  Write-Step "Pushing to origin/$Branch"
+  Invoke-LoggedCommand "Push to origin/$Branch" { git push origin $Branch }
+
+  Write-Step "Deploying backend"
+  Invoke-LoggedCommand "Backend deploy result" {
+    Invoke-VercelDeploy -Name "backend" -Path $root -Project $BackendProject
+  }
+
+  Write-Step "Testing production backend health"
+  $apiHealthResult = Invoke-JsonRequest -Name "/api/health result" -Uri "$BackendUrl/api/health"
+  if ($apiHealthResult.Ok -and $apiHealthResult.Response.status -eq "ok") {
+    Set-Result "/api/health result" $true "$BackendUrl/api/health returned status ok."
+  } else {
+    $detail = if ($apiHealthResult.Ok) {
+      "Unexpected status '$($apiHealthResult.Response.status)'."
+    } else {
+      To-ReportJson $apiHealthResult.Error
+    }
+    Set-Result "/api/health result" $false $detail
+    throw "/api/health did not return status ok."
+  }
+
+  $rootHealthResult = Invoke-JsonRequest -Name "/health result" -Uri "$BackendUrl/health"
+  if ($rootHealthResult.Ok -and $rootHealthResult.Response.status -eq "ok") {
+    Set-Result "/health result" $true "$BackendUrl/health returned status ok."
+  } else {
+    $detail = if ($rootHealthResult.Ok) {
+      "Unexpected status '$($rootHealthResult.Response.status)'."
+    } else {
+      To-ReportJson $rootHealthResult.Error
+    }
+    Set-Result "/health result" $false $detail
+  }
+
+  Write-Step "Testing production login endpoint"
   $loginBody = @{
     email = $AdminEmail
     password = $AdminPassword
     rememberMe = $false
-  } | ConvertTo-Json
+  }
 
-  $login = Invoke-RestMethod -Uri $loginUri -Method Post -ContentType "application/json" -Body $loginBody -TimeoutSec 30
-  if ($login.token -and $login.user -and $login.user.email -eq $AdminEmail) {
-    Set-Result "Backend login" $true "$loginUri returned a token for $AdminEmail."
+  $loginResult = Invoke-JsonRequest -Name "/api/auth/login result" -Uri "$BackendUrl/api/auth/login" -Method "Post" -Body $loginBody
+  if ($loginResult.Ok -and $loginResult.Response.token -and $loginResult.Response.user -and $loginResult.Response.user.email -eq $AdminEmail) {
+    Set-Result "/api/auth/login result" $true "$BackendUrl/api/auth/login returned a token for $AdminEmail."
   } else {
-    Set-Result "Backend login" $false "$loginUri responded, but token/user payload was not as expected."
-    throw "Login response was not valid."
+    $detail = if ($loginResult.Ok) {
+      "Login responded, but token/user payload was not as expected."
+    } else {
+      To-ReportJson $loginResult.Error
+    }
+    Set-Result "/api/auth/login result" $false $detail
+
+    Write-Step "Testing safe debug login endpoint"
+    $debugResult = Invoke-JsonRequest -Name "/api/debug/login result" -Uri "$BackendUrl/api/debug/login" -Method "Post" -Body $loginBody
+    if ($debugResult.Ok) {
+      if ($debugResult.Response.failedStage) {
+        $script:DebugFailedStage = [string]$debugResult.Response.failedStage
+      }
+
+      if ($debugResult.Response.ok -eq $true) {
+        Set-Result "/api/debug/login result" $true "Debug login returned ok: true."
+      } else {
+        $stageDetail = if ($script:DebugFailedStage) {
+          "failedStage: $script:DebugFailedStage"
+        } else {
+          "Debug login returned JSON but no failedStage."
+        }
+        Set-Result "/api/debug/login result" $false $stageDetail
+      }
+    } else {
+      Set-Result "/api/debug/login result" $false (To-ReportJson $debugResult.Error)
+    }
+
+    throw "Production login failed. Read docs/latest-deploy-result.txt for details."
+  }
+
+  Write-Step "Deploying frontend"
+  Invoke-LoggedCommand "Frontend deploy result" {
+    Invoke-VercelDeploy -Name "frontend" -Path (Join-Path $root "frontend") -Project $FrontendProject
   }
 } catch {
-  Set-Result "Backend login" $false $_.Exception.Message
-  Write-Host "Login failed. Checking safe debug endpoint before stopping..." -ForegroundColor Yellow
-
-  try {
-    $debugUri = "$BackendUrl/api/debug/login"
-    $debugBody = @{
-      email = $AdminEmail
-      password = $AdminPassword
-      rememberMe = $false
-    } | ConvertTo-Json
-
-    $debug = Invoke-RestMethod -Uri $debugUri -Method Post -ContentType "application/json" -Body $debugBody -TimeoutSec 30
-    $debugSummary = $debug | ConvertTo-Json -Depth 8
-    Set-Result "Backend debug login" $true $debugSummary
-  } catch {
-    Set-Result "Backend debug login" $false $_.Exception.Message
-  }
-
-  throw "Production login failed. See PASS/FAIL summary above."
+  $script:FatalError = $_.Exception.Message
+  Add-ReportLine ""
+  Add-ReportLine "Caught fatal error:"
+  Add-ReportLine $script:FatalError
+} finally {
+  Write-FinalSummary
 }
 
-Write-Step "Deploying frontend"
-Invoke-CheckedCommand "Frontend deploy" {
-  Invoke-VercelDeploy -Name "frontend" -Path (Join-Path $root "frontend") -Project $FrontendProject
-}
-
-Write-Step "Deployment summary"
-$failed = @()
-foreach ($key in $results.Keys) {
-  $result = $results[$key]
-  if ($result.Passed) {
-    Write-Host "PASS $key" -ForegroundColor Green
-  } else {
-    Write-Host "FAIL $key" -ForegroundColor Red
-    if (-not [string]::IsNullOrWhiteSpace($result.Detail)) {
-      Write-Host "     $($result.Detail)"
-    }
-    $failed += $key
-  }
-}
-
-if ($failed.Count -gt 0) {
-  Write-Host ""
-  Write-Host "Deployment finished with failures: $($failed -join ', ')" -ForegroundColor Red
+if ($script:FatalError) {
   exit 1
 }
-
-Write-Host ""
-Write-Host "Production deployment completed successfully." -ForegroundColor Green
