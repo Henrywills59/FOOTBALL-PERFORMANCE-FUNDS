@@ -29,6 +29,7 @@ $script:FatalErrorDetail = $null
 $script:CurrentStage = "startup"
 $script:FailedStage = $null
 $script:NextAction = "Review the terminal summary."
+$script:LastCommandDiagnostic = $null
 $script:DebugFailedStage = $null
 $script:AdminSeedToken = $null
 
@@ -178,6 +179,23 @@ function Get-ExactError {
     return "Debug login failed at stage: $script:DebugFailedStage"
   }
 
+  if ($script:LastCommandDiagnostic -and -not $script:LastCommandDiagnostic.Passed) {
+    $allOutput = @($script:LastCommandDiagnostic.Stderr + $script:LastCommandDiagnostic.Stdout)
+    $meaningfulLine = $allOutput |
+      Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_) -and
+        $_ -notmatch '^Vercel CLI\s' -and
+        $_ -notmatch '^\s*$'
+      } |
+      Select-Object -First 1
+
+    if (-not [string]::IsNullOrWhiteSpace($meaningfulLine)) {
+      return $meaningfulLine
+    }
+
+    return "$($script:LastCommandDiagnostic.Command) exited with code $($script:LastCommandDiagnostic.ExitCode)."
+  }
+
   if ($script:FatalError) {
     return $script:FatalError
   }
@@ -208,7 +226,10 @@ function Get-NextAction {
   }
 
   if ($FailedStage -match "Add backend production secret|Remove previous backend production secret|remote production admin seed|ADMIN_SEED_TOKEN") {
-    return "Check the Vercel CLI output above for the exact env command error, then rerun the same one-command script after fixing Vercel access."
+    if ($script:LastCommandDiagnostic) {
+      return "Fix the Vercel command failure shown above for '$($script:LastCommandDiagnostic.Command)', then rerun the same one-command script."
+    }
+    return "Fix the Vercel CLI env command error shown above, then rerun the same one-command script."
   }
 
   if ($FailedStage -match "Backend deploy") {
@@ -319,6 +340,94 @@ function Invoke-LoggedCommand {
   }
 }
 
+function Invoke-LoggedNativeCommand {
+  param(
+    [string]$Name,
+    [string]$FilePath,
+    [string[]]$Arguments = @(),
+    [string]$Stdin = $null,
+    [int[]]$AllowedExitCodes = @(0)
+  )
+
+  $commandText = if ($Arguments.Count -gt 0) {
+    "$FilePath $($Arguments -join ' ')"
+  } else {
+    $FilePath
+  }
+
+  Add-ReportLine ""
+  Add-ReportLine "### Command: $Name"
+  Add-ReportLine "Exact command: $commandText"
+
+  $stdoutPath = Join-Path ([System.IO.Path]::GetTempPath()) "fpf-$([guid]::NewGuid())-stdout.txt"
+  $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) "fpf-$([guid]::NewGuid())-stderr.txt"
+  $stdinPath = $null
+
+  try {
+    if ($null -ne $Stdin) {
+      $stdinPath = Join-Path ([System.IO.Path]::GetTempPath()) "fpf-$([guid]::NewGuid())-stdin.txt"
+      Set-Content -Path $stdinPath -Value $Stdin -Encoding UTF8 -NoNewline
+      $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -RedirectStandardInput $stdinPath -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -NoNewWindow -Wait -PassThru
+    } else {
+      $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -NoNewWindow -Wait -PassThru
+    }
+
+    $stdout = if (Test-Path $stdoutPath) { @(Get-Content $stdoutPath) } else { @() }
+    $stderr = if (Test-Path $stderrPath) { @(Get-Content $stderrPath) } else { @() }
+    $exitCode = [int]$process.ExitCode
+
+    Add-ReportLine "Exit code: $exitCode"
+    Add-ReportLine "Stdout:"
+    if ($stdout.Count -gt 0) {
+      foreach ($line in $stdout) {
+        Add-ReportLine $line
+      }
+    } else {
+      Add-ReportLine "<empty>"
+    }
+
+    Add-ReportLine "Stderr:"
+    if ($stderr.Count -gt 0) {
+      foreach ($line in $stderr) {
+        Add-ReportLine $line
+        if ($line -match '^\s*warning:|^\s*WARN(ING)?:') {
+          Add-Warning $line
+        }
+      }
+    } else {
+      Add-ReportLine "<empty>"
+    }
+
+    $passed = $AllowedExitCodes -contains $exitCode
+    $script:LastCommandDiagnostic = [pscustomobject]@{
+      Name = $Name
+      Command = $commandText
+      Stdout = $stdout
+      Stderr = $stderr
+      ExitCode = $exitCode
+      Passed = $passed
+    }
+
+    if (-not $passed) {
+      $errorText = (($stderr + $stdout) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+      if ([string]::IsNullOrWhiteSpace($errorText)) {
+        $errorText = "$commandText exited with code $exitCode."
+      }
+      Set-Result $Name $false $errorText
+      throw "$commandText exited with code $exitCode."
+    }
+
+    Set-Result $Name $true "Exit code $exitCode."
+    return $script:LastCommandDiagnostic
+  } finally {
+    Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+    if ($stdinPath) {
+      Remove-Item -LiteralPath $stdinPath -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+
 function Get-GitStatusShort {
   return @(git status --short)
 }
@@ -408,13 +517,17 @@ function Set-VercelProductionSecret {
 
   Add-ReportLine "Refreshing backend production secret '$Name'."
 
-  Invoke-LoggedCommand "Remove previous backend production secret $Name" {
-    npx vercel env rm $Name production --yes
-  } -AllowedExitCodes @(0, 1)
+  Invoke-LoggedNativeCommand `
+    -Name "Remove previous backend production secret $Name" `
+    -FilePath "npx.cmd" `
+    -Arguments @("vercel", "env", "rm", $Name, "production", "--yes") `
+    -AllowedExitCodes @(0, 1)
 
-  Invoke-LoggedCommand "Add backend production secret $Name" {
-    $Value | npx vercel env add $Name production
-  }
+  Invoke-LoggedNativeCommand `
+    -Name "Add backend production secret $Name" `
+    -FilePath "npx.cmd" `
+    -Arguments @("vercel", "env", "add", $Name, "production") `
+    -Stdin $Value
 }
 
 function Configure-RemoteAdminSeed {
@@ -527,6 +640,26 @@ function Write-FinalSummary {
 
   Add-ReportLine "FINAL RESULT: $finalResult"
   Add-ReportLine "Failed stage: $(if ($finalResult -eq 'PASS') { '<none>' } else { $finalFailedStage })"
+  if ($finalResult -eq "FAIL" -and $script:LastCommandDiagnostic -and -not $script:LastCommandDiagnostic.Passed) {
+    Add-ReportLine "Command: $($script:LastCommandDiagnostic.Command)"
+    Add-ReportLine "Exit code: $($script:LastCommandDiagnostic.ExitCode)"
+    Add-ReportLine "Stdout:"
+    if ($script:LastCommandDiagnostic.Stdout.Count -gt 0) {
+      foreach ($line in $script:LastCommandDiagnostic.Stdout) {
+        Add-ReportLine "  $line"
+      }
+    } else {
+      Add-ReportLine "  <empty>"
+    }
+    Add-ReportLine "Stderr:"
+    if ($script:LastCommandDiagnostic.Stderr.Count -gt 0) {
+      foreach ($line in $script:LastCommandDiagnostic.Stderr) {
+        Add-ReportLine "  $line"
+      }
+    } else {
+      Add-ReportLine "  <empty>"
+    }
+  }
   Add-ReportLine "Exact error: $(if ($finalResult -eq 'PASS') { '<none>' } else { $finalExactError })"
   Add-ReportLine "Next action: $(if ($finalResult -eq 'PASS') { 'No action needed.' } else { $finalNextAction })"
 
@@ -555,6 +688,26 @@ function Write-FinalSummary {
     Write-Host "================ DEPLOYMENT SUMMARY ================" -ForegroundColor DarkGray
     Write-Host "FINAL RESULT : FAIL" -ForegroundColor Red
     Write-Host "Failed stage : $finalFailedStage" -ForegroundColor Yellow
+    if ($script:LastCommandDiagnostic -and -not $script:LastCommandDiagnostic.Passed) {
+      Write-Host "Command      : $($script:LastCommandDiagnostic.Command)" -ForegroundColor Yellow
+      Write-Host "Exit code    : $($script:LastCommandDiagnostic.ExitCode)" -ForegroundColor Yellow
+      Write-Host "Stdout       :" -ForegroundColor Yellow
+      if ($script:LastCommandDiagnostic.Stdout.Count -gt 0) {
+        foreach ($line in $script:LastCommandDiagnostic.Stdout) {
+          Write-Host "  $line" -ForegroundColor Yellow
+        }
+      } else {
+        Write-Host "  <empty>" -ForegroundColor Yellow
+      }
+      Write-Host "Stderr       :" -ForegroundColor Yellow
+      if ($script:LastCommandDiagnostic.Stderr.Count -gt 0) {
+        foreach ($line in $script:LastCommandDiagnostic.Stderr) {
+          Write-Host "  $line" -ForegroundColor Yellow
+        }
+      } else {
+        Write-Host "  <empty>" -ForegroundColor Yellow
+      }
+    }
     Write-Host "Exact error  : $finalExactError" -ForegroundColor Yellow
     Write-Host "Next action  : $finalNextAction" -ForegroundColor Cyan
     Write-Host "Report file  : $reportPath" -ForegroundColor DarkGray
