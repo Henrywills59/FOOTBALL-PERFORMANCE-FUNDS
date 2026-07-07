@@ -12,3 +12,6 @@ docs/latest-deploy-result.txt
 
 .vercel
 .env*
+
+.vercel
+.env*
