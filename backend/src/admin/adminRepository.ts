@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { getPrismaClient } from "../database/prismaClient.js";
+import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type { AdminSettings, AdminUser } from "@fpf/shared";
 import type { AdminRepository, AuditInput } from "./types.js";
 
@@ -10,6 +11,33 @@ const defaultSettings: AdminSettings = {
   maximumSelections: 5,
   scheduledSyncEnabled: false,
   maintenanceMode: false,
+};
+
+const emptyReports = {
+  subscribers: { total: 0, active: 0, disabled: 0 },
+  investors: { total: 0, active: 0 },
+  revenue: {
+    trackedWalletDepositsCents: 0,
+    note: "Tracked deposits are wallet funding records only; no new payment features are introduced here.",
+  },
+  withdrawals: {
+    pendingCount: 0,
+    approvedCount: 0,
+    pendingAmountCents: 0,
+    approvedAmountCents: 0,
+  },
+  analystPerformance: {
+    submitted: 0,
+    approved: 0,
+    published: 0,
+    rejected: 0,
+  },
+  predictionAccuracy: {
+    approvedPredictions: 0,
+    publishedIntelligence: 0,
+    accuracyNote: "Accuracy is a production reporting placeholder until settled match result grading is enabled.",
+  },
+  dailyPlatformActivity: [] as Array<{ date: string; auditEvents: number; logins: number }>,
 };
 
 function userRow(user: {
@@ -42,14 +70,33 @@ export class PrismaAdminRepository implements AdminRepository {
     const today = new Date();
     const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const safeCount = async (scope: string, count: () => Promise<number>) => {
+      try {
+        return await count();
+      } catch (error) {
+        if (!isPrismaOptionalDataError(error)) throw error;
+        logOptionalDataFallback(scope, error);
+        return 0;
+      }
+    };
     const [totalUsers, activeSubscribers, activeInvestors, todaysFixtures, pendingPredictions, approvedPredictions] =
       await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "ACTIVE" } }),
-        this.prisma.user.count({ where: { role: "INVESTOR", status: "ACTIVE" } }),
-        this.prisma.footballFixture.count({ where: { kickoffAt: { gte: start, lt: end } } }),
-        this.prisma.matchPrediction.count({ where: { approvalStatus: "PENDING" } }),
-        this.prisma.matchPrediction.count({ where: { approvalStatus: "APPROVED" } }),
+        safeCount("admin.overview.totalUsers", () => this.prisma.user.count()),
+        safeCount("admin.overview.activeSubscribers", () =>
+          this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "ACTIVE" } }),
+        ),
+        safeCount("admin.overview.activeInvestors", () =>
+          this.prisma.user.count({ where: { role: "INVESTOR", status: "ACTIVE" } }),
+        ),
+        safeCount("admin.overview.todaysFixtures", () =>
+          this.prisma.footballFixture.count({ where: { kickoffAt: { gte: start, lt: end } } }),
+        ),
+        safeCount("admin.overview.pendingPredictions", () =>
+          this.prisma.matchPrediction.count({ where: { approvalStatus: "PENDING" } }),
+        ),
+        safeCount("admin.overview.approvedPredictions", () =>
+          this.prisma.matchPrediction.count({ where: { approvalStatus: "APPROVED" } }),
+        ),
       ]);
     return {
       totalUsers,
@@ -63,19 +110,25 @@ export class PrismaAdminRepository implements AdminRepository {
   }
 
   async searchUsers(search?: string) {
-    const users = await this.prisma.user.findMany({
-      where: search
-        ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { email: { contains: search, mode: "insensitive" } },
-            ],
-          }
-        : undefined,
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
-    return users.map(userRow);
+    try {
+      const users = await this.prisma.user.findMany({
+        where: search
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" } },
+                { email: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : undefined,
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      return users.map(userRow);
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.users", error);
+      return [];
+    }
   }
 
   async updateUserStatus(userId: string, status: "ACTIVE" | "DISABLED") {
@@ -93,7 +146,13 @@ export class PrismaAdminRepository implements AdminRepository {
   }
 
   async settings() {
-    const rows = await this.prisma.platformSetting.findMany();
+    let rows: Array<{ key: string; value: string }> = [];
+    try {
+      rows = await this.prisma.platformSetting.findMany();
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.settings", error);
+    }
     const settings = { ...defaultSettings };
     for (const row of rows) {
       if (row.key in settings) {
@@ -112,6 +171,47 @@ export class PrismaAdminRepository implements AdminRepository {
       return { date: start.toISOString().slice(0, 10), start, end };
     }).reverse();
 
+    let results;
+    try {
+      results = await Promise.all([
+        this.prisma.user.count({ where: { role: "SUBSCRIBER" } }),
+        this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "ACTIVE" } }),
+        this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "DISABLED" } }),
+        this.prisma.user.count({ where: { role: "INVESTOR" } }),
+        this.prisma.user.count({ where: { role: "INVESTOR", status: "ACTIVE" } }),
+        this.prisma.walletTransaction.aggregate({
+          where: { type: "DEPOSIT", status: "CONFIRMED" },
+          _sum: { amountCents: true },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          where: { type: "WITHDRAWAL", status: "PENDING" },
+          _count: true,
+          _sum: { amountCents: true },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          where: { type: "WITHDRAWAL", status: "APPROVED" },
+          _count: true,
+          _sum: { amountCents: true },
+        }),
+        this.prisma.analystIntelligenceSubmission.count(),
+        this.prisma.analystIntelligenceSubmission.count({ where: { status: { in: ["APPROVED", "PUBLISHED"] } } }),
+        this.prisma.analystIntelligenceSubmission.count({ where: { status: "PUBLISHED" } }),
+        this.prisma.analystIntelligenceSubmission.count({ where: { status: "REJECTED" } }),
+        this.prisma.matchPrediction.count({ where: { approvalStatus: "APPROVED" } }),
+        Promise.all(
+          days.map(async (day) => ({
+            date: day.date,
+            auditEvents: await this.prisma.auditLog.count({ where: { createdAt: { gte: day.start, lt: day.end } } }),
+            logins: await this.prisma.loginHistory.count({ where: { createdAt: { gte: day.start, lt: day.end } } }),
+          })),
+        ),
+      ]);
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.reports", error);
+      return emptyReports;
+    }
+
     const [
       totalSubscribers,
       activeSubscribers,
@@ -127,39 +227,7 @@ export class PrismaAdminRepository implements AdminRepository {
       rejectedIntelligence,
       approvedPredictions,
       activity,
-    ] = await Promise.all([
-      this.prisma.user.count({ where: { role: "SUBSCRIBER" } }),
-      this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "ACTIVE" } }),
-      this.prisma.user.count({ where: { role: "SUBSCRIBER", status: "DISABLED" } }),
-      this.prisma.user.count({ where: { role: "INVESTOR" } }),
-      this.prisma.user.count({ where: { role: "INVESTOR", status: "ACTIVE" } }),
-      this.prisma.walletTransaction.aggregate({
-        where: { type: "DEPOSIT", status: "CONFIRMED" },
-        _sum: { amountCents: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: { type: "WITHDRAWAL", status: "PENDING" },
-        _count: true,
-        _sum: { amountCents: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: { type: "WITHDRAWAL", status: "APPROVED" },
-        _count: true,
-        _sum: { amountCents: true },
-      }),
-      this.prisma.analystIntelligenceSubmission.count(),
-      this.prisma.analystIntelligenceSubmission.count({ where: { status: { in: ["APPROVED", "PUBLISHED"] } } }),
-      this.prisma.analystIntelligenceSubmission.count({ where: { status: "PUBLISHED" } }),
-      this.prisma.analystIntelligenceSubmission.count({ where: { status: "REJECTED" } }),
-      this.prisma.matchPrediction.count({ where: { approvalStatus: "APPROVED" } }),
-      Promise.all(
-        days.map(async (day) => ({
-          date: day.date,
-          auditEvents: await this.prisma.auditLog.count({ where: { createdAt: { gte: day.start, lt: day.end } } }),
-          logins: await this.prisma.loginHistory.count({ where: { createdAt: { gte: day.start, lt: day.end } } }),
-        })),
-      ),
-    ]);
+    ] = results;
 
     return {
       subscribers: { total: totalSubscribers, active: activeSubscribers, disabled: disabledSubscribers },
@@ -213,38 +281,56 @@ export class PrismaAdminRepository implements AdminRepository {
   }
 
   async auditLogs() {
-    const logs = await this.prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
-    return logs.map((log) => ({
-      id: log.id,
-      actorUserId: log.actorUserId,
-      action: log.action,
-      entityType: log.entityType,
-      entityId: log.entityId,
-      createdAt: log.createdAt.toISOString(),
-    }));
+    try {
+      const logs = await this.prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+      return logs.map((log) => ({
+        id: log.id,
+        actorUserId: log.actorUserId,
+        action: log.action,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        createdAt: log.createdAt.toISOString(),
+      }));
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.auditLogs", error);
+      return [];
+    }
   }
 
   async loginHistory() {
-    const logs = await this.prisma.loginHistory.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
-    return logs.map((log) => ({
-      id: log.id,
-      actorUserId: log.userId,
-      action: log.success ? "LOGIN_SUCCESS" : "LOGIN_FAILED",
-      entityType: "USER",
-      entityId: log.userId,
-      createdAt: log.createdAt.toISOString(),
-    }));
+    try {
+      const logs = await this.prisma.loginHistory.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+      return logs.map((log) => ({
+        id: log.id,
+        actorUserId: log.userId,
+        action: log.success ? "LOGIN_SUCCESS" : "LOGIN_FAILED",
+        entityType: "USER",
+        entityId: log.userId,
+        createdAt: log.createdAt.toISOString(),
+      }));
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.loginHistory", error);
+      return [];
+    }
   }
 
   async syncLogs() {
-    const logs = await this.prisma.footballSyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 50 });
-    return logs.map((log) => ({
-      id: log.id,
-      actorUserId: null,
-      action: `SYNC_${log.status}`,
-      entityType: log.jobName,
-      entityId: log.provider,
-      createdAt: log.startedAt.toISOString(),
-    }));
+    try {
+      const logs = await this.prisma.footballSyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 50 });
+      return logs.map((log) => ({
+        id: log.id,
+        actorUserId: null,
+        action: `SYNC_${log.status}`,
+        entityType: log.jobName,
+        entityId: log.provider,
+        createdAt: log.startedAt.toISOString(),
+      }));
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.syncLogs", error);
+      return [];
+    }
   }
 }

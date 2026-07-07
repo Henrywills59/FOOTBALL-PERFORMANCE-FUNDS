@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { getPrismaClient } from "../database/prismaClient.js";
+import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type { FootballFixtureDetail, FootballFixtureSummary } from "@fpf/shared";
 import type {
   FixtureUpsert,
@@ -207,25 +208,32 @@ export class PrismaFootballRepository implements FootballRepository {
           lt: new Date(`${input.date}T23:59:59.999Z`),
         }
       : undefined;
-    const fixtures = await this.prisma.footballFixture.findMany({
-      where: {
-        ...(input.live ? { status: "LIVE" as const } : {}),
-        ...(dateFilter ? { kickoffAt: dateFilter } : {}),
-        ...(input.league ? { league: { name: { contains: input.league, mode: "insensitive" as const } } } : {}),
-        ...(input.search
-          ? {
-              OR: [
-                { homeTeam: { name: { contains: input.search, mode: "insensitive" as const } } },
-                { awayTeam: { name: { contains: input.search, mode: "insensitive" as const } } },
-                { league: { name: { contains: input.search, mode: "insensitive" as const } } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { kickoffAt: "asc" },
-      take: input.limit ?? 25,
-      include: { league: true, homeTeam: true, awayTeam: true },
-    });
+    let fixtures;
+    try {
+      fixtures = await this.prisma.footballFixture.findMany({
+        where: {
+          ...(input.live ? { status: "LIVE" as const } : {}),
+          ...(dateFilter ? { kickoffAt: dateFilter } : {}),
+          ...(input.league ? { league: { name: { contains: input.league, mode: "insensitive" as const } } } : {}),
+          ...(input.search
+            ? {
+                OR: [
+                  { homeTeam: { name: { contains: input.search, mode: "insensitive" as const } } },
+                  { awayTeam: { name: { contains: input.search, mode: "insensitive" as const } } },
+                  { league: { name: { contains: input.search, mode: "insensitive" as const } } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: { kickoffAt: "asc" },
+        take: input.limit ?? 25,
+        include: { league: true, homeTeam: true, awayTeam: true },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("football.fixtures", error);
+      return [];
+    }
 
     return fixtures.map((fixture) => ({
       id: fixture.id,
@@ -301,9 +309,16 @@ export class PrismaFootballRepository implements FootballRepository {
   }
 
   async getSyncStatus(jobsEnabled: boolean, jobsStarted: boolean) {
-    const lastRun = await this.prisma.footballSyncRun.findFirst({
-      orderBy: { startedAt: "desc" },
-    });
+    let lastRun;
+    try {
+      lastRun = await this.prisma.footballSyncRun.findFirst({
+        orderBy: { startedAt: "desc" },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("football.syncStatus", error);
+      lastRun = null;
+    }
 
     return {
       jobsEnabled,

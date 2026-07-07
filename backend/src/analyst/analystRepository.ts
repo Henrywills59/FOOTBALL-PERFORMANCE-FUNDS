@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getPrismaClient } from "../database/prismaClient.js";
+import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type {
   AnalystAssignment,
   AnalystDashboard,
@@ -125,11 +126,18 @@ export class PrismaAnalystRepository implements AnalystRepository {
   }
 
   async listAssignments(analystId: string) {
-    const assignments = await this.prisma.analystAssignment.findMany({
-      where: { analystId },
-      include: { fixture: { include: { homeTeam: true, awayTeam: true } } },
-      orderBy: { createdAt: "desc" },
-    });
+    let assignments;
+    try {
+      assignments = await this.prisma.analystAssignment.findMany({
+        where: { analystId },
+        include: { fixture: { include: { homeTeam: true, awayTeam: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("analyst.assignments", error);
+      return [];
+    }
     return assignments.map(toAssignment);
   }
 
@@ -178,19 +186,33 @@ export class PrismaAnalystRepository implements AnalystRepository {
   }
 
   async listAnalystSubmissions(analystId: string) {
-    const submissions = await this.prisma.analystIntelligenceSubmission.findMany({
-      where: { analystId },
-      include: submissionInclude,
-      orderBy: { createdAt: "desc" },
-    });
+    let submissions;
+    try {
+      submissions = await this.prisma.analystIntelligenceSubmission.findMany({
+        where: { analystId },
+        include: submissionInclude,
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("analyst.submissions", error);
+      return [];
+    }
     return submissions.map(toSubmission);
   }
 
   async listAdminSubmissions() {
-    const submissions = await this.prisma.analystIntelligenceSubmission.findMany({
-      include: submissionInclude,
-      orderBy: { createdAt: "desc" },
-    });
+    let submissions;
+    try {
+      submissions = await this.prisma.analystIntelligenceSubmission.findMany({
+        include: submissionInclude,
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("admin.intelligence", error);
+      return [];
+    }
     return submissions.map(toSubmission);
   }
 
@@ -217,11 +239,18 @@ export class PrismaAnalystRepository implements AnalystRepository {
   }
 
   async listPublished() {
-    const submissions = await this.prisma.analystIntelligenceSubmission.findMany({
-      where: { status: "PUBLISHED" },
-      include: submissionInclude,
-      orderBy: { publishedAt: "desc" },
-    });
+    let submissions;
+    try {
+      submissions = await this.prisma.analystIntelligenceSubmission.findMany({
+        where: { status: "PUBLISHED" },
+        include: submissionInclude,
+        orderBy: { publishedAt: "desc" },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("intelligence.published", error);
+      return [];
+    }
     return submissions.map(toPublished);
   }
 }

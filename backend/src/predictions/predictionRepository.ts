@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getPrismaClient } from "../database/prismaClient.js";
+import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type { PredictionResult } from "@fpf/shared";
 import type { PredictionRepository } from "./types.js";
 
@@ -133,10 +134,17 @@ export class PrismaPredictionRepository implements PredictionRepository {
   }
 
   async listPredictions(input: { approvalStatus?: PredictionResult["approvalStatus"] }) {
-    const predictions = await this.prisma.matchPrediction.findMany({
-      where: input.approvalStatus ? { approvalStatus: input.approvalStatus } : undefined,
-      orderBy: { createdAt: "desc" },
-    });
+    let predictions;
+    try {
+      predictions = await this.prisma.matchPrediction.findMany({
+        where: input.approvalStatus ? { approvalStatus: input.approvalStatus } : undefined,
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (error) {
+      if (!isPrismaOptionalDataError(error)) throw error;
+      logOptionalDataFallback("predictions.list", error);
+      return [];
+    }
 
     return predictions.map(toPrediction);
   }
