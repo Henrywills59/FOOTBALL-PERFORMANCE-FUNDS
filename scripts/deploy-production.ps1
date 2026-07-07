@@ -869,6 +869,9 @@ try {
 
       if ($debugResult.Response.ok -eq $true) {
         Set-Result "/api/debug/login result" $true "Debug login returned ok: true."
+        $script:DebugFailedStage = "authLoginFunctionInvocationFailed"
+        $script:FailedStage = "/api/auth/login result"
+        $script:FatalError = "/api/debug/login passed all stages, but /api/auth/login returned FUNCTION_INVOCATION_FAILED. The production login route is crashing outside the credential/database/JWT flow."
       } else {
         $stageDetail = if ($script:DebugFailedStage) {
           "failedStage: $script:DebugFailedStage"

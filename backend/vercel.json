@@ -20,6 +20,10 @@
       "use": "@vercel/node@latest"
     },
     {
+      "src": "api/auth/login.ts",
+      "use": "@vercel/node@latest"
+    },
+    {
       "src": "api/admin/seed-default-admin.ts",
       "use": "@vercel/node@latest"
     },
@@ -52,6 +56,10 @@
     {
       "src": "/api/debug/login",
       "dest": "/api/debug/login.ts"
+    },
+    {
+      "src": "/api/auth/login",
+      "dest": "/api/auth/login.ts"
     },
     {
       "src": "/api/admin/seed-default-admin",
