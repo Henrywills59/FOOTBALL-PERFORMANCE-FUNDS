@@ -10,6 +10,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+if (Test-Path Variable:\PSNativeCommandUseErrorActionPreference) {
+  $PSNativeCommandUseErrorActionPreference = $false
+}
 
 if ([string]::IsNullOrWhiteSpace($AdminPassword)) {
   $AdminPassword = "ChooseAStrongPassword123!"
@@ -47,7 +50,12 @@ function Initialize-Report {
 
 function Add-ReportLine {
   param([string]$Line = "")
-  Add-Content -Path $reportPath -Value $Line -Encoding UTF8
+  try {
+    Add-Content -Path $reportPath -Value $Line -Encoding UTF8
+  } catch {
+    Write-Host "REPORT WRITE FAILED: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host $Line
+  }
 }
 
 function Add-ReportSection {
@@ -78,6 +86,33 @@ function To-ReportJson {
   } catch {
     return [string]$Value
   }
+}
+
+function Format-CommandOutputLine {
+  param($Line)
+
+  if ($null -eq $Line) {
+    return ""
+  }
+
+  if ($Line -is [System.Management.Automation.ErrorRecord]) {
+    $parts = @()
+    if ($Line.Exception.Message) {
+      $parts += $Line.Exception.Message
+    }
+    if ($Line.ErrorDetails -and $Line.ErrorDetails.Message) {
+      $parts += $Line.ErrorDetails.Message
+    }
+    if ($Line.InvocationInfo -and $Line.InvocationInfo.PositionMessage) {
+      $parts += $Line.InvocationInfo.PositionMessage
+    }
+
+    if ($parts.Count -gt 0) {
+      return ($parts -join "`n")
+    }
+  }
+
+  return [string]$Line
 }
 
 function Get-ErrorDetail {
@@ -140,7 +175,8 @@ function Set-Result {
 function Invoke-LoggedCommand {
   param(
     [string]$Name,
-    [scriptblock]$Command
+    [scriptblock]$Command,
+    [int[]]$AllowedExitCodes = @(0)
   )
 
   Add-ReportLine ""
@@ -159,17 +195,19 @@ function Invoke-LoggedCommand {
 
     if ($output.Count -gt 0) {
       $output | ForEach-Object {
-        $line = [string]$_
-        Add-ReportLine $line
-        if ($line -match '^\s*warning:|^\s*WARN(ING)?:') {
-          Add-Warning $line
+        $line = Format-CommandOutputLine $_
+        foreach ($textLine in ($line -split "`r?`n")) {
+          Add-ReportLine $textLine
+          if ($textLine -match '^\s*warning:|^\s*WARN(ING)?:') {
+            Add-Warning $textLine
+          }
         }
       }
     } else {
       Add-ReportLine "<no output>"
     }
 
-    if ($exitCode -ne 0) {
+    if ($AllowedExitCodes -notcontains $exitCode) {
       throw "$Name exited with code $exitCode."
     }
 
@@ -214,9 +252,16 @@ function Ensure-VercelProjectLink {
 
     if ($linkedProject -ne $Project) {
       Add-ReportLine "Linking Vercel project '$Project'..."
-      npx vercel link --project $Project --yes
-      if ($LASTEXITCODE -ne 0) {
-        throw "Vercel link failed for project '$Project' with exit code $LASTEXITCODE."
+      $global:LASTEXITCODE = 0
+      $linkOutput = @(npx vercel link --project $Project --yes 2>&1)
+      foreach ($line in $linkOutput) {
+        $text = Format-CommandOutputLine $line
+        foreach ($textLine in ($text -split "`r?`n")) {
+          Add-ReportLine $textLine
+        }
+      }
+      if ($global:LASTEXITCODE -ne 0) {
+        throw "Vercel link failed for project '$Project' with exit code $global:LASTEXITCODE."
       }
     }
   } finally {
@@ -265,25 +310,13 @@ function Set-VercelProductionSecret {
   Ensure-VercelProjectLink -Name "backend" -Path $root -Project $BackendProject
 
   Add-ReportLine "Refreshing backend production secret '$Name'."
-  Add-ReportLine "Removing any previous '$Name' value from the Vercel backend project."
-  $removeOutput = @(npx vercel env rm $Name production --yes 2>&1)
-  foreach ($line in $removeOutput) {
-    Add-ReportLine ([string]$line)
-  }
 
-  Add-ReportLine "Adding fresh '$Name' value to the Vercel backend project."
-  $global:LASTEXITCODE = 0
-  $addOutput = @($Value | npx vercel env add $Name production 2>&1)
-  foreach ($line in $addOutput) {
-    $text = [string]$line
-    Add-ReportLine $text
-    if ($text -match '^\s*warning:|^\s*WARN(ING)?:') {
-      Add-Warning $text
-    }
-  }
+  Invoke-LoggedCommand "Remove previous backend production secret $Name" {
+    npx vercel env rm $Name production --yes
+  } -AllowedExitCodes @(0, 1)
 
-  if ($global:LASTEXITCODE -ne 0) {
-    throw "Failed to add Vercel production secret '$Name' with exit code $global:LASTEXITCODE."
+  Invoke-LoggedCommand "Add backend production secret $Name" {
+    $Value | npx vercel env add $Name production
   }
 }
 
@@ -423,7 +456,28 @@ function Write-FinalSummary {
   Write-Host "Full report saved to $reportPath" -ForegroundColor Cyan
 }
 
-Initialize-Report
+try {
+  Initialize-Report
+} catch {
+  $fallbackReportPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")) "docs\latest-deploy-result.txt"
+  $fallbackReportDir = Split-Path $fallbackReportPath -Parent
+  if (-not (Test-Path $fallbackReportDir)) {
+    New-Item -ItemType Directory -Path $fallbackReportDir -Force | Out-Null
+  }
+
+  $fallback = @(
+    "Football Performance Fund Production Deploy Result",
+    "Generated: $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss zzz'))",
+    "FINAL RESULT: FAIL",
+    "",
+    "The deployment script failed before the normal report could be initialized.",
+    "Fatal error: $($_.Exception.Message)"
+  )
+  Set-Content -Path $fallbackReportPath -Value $fallback -Encoding UTF8
+  Write-Host "FINAL RESULT: FAIL" -ForegroundColor Red
+  Write-Host "Full report saved to $fallbackReportPath" -ForegroundColor Cyan
+  exit 1
+}
 
 try {
   Write-Step "Checking required tools"
@@ -570,9 +624,18 @@ try {
   }
 } catch {
   $script:FatalError = $_.Exception.Message
+  $fatalDetail = Get-ErrorDetail $_
   Add-ReportLine ""
   Add-ReportLine "Caught fatal error:"
   Add-ReportLine $script:FatalError
+  Add-ReportLine ""
+  Add-ReportLine "Fatal error details:"
+  Add-ReportLine (To-ReportJson $fatalDetail)
+  if ($_.ScriptStackTrace) {
+    Add-ReportLine ""
+    Add-ReportLine "Script stack trace:"
+    Add-ReportLine $_.ScriptStackTrace
+  }
 } finally {
   Write-FinalSummary
 }
