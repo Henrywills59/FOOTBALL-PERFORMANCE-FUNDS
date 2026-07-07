@@ -14,6 +14,13 @@ Expected production result after deployment:
 - `POST https://football-performance-funds-backend.vercel.app/api/auth/login` succeeds for the seeded admin account.
 - The deployed frontend can log in and route to the correct dashboard.
 
+Production finding from the latest run:
+
+- `/api/debug/login` reached `passwordHashVerification`.
+- The admin user exists and has a valid bcrypt-length password hash.
+- `bcrypt.compare` returned `false`, which means the production admin row was hashed for a different/stale password.
+- The deployment script now synchronizes the production admin password hash before testing login.
+
 ## Included Backend Fixes
 
 The backend now has standalone Vercel diagnostic handlers that do not import the full Express app:
@@ -54,6 +61,18 @@ Relevant behavior:
 - `/api/debug/config` reports whether required environment variables exist without exposing values.
 - Login diagnostics identify whether the failure is environment, Prisma, database, password verification, JWT signing, audit write, middleware, or rate limiting.
 - Login audit write failures are logged but do not block successful authentication.
+
+## Admin Password Hash Synchronization
+
+The deploy script now repairs the production admin row before login verification:
+
+1. It deploys the backend.
+2. It pulls backend production environment variables from Vercel if `DATABASE_URL` is not already available locally.
+3. It sets `DEFAULT_ADMIN_EMAIL` to the admin email being tested.
+4. It sets `DEFAULT_ADMIN_PASSWORD` to the same password being tested.
+5. It runs `npm run seed:admin -w backend`.
+
+This reuses the existing seed implementation, which hashes the password with bcrypt before upserting the admin user.
 
 ## Included Frontend Integration
 
@@ -121,6 +140,7 @@ Full workspace typecheck: passed
 Auth tests: 17 passed
 Production routing tests: 2 passed
 Production smoke tests: 1 passed
+PowerShell deployment script syntax: passed
 ```
 
 Note: One earlier combined test run under parallel build/test load timed out on a demo-user login test. The same auth suite passed when rerun directly with a larger timeout, so this is treated as a local timing issue rather than a code failure.

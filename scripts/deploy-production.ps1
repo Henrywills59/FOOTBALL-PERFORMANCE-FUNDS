@@ -23,6 +23,7 @@ $results = [ordered]@{}
 $warnings = New-Object System.Collections.Generic.List[string]
 $script:FatalError = $null
 $script:DebugFailedStage = $null
+$backendEnvFile = Join-Path $root ".env.production.local"
 
 function Initialize-Report {
   $reportDir = Split-Path $reportPath -Parent
@@ -228,6 +229,82 @@ function Invoke-VercelDeploy {
   }
 }
 
+function Import-DotEnvFile {
+  param([string]$Path)
+
+  if (-not (Test-Path $Path)) {
+    throw "Environment file not found: $Path"
+  }
+
+  $imported = New-Object System.Collections.Generic.List[string]
+  foreach ($rawLine in Get-Content $Path) {
+    $line = $rawLine.Trim()
+    if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $line.IndexOf("=")
+    if ($separatorIndex -lt 1) {
+      continue
+    }
+
+    $name = $line.Substring(0, $separatorIndex).Trim()
+    $value = $line.Substring($separatorIndex + 1).Trim()
+
+    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+    $imported.Add($name) | Out-Null
+  }
+
+  Add-ReportLine "Imported environment variables from ${Path}:"
+  foreach ($name in $imported) {
+    Add-ReportLine "  $name=<configured>"
+  }
+}
+
+function Ensure-BackendProductionEnvironment {
+  if (-not [string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
+    Add-ReportLine "DATABASE_URL already available in the current PowerShell process."
+    return
+  }
+
+  Add-ReportLine "DATABASE_URL is not available locally. Pulling backend production env from Vercel."
+  Invoke-LoggedCommand "Pull backend production env" {
+    npx vercel env pull $backendEnvFile --environment=production --yes
+  }
+
+  Import-DotEnvFile -Path $backendEnvFile
+
+  if ([string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
+    throw "DATABASE_URL is still missing after pulling backend production environment variables."
+  }
+}
+
+function Sync-DefaultAdminPassword {
+  Add-ReportLine "Admin email to seed: $AdminEmail"
+  $passwordSource = if ($env:FPF_ADMIN_PASSWORD) { "FPF_ADMIN_PASSWORD" } else { "script default" }
+  Add-ReportLine "Admin password source: $passwordSource"
+
+  Ensure-BackendProductionEnvironment
+
+  $previousDefaultAdminEmail = $env:DEFAULT_ADMIN_EMAIL
+  $previousDefaultAdminPassword = $env:DEFAULT_ADMIN_PASSWORD
+  try {
+    $env:DEFAULT_ADMIN_EMAIL = $AdminEmail
+    $env:DEFAULT_ADMIN_PASSWORD = $AdminPassword
+
+    Invoke-LoggedCommand "Seed default admin password hash" {
+      npm run seed:admin -w backend
+    }
+  } finally {
+    $env:DEFAULT_ADMIN_EMAIL = $previousDefaultAdminEmail
+    $env:DEFAULT_ADMIN_PASSWORD = $previousDefaultAdminPassword
+  }
+}
+
 function Invoke-JsonRequest {
   param(
     [string]$Name,
@@ -386,6 +463,10 @@ try {
   Invoke-LoggedCommand "Backend deploy result" {
     Invoke-VercelDeploy -Name "backend" -Path $root -Project $BackendProject
   }
+
+  Write-Step "Synchronizing production admin password hash"
+  Sync-DefaultAdminPassword
+  Set-Result "Production admin password hash sync" $true "Seeded $AdminEmail with the password used by this deployment script."
 
   Write-Step "Testing production backend health"
   $apiHealthResult = Invoke-JsonRequest -Name "/api/health result" -Uri "$BackendUrl/api/health"

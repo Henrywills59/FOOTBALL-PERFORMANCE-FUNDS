@@ -77,7 +77,7 @@ After the Vercel deployment limit resets, run this once from the project root:
 powershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1
 ```
 
-The script verifies Git status, commits pending fixes if needed, pushes to `origin main`, deploys the backend, checks production `/api/health`, tests the admin login endpoint, then deploys the frontend. It prints clear PASS/FAIL results and is safe to rerun.
+The script verifies Git status, commits pending fixes if needed, pushes to `origin main`, deploys the backend, synchronizes the production admin password hash, checks production `/api/health`, tests the admin login endpoint, then deploys the frontend. It prints clear PASS/FAIL results and is safe to rerun.
 
 Every run also saves the full result here:
 
