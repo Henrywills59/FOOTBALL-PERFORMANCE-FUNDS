@@ -69,6 +69,18 @@ Expected response:
 }
 ```
 
+## One-Command Production Deployment
+
+After the Vercel deployment limit resets, run this once from the project root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1
+```
+
+The script verifies Git status, commits pending fixes if needed, pushes to `origin main`, deploys the backend, checks production `/health`, tests the admin login endpoint, then deploys the frontend. It prints clear PASS/FAIL results and is safe to rerun.
+
+To avoid putting the admin password in the command, the script uses the seeded default password unless `FPF_ADMIN_PASSWORD` is set.
+
 ## Phase 1 Scope
 
 Included:

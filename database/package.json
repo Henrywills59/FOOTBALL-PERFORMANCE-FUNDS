@@ -9,7 +9,7 @@
     "db:generate": "npm run prisma:generate",
     "db:push": "prisma db push --schema=prisma/schema.prisma",
     "db:deploy": "prisma db push --schema=prisma/schema.prisma",
-    "typecheck": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma validate"
+    "typecheck": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public DIRECT_URL=postgresql://postgres:postgres@localhost:5432/football_performance_fund?schema=public prisma validate"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
