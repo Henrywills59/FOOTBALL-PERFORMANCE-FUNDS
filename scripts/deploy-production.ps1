@@ -225,11 +225,11 @@ function Get-NextAction {
     return $script:NextAction
   }
 
-  if ($FailedStage -match "Add backend production secret|Remove previous backend production secret|remote production admin seed|ADMIN_SEED_TOKEN") {
+  if ($FailedStage -match "backend project link|remote production admin seed|ADMIN_SEED_TOKEN") {
     if ($script:LastCommandDiagnostic) {
       return "Fix the Vercel command failure shown above for '$($script:LastCommandDiagnostic.Command)', then rerun the same one-command script."
     }
-    return "Fix the Vercel CLI env command error shown above, then rerun the same one-command script."
+    return "Fix the Vercel CLI command error shown above, then rerun the same one-command script."
   }
 
   if ($FailedStage -match "Backend deploy") {
@@ -349,8 +349,18 @@ function Invoke-LoggedNativeCommand {
     [int[]]$AllowedExitCodes = @(0)
   )
 
-  $commandText = if ($Arguments.Count -gt 0) {
-    "$FilePath $($Arguments -join ' ')"
+  $displayArguments = @(
+    foreach ($argument in $Arguments) {
+      if ($argument -match '^(.*(?:TOKEN|SECRET|PASSWORD|DATABASE_URL|DIRECT_URL).*)=(.*)$') {
+        "$($matches[1])=<redacted>"
+      } else {
+        $argument
+      }
+    }
+  )
+
+  $commandText = if ($displayArguments.Count -gt 0) {
+    "$FilePath $($displayArguments -join ' ')"
   } else {
     $FilePath
   }
@@ -458,17 +468,10 @@ function Ensure-VercelProjectLink {
 
     if ($linkedProject -ne $Project) {
       Add-ReportLine "Linking Vercel project '$Project'..."
-      $global:LASTEXITCODE = 0
-      $linkOutput = @(npx vercel link --project $Project --yes 2>&1)
-      foreach ($line in $linkOutput) {
-        $text = Format-CommandOutputLine $line
-        foreach ($textLine in ($text -split "`r?`n")) {
-          Add-ReportLine $textLine
-        }
-      }
-      if ($global:LASTEXITCODE -ne 0) {
-        throw "Vercel link failed for project '$Project' with exit code $global:LASTEXITCODE."
-      }
+      Invoke-LoggedNativeCommand `
+        -Name "$Name backend project link" `
+        -FilePath "npx.cmd" `
+        -Arguments @("vercel", "link", "--project", $Project, "--yes")
     }
   } finally {
     Pop-Location
@@ -479,17 +482,23 @@ function Invoke-VercelDeploy {
   param(
     [string]$Name,
     [string]$Path,
-    [string]$Project
+    [string]$Project,
+    [hashtable]$Environment = @{}
   )
 
   Ensure-VercelProjectLink -Name $Name -Path $Path -Project $Project
 
   Push-Location $Path
   try {
-    npx vercel --prod
-    if ($LASTEXITCODE -ne 0) {
-      throw "Vercel production deploy failed for project '$Project' with exit code $LASTEXITCODE."
+    $arguments = @("vercel", "--prod")
+    foreach ($key in $Environment.Keys) {
+      $arguments += "--env"
+      $arguments += "$key=$($Environment[$key])"
     }
+    Invoke-LoggedNativeCommand `
+      -Name "$Name deploy result" `
+      -FilePath "npx.cmd" `
+      -Arguments $arguments
   } finally {
     Pop-Location
   }
@@ -507,32 +516,10 @@ function New-DeploymentToken {
   return ([Convert]::ToBase64String($bytes)).TrimEnd("=").Replace("+", "-").Replace("/", "_")
 }
 
-function Set-VercelProductionSecret {
-  param(
-    [string]$Name,
-    [string]$Value
-  )
-
-  Ensure-VercelProjectLink -Name "backend" -Path $root -Project $BackendProject
-
-  Add-ReportLine "Refreshing backend production secret '$Name'."
-
-  Invoke-LoggedNativeCommand `
-    -Name "Remove previous backend production secret $Name" `
-    -FilePath "npx.cmd" `
-    -Arguments @("vercel", "env", "rm", $Name, "production", "--yes") `
-    -AllowedExitCodes @(0, 1)
-
-  Invoke-LoggedNativeCommand `
-    -Name "Add backend production secret $Name" `
-    -FilePath "npx.cmd" `
-    -Arguments @("vercel", "env", "add", $Name, "production") `
-    -Stdin $Value
-}
-
 function Configure-RemoteAdminSeed {
   $script:AdminSeedToken = New-DeploymentToken
-  Set-VercelProductionSecret -Name "ADMIN_SEED_TOKEN" -Value $script:AdminSeedToken
+  Add-ReportLine "Generated deployment-scoped admin seed token."
+  Add-ReportLine "The token will be passed to the backend deploy with a non-interactive Vercel --env flag."
 }
 
 function Sync-DefaultAdminPassword {
@@ -816,12 +803,14 @@ try {
 
   Write-Step "Configuring remote production admin seed"
   Configure-RemoteAdminSeed
-  Set-Result "Remote production admin seed token" $true "A fresh deployment token was configured in the backend Vercel project."
+  Set-Result "Remote production admin seed token" $true "A fresh deployment-scoped token was generated locally. No Vercel env mutation is required."
 
   Write-Step "Deploying backend"
-  Invoke-LoggedCommand "Backend deploy result" {
-    Invoke-VercelDeploy -Name "backend" -Path $root -Project $BackendProject
-  }
+  Invoke-VercelDeploy `
+    -Name "backend" `
+    -Path $root `
+    -Project $BackendProject `
+    -Environment @{ ADMIN_SEED_TOKEN = $script:AdminSeedToken }
 
   Write-Step "Synchronizing production admin password hash"
   Sync-DefaultAdminPassword
@@ -896,9 +885,7 @@ try {
   }
 
   Write-Step "Deploying frontend"
-  Invoke-LoggedCommand "Frontend deploy result" {
-    Invoke-VercelDeploy -Name "frontend" -Path (Join-Path $root "frontend") -Project $FrontendProject
-  }
+  Invoke-VercelDeploy -Name "frontend" -Path (Join-Path $root "frontend") -Project $FrontendProject
 } catch {
   $script:FatalError = $_.Exception.Message
   $fatalDetail = Get-ErrorDetail $_
