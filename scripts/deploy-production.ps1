@@ -23,7 +23,7 @@ $results = [ordered]@{}
 $warnings = New-Object System.Collections.Generic.List[string]
 $script:FatalError = $null
 $script:DebugFailedStage = $null
-$backendEnvFile = Join-Path $root ".env.production.local"
+$script:AdminSeedToken = $null
 
 function Initialize-Report {
   $reportDir = Split-Path $reportPath -Parent
@@ -188,7 +188,7 @@ function Get-GitStatusShort {
   return @(git status --short)
 }
 
-function Invoke-VercelDeploy {
+function Ensure-VercelProjectLink {
   param(
     [string]$Name,
     [string]$Path,
@@ -219,7 +219,22 @@ function Invoke-VercelDeploy {
         throw "Vercel link failed for project '$Project' with exit code $LASTEXITCODE."
       }
     }
+  } finally {
+    Pop-Location
+  }
+}
 
+function Invoke-VercelDeploy {
+  param(
+    [string]$Name,
+    [string]$Path,
+    [string]$Project
+  )
+
+  Ensure-VercelProjectLink -Name $Name -Path $Path -Project $Project
+
+  Push-Location $Path
+  try {
     npx vercel --prod
     if ($LASTEXITCODE -ne 0) {
       throw "Vercel production deploy failed for project '$Project' with exit code $LASTEXITCODE."
@@ -229,58 +244,52 @@ function Invoke-VercelDeploy {
   }
 }
 
-function Import-DotEnvFile {
-  param([string]$Path)
-
-  if (-not (Test-Path $Path)) {
-    throw "Environment file not found: $Path"
+function New-DeploymentToken {
+  $bytes = New-Object byte[] 32
+  $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+  try {
+    $generator.GetBytes($bytes)
+  } finally {
+    $generator.Dispose()
   }
 
-  $imported = New-Object System.Collections.Generic.List[string]
-  foreach ($rawLine in Get-Content $Path) {
-    $line = $rawLine.Trim()
-    if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
-      continue
-    }
+  return ([Convert]::ToBase64String($bytes)).TrimEnd("=").Replace("+", "-").Replace("/", "_")
+}
 
-    $separatorIndex = $line.IndexOf("=")
-    if ($separatorIndex -lt 1) {
-      continue
-    }
+function Set-VercelProductionSecret {
+  param(
+    [string]$Name,
+    [string]$Value
+  )
 
-    $name = $line.Substring(0, $separatorIndex).Trim()
-    $value = $line.Substring($separatorIndex + 1).Trim()
+  Ensure-VercelProjectLink -Name "backend" -Path $root -Project $BackendProject
 
-    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
-      $value = $value.Substring(1, $value.Length - 2)
-    }
-
-    [Environment]::SetEnvironmentVariable($name, $value, "Process")
-    $imported.Add($name) | Out-Null
+  Add-ReportLine "Refreshing backend production secret '$Name'."
+  Add-ReportLine "Removing any previous '$Name' value from the Vercel backend project."
+  $removeOutput = @(npx vercel env rm $Name production --yes 2>&1)
+  foreach ($line in $removeOutput) {
+    Add-ReportLine ([string]$line)
   }
 
-  Add-ReportLine "Imported environment variables from ${Path}:"
-  foreach ($name in $imported) {
-    Add-ReportLine "  $name=<configured>"
+  Add-ReportLine "Adding fresh '$Name' value to the Vercel backend project."
+  $global:LASTEXITCODE = 0
+  $addOutput = @($Value | npx vercel env add $Name production 2>&1)
+  foreach ($line in $addOutput) {
+    $text = [string]$line
+    Add-ReportLine $text
+    if ($text -match '^\s*warning:|^\s*WARN(ING)?:') {
+      Add-Warning $text
+    }
+  }
+
+  if ($global:LASTEXITCODE -ne 0) {
+    throw "Failed to add Vercel production secret '$Name' with exit code $global:LASTEXITCODE."
   }
 }
 
-function Ensure-BackendProductionEnvironment {
-  if (-not [string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
-    Add-ReportLine "DATABASE_URL already available in the current PowerShell process."
-    return
-  }
-
-  Add-ReportLine "DATABASE_URL is not available locally. Pulling backend production env from Vercel."
-  Invoke-LoggedCommand "Pull backend production env" {
-    npx vercel env pull $backendEnvFile --environment=production --yes
-  }
-
-  Import-DotEnvFile -Path $backendEnvFile
-
-  if ([string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
-    throw "DATABASE_URL is still missing after pulling backend production environment variables."
-  }
+function Configure-RemoteAdminSeed {
+  $script:AdminSeedToken = New-DeploymentToken
+  Set-VercelProductionSecret -Name "ADMIN_SEED_TOKEN" -Value $script:AdminSeedToken
 }
 
 function Sync-DefaultAdminPassword {
@@ -288,20 +297,30 @@ function Sync-DefaultAdminPassword {
   $passwordSource = if ($env:FPF_ADMIN_PASSWORD) { "FPF_ADMIN_PASSWORD" } else { "script default" }
   Add-ReportLine "Admin password source: $passwordSource"
 
-  Ensure-BackendProductionEnvironment
+  if ([string]::IsNullOrWhiteSpace($script:AdminSeedToken)) {
+    throw "ADMIN_SEED_TOKEN was not configured before backend deployment."
+  }
 
-  $previousDefaultAdminEmail = $env:DEFAULT_ADMIN_EMAIL
-  $previousDefaultAdminPassword = $env:DEFAULT_ADMIN_PASSWORD
-  try {
-    $env:DEFAULT_ADMIN_EMAIL = $AdminEmail
-    $env:DEFAULT_ADMIN_PASSWORD = $AdminPassword
+  $seedBody = @{
+    email = $AdminEmail
+    password = $AdminPassword
+    name = "FPF Admin"
+  }
 
-    Invoke-LoggedCommand "Seed default admin password hash" {
-      npm run seed:admin -w backend
+  $seedResult = Invoke-JsonRequest `
+    -Name "/api/admin/seed-default-admin result" `
+    -Uri "$BackendUrl/api/admin/seed-default-admin" `
+    -Method "Post" `
+    -Body $seedBody `
+    -Headers @{ "x-admin-seed-token" = $script:AdminSeedToken }
+
+  if (-not $seedResult.Ok -or $seedResult.Response.ok -ne $true) {
+    $detail = if ($seedResult.Ok) {
+      To-ReportJson $seedResult.Response
+    } else {
+      To-ReportJson $seedResult.Error
     }
-  } finally {
-    $env:DEFAULT_ADMIN_EMAIL = $previousDefaultAdminEmail
-    $env:DEFAULT_ADMIN_PASSWORD = $previousDefaultAdminPassword
+    throw "Remote admin password hash sync failed. $detail"
   }
 }
 
@@ -310,7 +329,8 @@ function Invoke-JsonRequest {
     [string]$Name,
     [string]$Uri,
     [string]$Method = "Get",
-    [object]$Body = $null
+    [object]$Body = $null,
+    [hashtable]$Headers = @{}
   )
 
   Add-ReportLine ""
@@ -322,6 +342,10 @@ function Invoke-JsonRequest {
       Uri = $Uri
       Method = $Method
       TimeoutSec = 30
+    }
+
+    if ($Headers.Count -gt 0) {
+      $parameters.Headers = $Headers
     }
 
     if ($null -ne $Body) {
@@ -458,6 +482,10 @@ try {
 
   Write-Step "Pushing to origin/$Branch"
   Invoke-LoggedCommand "Push to origin/$Branch" { git push origin $Branch }
+
+  Write-Step "Configuring remote production admin seed"
+  Configure-RemoteAdminSeed
+  Set-Result "Remote production admin seed token" $true "A fresh deployment token was configured in the backend Vercel project."
 
   Write-Step "Deploying backend"
   Invoke-LoggedCommand "Backend deploy result" {

@@ -64,15 +64,18 @@ Relevant behavior:
 
 ## Admin Password Hash Synchronization
 
-The deploy script now repairs the production admin row before login verification:
+The deploy script now repairs the production admin row before login verification without requiring the production database URL on the local machine:
 
-1. It deploys the backend.
-2. It pulls backend production environment variables from Vercel if `DATABASE_URL` is not already available locally.
-3. It sets `DEFAULT_ADMIN_EMAIL` to the admin email being tested.
-4. It sets `DEFAULT_ADMIN_PASSWORD` to the same password being tested.
-5. It runs `npm run seed:admin -w backend`.
+1. It generates a fresh deployment token.
+2. It stores that token as `ADMIN_SEED_TOKEN` on the backend Vercel production project.
+3. It deploys the backend with the token.
+4. It calls `POST /api/admin/seed-default-admin` with the token.
+5. The deployed backend uses its own configured `DATABASE_URL` to bcrypt-hash and upsert the admin password.
+6. It then tests `/api/auth/login` with the same admin credentials.
 
-This reuses the existing seed implementation, which hashes the password with bcrypt before upserting the admin user.
+This avoids downloading Supabase credentials into the local shell. Vercel can keep sensitive values configured for runtime while not exposing their plaintext value through `vercel env pull`.
+
+If Vercel refuses to add `ADMIN_SEED_TOKEN`, the deploy report will show that exact CLI failure. Otherwise, no manual `DATABASE_URL` entry is required for normal deployments.
 
 ## Included Frontend Integration
 

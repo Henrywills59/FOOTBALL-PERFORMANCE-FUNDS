@@ -77,7 +77,7 @@ After the Vercel deployment limit resets, run this once from the project root:
 powershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1
 ```
 
-The script verifies Git status, commits pending fixes if needed, pushes to `origin main`, deploys the backend, synchronizes the production admin password hash, checks production `/api/health`, tests the admin login endpoint, then deploys the frontend. It prints clear PASS/FAIL results and is safe to rerun.
+The script verifies Git status, commits pending fixes if needed, pushes to `origin main`, configures a fresh protected admin seed token in the backend Vercel project, deploys the backend, synchronizes the production admin password hash through the deployed backend, checks production `/api/health`, tests the admin login endpoint, then deploys the frontend. It prints clear PASS/FAIL results and is safe to rerun.
 
 Every run also saves the full result here:
 
@@ -88,6 +88,8 @@ docs/latest-deploy-result.txt
 If deployment or login fails, open that file. It includes Git status, backend deployment output, health/login responses, debug-login output, warnings, the final PASS/FAIL summary, and the exact `failedStage` when the backend reports one. Git LF/CRLF warnings are reported separately and do not stop the deployment unless Git exits with a non-zero status.
 
 To avoid putting the admin password in the command, the script uses the seeded default password unless `FPF_ADMIN_PASSWORD` is set.
+
+The script does not require local `DATABASE_URL` entry for normal deployments. If Vercel does not expose sensitive production secrets through `vercel env pull`, the script seeds the admin password through a protected backend endpoint that runs inside Vercel, where the backend already has access to `DATABASE_URL`.
 
 ## Phase 1 Scope
 
