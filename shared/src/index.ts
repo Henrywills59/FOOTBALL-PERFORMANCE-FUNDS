@@ -330,3 +330,79 @@ export type PublishedIntelligence = {
   recommendedStake: string;
   publishedAt: string | null;
 };
+
+export type SubscriberOpportunity = {
+  id: string;
+  fixtureId: string;
+  match: string;
+  league: string;
+  kickoffTime: string | null;
+  market: string;
+  prediction: string;
+  aiConfidence: number;
+  riskGrade: "Low" | "Medium" | "High";
+  expectedValue: string;
+  status: "Live" | "Upcoming" | "Published" | "Monitoring";
+  explanation: string;
+  source: "AI Prediction" | "FPF Intelligence";
+};
+
+export type SubscriberIntelligenceFeedItem = {
+  id: string;
+  type: "Market Movement" | "Odds Movement" | "Injury Alert" | "Line-up Confirmation" | "Weather Impact" | "Value Opportunity" | "System Announcement";
+  title: string;
+  description: string;
+  severity: "Info" | "Watch" | "Important";
+  timestamp: string;
+};
+
+export type SubscriberPerformanceSummary = {
+  wins: number;
+  losses: number;
+  strikeRate: number;
+  roi: number;
+  weeklyProfit: number;
+  monthlyProfit: number;
+  chart: Array<{ label: string; value: number }>;
+};
+
+export type SubscriberReport = {
+  id: string;
+  title: string;
+  category: "Daily Briefing" | "Weekly Report" | "Monthly Report" | "Market Trends" | "League Analysis";
+  summary: string;
+  publishedAt: string;
+};
+
+export type SubscriberNotification = {
+  id: string;
+  type: "New Opportunity" | "Line-up Change" | "Odds Movement" | "Subscription Update" | "System Announcement";
+  title: string;
+  message: string;
+  createdAt: string;
+};
+
+export type SubscriberReferralSummary = {
+  referralCode: string;
+  referralLink: string;
+  earningsCents: number;
+  invitedSubscribers: number;
+  rewards: string[];
+};
+
+export type SubscriberCommandCenter = {
+  executiveOverview: {
+    welcomeMessage: string;
+    membershipTier: string;
+    aiIntelligenceScore: number;
+    subscriptionStatus: "Active" | "Trial" | "Expired";
+    walletBalanceCents: number;
+    performanceSummary: string;
+  };
+  opportunities: SubscriberOpportunity[];
+  liveIntelligenceFeed: SubscriberIntelligenceFeedItem[];
+  performance: SubscriberPerformanceSummary;
+  reports: SubscriberReport[];
+  notifications: SubscriberNotification[];
+  referral: SubscriberReferralSummary;
+};

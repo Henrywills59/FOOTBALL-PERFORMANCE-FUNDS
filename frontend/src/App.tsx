@@ -23,6 +23,11 @@ import type {
   PublishedIntelligence,
   PlatformHealth,
   PublicUserRole,
+  SubscriberCommandCenter,
+  SubscriberIntelligenceFeedItem,
+  SubscriberNotification,
+  SubscriberOpportunity,
+  SubscriberReport,
   WithdrawalRequest,
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
@@ -68,7 +73,17 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackUrl?: strin
   if (!response.ok) throw new Error(data.error ?? `Request failed with HTTP ${response.status}`);
   return data as T;
 }
-const navItems = ["Dashboard", "Global Fixture Center", "Live Match Center", "Opportunity Center", "Performance", "Profile"] as const;
+const navItems = [
+  "Subscriber Home",
+  "Opportunity Center",
+  "Live Intelligence Feed",
+  "Performance Center",
+  "Live Match Center",
+  "Intelligence Reports",
+  "Profile",
+  "Notifications",
+  "Referral Program",
+] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
@@ -100,7 +115,7 @@ function getStoredSession() {
 export default function App() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [session, setSession] = useState<AuthResponse | null>(() => getStoredSession());
-  const [activeView, setActiveView] = useState<NavItem>("Dashboard");
+  const [activeView, setActiveView] = useState<NavItem>("Subscriber Home");
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
   const [activeInvestorView, setActiveInvestorView] = useState<InvestorNavItem>("Investor Dashboard");
   const [activeAnalystView, setActiveAnalystView] = useState<AnalystNavItem>("Analyst Dashboard");
@@ -136,6 +151,7 @@ export default function App() {
   const [analystSubmissions, setAnalystSubmissions] = useState<AnalystIntelligenceSubmission[]>([]);
   const [analystAssistance, setAnalystAssistance] = useState<AnalystAssistance | null>(null);
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
+  const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -226,7 +242,7 @@ export default function App() {
     setActiveAdminView("Admin Dashboard");
     setActiveInvestorView("Investor Dashboard");
     setActiveAnalystView("Analyst Dashboard");
-    setActiveView("Dashboard");
+    setActiveView("Subscriber Home");
     setSession(nextSession);
   }
 
@@ -286,9 +302,11 @@ export default function App() {
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
+      const commandCenter = await apiGet<SubscriberCommandCenter>("/subscriber/command-center", token);
       const fixtureData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token);
       const approvedData = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
       const intelligenceData = await apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token);
+      setSubscriberCommandCenter(commandCenter);
       setFixtures(fixtureData.fixtures);
       setLiveFixtures(fixtureData.fixtures.filter((fixture) => fixture.status === "LIVE"));
       setPublishedIntelligence(intelligenceData.intelligence);
@@ -694,8 +712,9 @@ export default function App() {
             />
           ) : null}
 
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Dashboard" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Subscriber Home" ? (
             <DashboardView
+              commandCenter={subscriberCommandCenter}
               featured={featured}
               intelligence={publishedIntelligence}
               liveFixtures={liveFixtures}
@@ -706,18 +725,26 @@ export default function App() {
               onAdd={addToSlip}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Global Fixture Center" ? (
-            <MatchCenterView
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Opportunity Center" ? (
+            <OpportunityCenterView
+              commandCenter={subscriberCommandCenter}
               filters={filters}
               fixtures={fixtures}
               intelligence={publishedIntelligence}
-              predictions={predictions}
+              predictions={daily}
               selectedFixture={selectedFixture}
               setFilters={setFilters}
+              onAdd={addToSlip}
               onFilter={loadFilteredFixtures}
               onSelectFixture={(id) => void loadFixtureDetail(id)}
               onSelectPrediction={setSelectedPrediction}
             />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Live Intelligence Feed" ? (
+            <LiveIntelligenceFeedView feed={subscriberCommandCenter?.liveIntelligenceFeed ?? []} />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Performance Center" ? (
+            <PerformanceView commandCenter={subscriberCommandCenter} predictions={predictions} intelligence={publishedIntelligence} fixtures={fixtures} />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Live Match Center" ? (
             <LiveMatchCenter
@@ -727,17 +754,20 @@ export default function App() {
               onSelectFixture={(id) => void loadFixtureDetail(id)}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Opportunity Center" ? (
-            <OpportunityList intelligence={publishedIntelligence} predictions={daily} onAdd={addToSlip} onSelect={setSelectedPrediction} />
-          ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Performance" ? (
-            <PerformanceView predictions={predictions} intelligence={publishedIntelligence} fixtures={fixtures} />
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Intelligence Reports" ? (
+            <ReportsView reports={subscriberCommandCenter?.reports ?? []} />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Profile" ? (
             <ProfileView session={session} onPasswordChange={safelySubmit(handlePasswordChange)} />
           ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Notifications" ? (
+            <NotificationCenterView notifications={subscriberCommandCenter?.notifications ?? []} />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Referral Program" ? (
+            <ReferralView referral={subscriberCommandCenter?.referral ?? null} />
+          ) : null}
 
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView !== "Profile" ? (
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && ["Opportunity Center", "Live Match Center"].includes(activeView) ? (
             <PredictionDetail prediction={selectedPrediction} onAdd={addToSlip} />
           ) : null}
         </section>
@@ -1438,6 +1468,7 @@ function AuthPanel({
 }
 
 function DashboardView({
+  commandCenter,
   featured,
   intelligence,
   liveFixtures,
@@ -1447,6 +1478,7 @@ function DashboardView({
   recent,
   upcomingFixtures,
 }: {
+  commandCenter: SubscriberCommandCenter | null;
   featured: PredictionWithFixture[];
   intelligence: PublishedIntelligence[];
   liveFixtures: FootballFixtureSummary[];
@@ -1458,29 +1490,48 @@ function DashboardView({
 }) {
   const averageConfidence = predictions.length
     ? Math.round(predictions.reduce((total, item) => total + item.confidenceScore, 0) / predictions.length)
-    : 0;
+    : commandCenter?.executiveOverview.aiIntelligenceScore ?? 0;
+  const opportunities = commandCenter?.opportunities ?? [];
+  const overview = commandCenter?.executiveOverview;
   return (
     <div className="mt-6 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Today's opportunities" value={String(intelligence.length + featured.length)} />
-        <Metric label="Live matches" value={String(liveFixtures.length)} />
-        <Metric label="Avg confidence" value={`${averageConfidence}%`} />
-        <Metric label="Subscription" value="Active" />
+      <section className="overflow-hidden rounded-lg border border-emerald-400/20 bg-gradient-to-br from-slate-950 via-blue-950 to-zinc-950 p-5 shadow-2xl shadow-emerald-950/20">
+        <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Executive Overview</p>
+            <h3 className="mt-3 text-2xl font-semibold sm:text-3xl">{overview?.welcomeMessage ?? "Welcome back. FPF intelligence is monitoring approved football markets for you."}</h3>
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">
+              Institutional football intelligence, approved opportunities, market alerts, and performance context in one subscriber command center.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <MiniStat label="Membership" value={overview?.membershipTier ?? "Subscriber"} />
+            <MiniStat label="Status" value={overview?.subscriptionStatus ?? "Active"} />
+            <MiniStat label="AI Score" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
+            <MiniStat label="Wallet" value={money(overview?.walletBalanceCents ?? 0)} />
+          </div>
+        </div>
+      </section>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Today's Opportunities" value={String(opportunities.length || intelligence.length + featured.length)} />
+        <Metric label="Live Matches" value={String(liveFixtures.length)} />
+        <Metric label="AI Intelligence" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
+        <Metric label="Performance" value={overview?.performanceSummary ?? "Monitoring"} />
+        <Metric label="Subscription" value={overview?.subscriptionStatus ?? "Active"} />
       </div>
-      <Panel title="Welcome Summary">
-        <p className="text-sm leading-6 text-zinc-300">
-          Your FPF command center is tracking approved intelligence, live fixtures, upcoming matches, and performance signals in one workspace.
-        </p>
-      </Panel>
-      <Panel title="Today's Featured Opportunities">
-        <OpportunityCards predictions={featured} onAdd={onAdd} />
+      <Panel title="Today's Opportunities">
+        <SubscriberOpportunityCards opportunities={opportunities} />
+        {!opportunities.length ? <OpportunityCards predictions={featured} onAdd={onAdd} /> : null}
       </Panel>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Live Matches">
-          <CompactFixtureList fixtures={liveFixtures} />
+        <Panel title="Live Intelligence Feed">
+          <FeedList feed={commandCenter?.liveIntelligenceFeed ?? []} />
         </Panel>
-        <Panel title="Upcoming Matches">
-          <CompactFixtureList fixtures={upcomingFixtures} />
+        <Panel title="Live Match Center">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CompactFixtureList fixtures={liveFixtures} />
+            <CompactFixtureList fixtures={upcomingFixtures} />
+          </div>
         </Panel>
       </div>
       <Panel title="FPF Intelligence">
@@ -1505,7 +1556,197 @@ function DashboardView({
         <CompactPredictionList predictions={recent} />
       </Panel>
       <Panel title="Notifications">
-        <NotificationList notifications={notifications} />
+        {commandCenter ? <NotificationCenterView notifications={commandCenter.notifications} compact /> : <NotificationList notifications={notifications} />}
+      </Panel>
+    </div>
+  );
+}
+
+function SubscriberOpportunityCards({ opportunities }: { opportunities: SubscriberOpportunity[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {opportunities.map((opportunity) => (
+        <div className="rounded-lg border border-emerald-400/20 bg-slate-950/80 p-4 shadow-xl shadow-black/10" key={opportunity.id}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{opportunity.source}</p>
+              <h3 className="mt-2 font-semibold">{opportunity.match}</h3>
+              <p className="mt-1 text-sm text-slate-400">{opportunity.league}</p>
+            </div>
+            <span className="rounded-md border border-emerald-400/30 px-2 py-1 text-xs text-emerald-200">{opportunity.status}</span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+            <MiniStat label="AI Confidence" value={`${opportunity.aiConfidence}%`} />
+            <MiniStat label="Risk Grade" value={opportunity.riskGrade} />
+            <MiniStat label="EV" value={opportunity.expectedValue} />
+          </div>
+          <p className="mt-4 text-sm font-medium text-white">{opportunity.market}: {opportunity.prediction}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{opportunity.explanation}</p>
+          <p className="mt-3 text-xs text-slate-500">
+            Kickoff: {opportunity.kickoffTime ? new Date(opportunity.kickoffTime).toLocaleString() : "Pending fixture sync"}
+          </p>
+        </div>
+      ))}
+      {!opportunities.length ? <EmptyState message="Approved subscriber opportunities will appear here after FPF review." /> : null}
+    </div>
+  );
+}
+
+function OpportunityCenterView({
+  commandCenter,
+  filters,
+  fixtures,
+  intelligence,
+  onAdd,
+  onFilter,
+  onSelectFixture,
+  onSelectPrediction,
+  predictions,
+  selectedFixture,
+  setFilters,
+}: {
+  commandCenter: SubscriberCommandCenter | null;
+  filters: { search: string; league: string; country: string; date: string };
+  fixtures: FootballFixtureSummary[];
+  intelligence: PublishedIntelligence[];
+  onAdd: (prediction: PredictionWithFixture) => void;
+  onFilter: (event: FormEvent<HTMLFormElement>) => void;
+  onSelectFixture: (id: string) => void;
+  onSelectPrediction: (prediction: PredictionWithFixture) => void;
+  predictions: PredictionWithFixture[];
+  selectedFixture: FootballFixtureDetail | null;
+  setFilters: (filters: { search: string; league: string; country: string; date: string }) => void;
+}) {
+  const opportunities = commandCenter?.opportunities ?? [];
+  const lowRisk = opportunities.filter((item) => item.riskGrade === "Low");
+  const mediumRisk = opportunities.filter((item) => item.riskGrade === "Medium");
+  const highValue = opportunities.filter((item) => item.expectedValue === "High" || item.expectedValue.startsWith("+"));
+  const live = opportunities.filter((item) => item.status === "Live");
+  const upcoming = opportunities.filter((item) => item.status === "Upcoming");
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Opportunity Filters">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <Metric label="Low Risk" value={String(lowRisk.length)} />
+          <Metric label="Medium Risk" value={String(mediumRisk.length)} />
+          <Metric label="High Value" value={String(highValue.length)} />
+          <Metric label="Live" value={String(live.length)} />
+          <Metric label="Upcoming" value={String(upcoming.length)} />
+          <Metric label="Confidence" value={`${commandCenter?.executiveOverview.aiIntelligenceScore ?? 0}%`} />
+        </div>
+      </Panel>
+      <Panel title="Institutional Opportunity Center">
+        <SubscriberOpportunityCards opportunities={opportunities} />
+      </Panel>
+      <OpportunityList intelligence={intelligence} predictions={predictions} onAdd={onAdd} onSelect={onSelectPrediction} />
+      <MatchCenterView
+        filters={filters}
+        fixtures={fixtures}
+        intelligence={intelligence}
+        predictions={predictions}
+        selectedFixture={selectedFixture}
+        setFilters={setFilters}
+        onFilter={onFilter}
+        onSelectFixture={onSelectFixture}
+        onSelectPrediction={onSelectPrediction}
+      />
+    </div>
+  );
+}
+
+function FeedList({ feed }: { feed: SubscriberIntelligenceFeedItem[] }) {
+  return (
+    <div className="space-y-3">
+      {feed.map((item) => (
+        <div className="rounded-lg border border-slate-800 bg-slate-950 p-4" key={item.id}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.type}</p>
+            <span className={`rounded-md px-2 py-1 text-xs ${item.severity === "Important" ? "bg-emerald-300 text-zinc-950" : item.severity === "Watch" ? "bg-blue-500/20 text-blue-100" : "bg-zinc-800 text-zinc-300"}`}>
+              {item.severity}
+            </span>
+          </div>
+          <h3 className="mt-2 font-semibold">{item.title}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
+          <p className="mt-3 text-xs text-slate-500">{new Date(item.timestamp).toLocaleString()}</p>
+        </div>
+      ))}
+      {!feed.length ? <EmptyState message="Live intelligence alerts will appear as markets, odds, injuries, line-ups, and value signals change." /> : null}
+    </div>
+  );
+}
+
+function LiveIntelligenceFeedView({ feed }: { feed: SubscriberIntelligenceFeedItem[] }) {
+  return (
+    <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_320px]">
+      <Panel title="Live Intelligence Feed">
+        <FeedList feed={feed} />
+      </Panel>
+      <Panel title="What Changed?">
+        <div className="space-y-3 text-sm leading-6 text-slate-300">
+          <p>FPF tracks market movement, odds movement, injury alerts, line-up confirmation, weather impact, and value windows.</p>
+          <p>Every alert is framed as intelligence context, not a guaranteed outcome.</p>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function ReportsView({ reports }: { reports: SubscriberReport[] }) {
+  return (
+    <Panel title="Intelligence Reports">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {reports.map((report) => (
+          <article className="rounded-lg border border-slate-800 bg-slate-950 p-4" key={report.id}>
+            <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{report.category}</p>
+            <h3 className="mt-2 text-lg font-semibold">{report.title}</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{report.summary}</p>
+            <p className="mt-4 text-xs text-slate-500">{new Date(report.publishedAt).toLocaleString()}</p>
+          </article>
+        ))}
+        {!reports.length ? <EmptyState message="Daily briefings, weekly reports, market trends, and league analysis will appear here." /> : null}
+      </div>
+    </Panel>
+  );
+}
+
+function NotificationCenterView({ compact = false, notifications }: { compact?: boolean; notifications: SubscriberNotification[] }) {
+  const content = (
+    <div className="space-y-3">
+      {notifications.map((notification) => (
+        <div className="rounded-lg border border-slate-800 bg-slate-950 p-4" key={notification.id}>
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{notification.type}</p>
+          <h3 className="mt-2 font-semibold">{notification.title}</h3>
+          <p className="mt-2 text-sm text-slate-300">{notification.message}</p>
+          <p className="mt-3 text-xs text-slate-500">{new Date(notification.createdAt).toLocaleString()}</p>
+        </div>
+      ))}
+      {!notifications.length ? <EmptyState message="No subscriber notifications right now." /> : null}
+    </div>
+  );
+
+  return compact ? content : <Panel title="Subscriber Notification Center">{content}</Panel>;
+}
+
+function ReferralView({ referral }: { referral: SubscriberCommandCenter["referral"] | null }) {
+  return (
+    <div className="mt-6 grid gap-4 lg:grid-cols-[360px_1fr]">
+      <Panel title="Referral Program">
+        <Metric label="Referral Code" value={referral?.referralCode ?? "FPF-PENDING"} />
+        <div className="mt-3 rounded-md border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
+          {referral?.referralLink ?? "Referral link will appear when account referral tracking is active."}
+        </div>
+      </Panel>
+      <Panel title="Referral Performance">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="Earnings" value={money(referral?.earningsCents ?? 0)} />
+          <Metric label="Invited Subscribers" value={String(referral?.invitedSubscribers ?? 0)} />
+          <Metric label="Rewards" value={String(referral?.rewards.length ?? 0)} />
+        </div>
+        <div className="mt-4 space-y-2">
+          {(referral?.rewards ?? []).map((reward) => (
+            <div className="rounded-md border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300" key={reward}>{reward}</div>
+          ))}
+        </div>
       </Panel>
     </div>
   );
@@ -1790,25 +2031,29 @@ function PredictionDetail({
 }
 
 function PerformanceView({
+  commandCenter,
   fixtures,
   intelligence,
   predictions,
 }: {
+  commandCenter: SubscriberCommandCenter | null;
   fixtures: FootballFixtureSummary[];
   intelligence: PublishedIntelligence[];
   predictions: PredictionWithFixture[];
 }) {
-  const winRate = predictions.length ? Math.round(predictions.filter((prediction) => prediction.confidenceScore >= 60).length / predictions.length * 100) : 0;
-  const roi = predictions.length ? Math.round(predictions.reduce((total, prediction) => total + (prediction.edge ?? 0), 0) / predictions.length * 1000) / 10 : 0;
+  const winRate = commandCenter?.performance.strikeRate ?? (predictions.length ? Math.round(predictions.filter((prediction) => prediction.confidenceScore >= 60).length / predictions.length * 100) : 0);
+  const roi = commandCenter?.performance.roi ?? (predictions.length ? Math.round(predictions.reduce((total, prediction) => total + (prediction.edge ?? 0), 0) / predictions.length * 1000) / 10 : 0);
   const favoriteLeagues = Array.from(new Set(fixtures.map((fixture) => fixture.leagueName))).slice(0, 4);
-  const monthly = [42, 58, 51, 64, 61, Math.max(30, winRate)];
+  const monthly = commandCenter?.performance.chart.map((item) => item.value) ?? [42, 58, 51, 64, 61, Math.max(30, winRate)];
   return (
     <div className="mt-6 space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Win rate" value={`${winRate}%`} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <Metric label="Wins" value={String(commandCenter?.performance.wins ?? 0)} />
+        <Metric label="Losses" value={String(commandCenter?.performance.losses ?? 0)} />
+        <Metric label="Strike Rate" value={`${winRate}%`} />
         <Metric label="ROI" value={`${roi.toFixed(1)}%`} />
-        <Metric label="Betting history" value={`${predictions.length} tracked`} />
-        <Metric label="Published intelligence" value={String(intelligence.length)} />
+        <Metric label="Weekly Profit" value={money(commandCenter?.performance.weeklyProfit ?? 0)} />
+        <Metric label="Monthly Profit" value={money(commandCenter?.performance.monthlyProfit ?? 0)} />
       </div>
       <Panel title="Favorite Leagues">
         <div className="flex flex-wrap gap-2">
@@ -1821,10 +2066,16 @@ function PerformanceView({
           {monthly.map((value, index) => (
             <div className="flex flex-1 flex-col items-center gap-2" key={`${value}-${index}`}>
               <div className="w-full rounded-t bg-emerald-300" style={{ height: `${value}%` }} />
-              <span className="text-xs text-zinc-500">M{index + 1}</span>
+              <span className="text-xs text-zinc-500">{commandCenter?.performance.chart[index]?.label ?? `M${index + 1}`}</span>
             </div>
           ))}
         </div>
+      </Panel>
+      <Panel title="Historical Context">
+        <p className="text-sm leading-6 text-slate-300">
+          Performance statistics are based on approved FPF opportunities. They are analytical records, not promises or fixed returns.
+          Current tracked AI predictions: {predictions.length}. Published intelligence items: {intelligence.length}.
+        </p>
       </Panel>
     </div>
   );

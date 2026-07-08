@@ -33,6 +33,8 @@ import { PrismaPredictionRepository } from "./predictions/predictionRepository.j
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
 import type { PredictionRepository } from "./predictions/types.js";
+import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
+import { SubscriberService } from "./subscriber/subscriberService.js";
 import { getNowPaymentsConfig, NowPaymentsClient } from "./wallet/nowPaymentsClient.js";
 import { PrismaWalletRepository } from "./wallet/walletRepository.js";
 import { createWalletRouter } from "./wallet/walletRoutes.js";
@@ -185,6 +187,11 @@ export function createApp(options?: {
     footballRepository,
     adminService,
   );
+  const subscriberService = new SubscriberService(
+    footballRepository,
+    options?.predictionRepository ?? new PrismaPredictionRepository(),
+    options?.analystRepository ?? new PrismaAnalystRepository(),
+  );
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -331,6 +338,13 @@ export function createApp(options?: {
     createAnalystRouter({
       authService,
       analystService,
+    }),
+  );
+  app.use(
+    "/api",
+    createSubscriberRouter({
+      authService,
+      subscriberService,
     }),
   );
   app.use(errorHandler);
