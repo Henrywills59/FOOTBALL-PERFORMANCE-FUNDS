@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getPrismaClient } from "../database/prismaClient.js";
-import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
+import { isPrismaRecoverableReadError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type { PredictionResult } from "@fpf/shared";
 import type { PredictionRepository } from "./types.js";
 
@@ -141,7 +141,7 @@ export class PrismaPredictionRepository implements PredictionRepository {
         orderBy: { createdAt: "desc" },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("predictions.list", error);
       return [];
     }

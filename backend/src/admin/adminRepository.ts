@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { getPrismaClient } from "../database/prismaClient.js";
-import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
+import { isPrismaRecoverableReadError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type { AdminSettings, AdminUser } from "@fpf/shared";
 import type { AdminRepository, AuditInput } from "./types.js";
 
@@ -74,7 +74,7 @@ export class PrismaAdminRepository implements AdminRepository {
       try {
         return await count();
       } catch (error) {
-        if (!isPrismaOptionalDataError(error)) throw error;
+        if (!isPrismaRecoverableReadError(error)) throw error;
         logOptionalDataFallback(scope, error);
         return 0;
       }
@@ -125,7 +125,7 @@ export class PrismaAdminRepository implements AdminRepository {
       });
       return users.map(userRow);
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.users", error);
       return [];
     }
@@ -150,7 +150,7 @@ export class PrismaAdminRepository implements AdminRepository {
     try {
       rows = await this.prisma.platformSetting.findMany();
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.settings", error);
     }
     const settings = { ...defaultSettings };
@@ -207,7 +207,7 @@ export class PrismaAdminRepository implements AdminRepository {
         ),
       ]);
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.reports", error);
       return emptyReports;
     }
@@ -292,7 +292,7 @@ export class PrismaAdminRepository implements AdminRepository {
         createdAt: log.createdAt.toISOString(),
       }));
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.auditLogs", error);
       return [];
     }
@@ -310,7 +310,7 @@ export class PrismaAdminRepository implements AdminRepository {
         createdAt: log.createdAt.toISOString(),
       }));
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.loginHistory", error);
       return [];
     }
@@ -328,7 +328,7 @@ export class PrismaAdminRepository implements AdminRepository {
         createdAt: log.startedAt.toISOString(),
       }));
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.syncLogs", error);
       return [];
     }

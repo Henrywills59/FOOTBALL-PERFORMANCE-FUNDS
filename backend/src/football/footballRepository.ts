@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { getPrismaClient } from "../database/prismaClient.js";
-import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
+import { isPrismaRecoverableReadError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type { FootballFixtureDetail, FootballFixtureSummary } from "@fpf/shared";
 import type {
   FixtureUpsert,
@@ -230,7 +230,7 @@ export class PrismaFootballRepository implements FootballRepository {
         include: { league: true, homeTeam: true, awayTeam: true },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("football.fixtures", error);
       return [];
     }
@@ -315,7 +315,7 @@ export class PrismaFootballRepository implements FootballRepository {
         orderBy: { startedAt: "desc" },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("football.syncStatus", error);
       lastRun = null;
     }

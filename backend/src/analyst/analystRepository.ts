@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getPrismaClient } from "../database/prismaClient.js";
-import { isPrismaOptionalDataError, logOptionalDataFallback } from "../database/prismaErrors.js";
+import { isPrismaRecoverableReadError, logOptionalDataFallback } from "../database/prismaErrors.js";
 import type {
   AnalystAssignment,
   AnalystDashboard,
@@ -134,7 +134,7 @@ export class PrismaAnalystRepository implements AnalystRepository {
         orderBy: { createdAt: "desc" },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("analyst.assignments", error);
       return [];
     }
@@ -194,7 +194,7 @@ export class PrismaAnalystRepository implements AnalystRepository {
         orderBy: { createdAt: "desc" },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("analyst.submissions", error);
       return [];
     }
@@ -209,7 +209,7 @@ export class PrismaAnalystRepository implements AnalystRepository {
         orderBy: { createdAt: "desc" },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("admin.intelligence", error);
       return [];
     }
@@ -247,7 +247,7 @@ export class PrismaAnalystRepository implements AnalystRepository {
         orderBy: { publishedAt: "desc" },
       });
     } catch (error) {
-      if (!isPrismaOptionalDataError(error)) throw error;
+      if (!isPrismaRecoverableReadError(error)) throw error;
       logOptionalDataFallback("intelligence.published", error);
       return [];
     }

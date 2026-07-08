@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { AuthResponse, AuthUser, UserRole } from "@fpf/shared";
+import { isPrismaConnectionPressureError } from "../database/prismaErrors.js";
 import { getDashboardRoute } from "./dashboard.js";
 import type { JwtUser, StoredUser, UserRepository } from "./types.js";
 
@@ -457,6 +458,10 @@ export class AuthService {
       return publicUser(user);
     } catch (error) {
       if (error instanceof AuthError) {
+        throw error;
+      }
+
+      if (isPrismaConnectionPressureError(error)) {
         throw error;
       }
 

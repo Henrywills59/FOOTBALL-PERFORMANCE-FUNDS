@@ -4,6 +4,22 @@ export function isPrismaOptionalDataError(error: unknown) {
   return ["P2021", "P2022", "P2023", "P2010"].includes(code);
 }
 
+export function isPrismaConnectionPressureError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes("emaxconnsession") ||
+    message.includes("max clients reached") ||
+    message.includes("connection pool") ||
+    message.includes("timed out fetching a new connection")
+  );
+}
+
+export function isPrismaRecoverableReadError(error: unknown) {
+  return isPrismaOptionalDataError(error) || isPrismaConnectionPressureError(error);
+}
+
 export function logOptionalDataFallback(scope: string, error: unknown) {
   const details =
     error instanceof Error

@@ -139,10 +139,25 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return;
-    if (session.user.role === "SUBSCRIBER" || session.user.role === "ADMIN") void loadSubscriberData(session.token);
-    if (session.user.role === "ADMIN") void loadAdminData(session.token);
-    if (session.user.role === "INVESTOR") void loadInvestorData(session.token);
-    if (session.user.role === "ANALYST") void loadAnalystData(session.token);
+    let cancelled = false;
+
+    const loadSessionData = async () => {
+      if (session.user.role === "ADMIN") {
+        await loadAdminData(session.token);
+        if (!cancelled) await loadSubscriberData(session.token);
+        return;
+      }
+
+      if (session.user.role === "SUBSCRIBER") await loadSubscriberData(session.token);
+      if (session.user.role === "INVESTOR") await loadInvestorData(session.token);
+      if (session.user.role === "ANALYST") await loadAnalystData(session.token);
+    };
+
+    void loadSessionData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   useEffect(() => {
@@ -251,7 +266,6 @@ export default function App() {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-      sameOriginApiEndpoint(path),
     );
   }
 
@@ -266,18 +280,15 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
-      sameOriginApiEndpoint(path),
     );
   }
 
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
-      const [fixtureData, approvedData, intelligenceData] = await Promise.all([
-        apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token),
-        apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token),
-        apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token),
-      ]);
+      const fixtureData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token);
+      const approvedData = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
+      const intelligenceData = await apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token);
       setFixtures(fixtureData.fixtures);
       setLiveFixtures(fixtureData.fixtures.filter((fixture) => fixture.status === "LIVE"));
       setPublishedIntelligence(intelligenceData.intelligence);
@@ -306,17 +317,15 @@ export default function App() {
 
   async function loadAdminData(token: string) {
     try {
-      const [overview, predictionsData, usersData, logsData, settingsData, syncData, intelligenceData, reportsData, monitoringData] = await Promise.all([
-        apiGet<AdminOverview>("/admin/overview", token),
-        apiGet<{ predictions: PredictionResult[] }>("/admin/predictions", token),
-        apiGet<{ users: AdminUser[] }>("/admin/users", token),
-        apiGet<{ logs: AuditLogEntry[] }>("/admin/audit-logs", token),
-        apiGet<AdminSettings>("/admin/settings", token),
-        apiGet<{ logs: AuditLogEntry[] }>("/admin/fixtures/sync-logs", token),
-        apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token),
-        apiGet<AdminReports>("/admin/reports", token),
-        apiGet<PlatformHealth>("/admin/monitoring", token),
-      ]);
+      const overview = await apiGet<AdminOverview>("/admin/overview", token);
+      const predictionsData = await apiGet<{ predictions: PredictionResult[] }>("/admin/predictions", token);
+      const usersData = await apiGet<{ users: AdminUser[] }>("/admin/users", token);
+      const logsData = await apiGet<{ logs: AuditLogEntry[] }>("/admin/audit-logs", token);
+      const settingsData = await apiGet<AdminSettings>("/admin/settings", token);
+      const syncData = await apiGet<{ logs: AuditLogEntry[] }>("/admin/fixtures/sync-logs", token);
+      const intelligenceData = await apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token);
+      const reportsData = await apiGet<AdminReports>("/admin/reports", token);
+      const monitoringData = await apiGet<PlatformHealth>("/admin/monitoring", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminUsers(usersData.users);
@@ -398,7 +407,6 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
-      sameOriginApiEndpoint(path),
     );
     await loadAdminData(session.token);
     if (session.user.role === "ADMIN") await loadSubscriberData(session.token);
@@ -416,7 +424,6 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
-      sameOriginApiEndpoint(path),
     );
     await loadAnalystData(session.token);
   }
