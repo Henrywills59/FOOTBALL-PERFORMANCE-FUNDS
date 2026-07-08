@@ -104,7 +104,7 @@ export default function App() {
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
   const [activeInvestorView, setActiveInvestorView] = useState<InvestorNavItem>("Investor Dashboard");
   const [activeAnalystView, setActiveAnalystView] = useState<AnalystNavItem>("Analyst Dashboard");
-  const [adminMode, setAdminMode] = useState(false);
+  const [adminMode, setAdminMode] = useState(() => getStoredSession()?.user.role === "ADMIN");
   const [message, setMessage] = useState("");
   const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
   const [error, setError] = useState("");
