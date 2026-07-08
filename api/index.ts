@@ -1,4 +1,4 @@
-import { createApp } from "../backend/src/app.js";
+import { createApp } from "../backend/dist/app.js";
 
 export default createApp({
   startFootballJobs: false,
