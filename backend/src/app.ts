@@ -38,6 +38,11 @@ import { PrismaPredictionRepository } from "./predictions/predictionRepository.j
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
 import type { PredictionRepository } from "./predictions/types.js";
+import { PlaceholderPredictionNotificationService } from "./predictionWorkflow/notificationService.js";
+import { PrismaPredictionWorkflowRepository } from "./predictionWorkflow/predictionWorkflowRepository.js";
+import { createPredictionWorkflowRouter } from "./predictionWorkflow/predictionWorkflowRoutes.js";
+import { PredictionWorkflowService } from "./predictionWorkflow/predictionWorkflowService.js";
+import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js";
 import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
 import { getNowPaymentsConfig, NowPaymentsClient } from "./wallet/nowPaymentsClient.js";
@@ -152,6 +157,7 @@ export function createApp(options?: {
   userRepository?: UserRepository;
   footballRepository?: FootballRepository;
   predictionRepository?: PredictionRepository;
+  predictionWorkflowRepository?: PredictionWorkflowRepository;
   adminRepository?: AdminRepository;
   investorRepository?: InvestorRepository;
   walletRepository?: WalletRepository;
@@ -202,6 +208,11 @@ export function createApp(options?: {
     new MemoryCacheStore(),
   );
   const decisionEngineService = new DecisionEngineService(intelligenceService);
+  const predictionWorkflowService = new PredictionWorkflowService(
+    options?.predictionWorkflowRepository ?? new PrismaPredictionWorkflowRepository(),
+    decisionEngineService,
+    new PlaceholderPredictionNotificationService(),
+  );
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -318,6 +329,13 @@ export function createApp(options?: {
       authService,
       predictionService,
       adminService,
+    }),
+  );
+  app.use(
+    "/api",
+    createPredictionWorkflowRouter({
+      authService,
+      predictionWorkflowService,
     }),
   );
   app.use(

@@ -286,6 +286,137 @@ model MatchPrediction {
   @@index([approvalStatus])
 }
 
+model PredictionQueue {
+  id                 String   @id @default(uuid())
+  fixtureId          String
+  decisionId         String?
+  match              String
+  league             String
+  kickoffTime        DateTime?
+  recommendedMarket  String
+  predictedOutcome   String
+  confidenceScore    Float
+  riskScore          Float
+  opportunityScore   Float
+  valueScore         Float
+  priority           Int      @default(0)
+  status             String   @default("NEW")
+  predictionType     String   @default("AI_DECISION")
+  explanation        String
+  reasoning          Json
+  warnings           Json
+  analystNotes       String?
+  featured           Boolean  @default(false)
+  source             String   @default("AI_DECISION_ENGINE")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  publishedAt        DateTime?
+  archivedAt         DateTime?
+  reviews            PredictionReview[]
+  statusHistory      PredictionStatusHistory[]
+  publications       PredictionPublication[]
+  notes              PredictionNote[]
+  flags              PredictionFlag[]
+  notifications      PredictionNotification[]
+
+  @@index([fixtureId])
+  @@index([status])
+  @@index([league])
+  @@index([kickoffTime])
+  @@index([confidenceScore])
+  @@index([riskScore])
+  @@index([priority])
+  @@map("prediction_queue")
+}
+
+model PredictionReview {
+  id           String          @id @default(uuid())
+  queueItemId  String
+  reviewerId   String?
+  status       String
+  notes        String?
+  createdAt    DateTime        @default(now())
+  queueItem    PredictionQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@index([queueItemId])
+  @@index([reviewerId])
+  @@map("prediction_reviews")
+}
+
+model PredictionStatusHistory {
+  id             String          @id @default(uuid())
+  queueItemId    String
+  userId         String?
+  action         String
+  previousStatus String?
+  newStatus      String
+  reason         String?
+  notes          String?
+  systemVersion  String
+  aiVersion      String
+  createdAt      DateTime        @default(now())
+  queueItem      PredictionQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@index([queueItemId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("prediction_status_history")
+}
+
+model PredictionPublication {
+  id          String          @id @default(uuid())
+  queueItemId String
+  channel     String          @default("SUBSCRIBER_PORTAL")
+  publishedAt DateTime        @default(now())
+  queueItem   PredictionQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@index([queueItemId])
+  @@map("prediction_publications")
+}
+
+model PredictionNote {
+  id          String          @id @default(uuid())
+  queueItemId String
+  userId      String?
+  note        String
+  createdAt   DateTime        @default(now())
+  queueItem   PredictionQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@index([queueItemId])
+  @@index([userId])
+  @@map("prediction_notes")
+}
+
+model PredictionFlag {
+  id          String          @id @default(uuid())
+  queueItemId String
+  flag        String
+  createdById String?
+  createdAt   DateTime        @default(now())
+  queueItem   PredictionQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@unique([queueItemId, flag])
+  @@index([queueItemId])
+  @@map("prediction_flags")
+}
+
+model PredictionNotification {
+  id          String          @id @default(uuid())
+  queueItemId String
+  channel     String
+  status      String          @default("PENDING")
+  payload     Json
+  createdAt   DateTime        @default(now())
+  sentAt      DateTime?
+  queueItem   PredictionQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@index([queueItemId])
+  @@index([channel])
+  @@index([status])
+  @@map("prediction_notifications")
+}
+
 model AuditLog {
   id          String   @id @default(uuid())
   actorUserId String?

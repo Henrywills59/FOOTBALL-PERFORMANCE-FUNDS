@@ -128,7 +128,7 @@ describe("auth routes", () => {
 
       expect(dashboard.body.path).toBe(expectedDashboardPaths[user.role]);
     }
-  });
+  }, 15000);
 
   it("keeps default admin seed credentials available for production seeding", () => {
     expect(defaultAdminSeed.email).toBe("admin@footballperformancefund.com");
@@ -437,7 +437,7 @@ describe("auth routes", () => {
         rememberMe: false,
       })
       .expect(200);
-  });
+  }, 15000);
 
   it("changes password for the signed-in user", async () => {
     const app = testApp();

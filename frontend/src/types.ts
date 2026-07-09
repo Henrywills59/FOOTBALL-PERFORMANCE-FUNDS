@@ -413,3 +413,68 @@ export type DecisionEngineOutput = {
   dataQualityStatus: PredictionDataQualityStatus;
   generatedAt: string;
 };
+
+export type PredictionLifecycleStatus =
+  | "NEW"
+  | "ANALYZING"
+  | "PENDING_REVIEW"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "PUBLISHED"
+  | "EXPIRED"
+  | "ARCHIVED";
+
+export type PredictionQueueItem = {
+  id: string;
+  fixtureId: string;
+  match: string;
+  league: string;
+  kickoffTime: string | null;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  confidenceScore: number;
+  riskScore: number;
+  opportunityScore: number;
+  valueScore: number;
+  priority: number;
+  status: PredictionLifecycleStatus;
+  predictionType: string;
+  explanation: string;
+  reasoning: string[];
+  warnings: string[];
+  analystNotes: string | null;
+  flags: string[];
+  featured: boolean;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  archivedAt: string | null;
+};
+
+export type PredictionQueueSummary = {
+  pending: number;
+  approved: number;
+  rejected: number;
+  published: number;
+  draft: number;
+  expired: number;
+  archived: number;
+};
+
+export type PredictionWorkflowQueue = {
+  items: PredictionQueueItem[];
+  summary: PredictionQueueSummary;
+};
+
+export type PredictionWorkflowAction =
+  | "APPROVE"
+  | "REJECT"
+  | "SAVE_DRAFT"
+  | "REQUEST_REVIEW"
+  | "FLAG_HIGH_RISK"
+  | "FLAG_HIGH_OPPORTUNITY"
+  | "MARK_FEATURED"
+  | "PUBLISH"
+  | "ARCHIVE"
+  | "RESTORE";

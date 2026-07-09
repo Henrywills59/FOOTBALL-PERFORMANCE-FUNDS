@@ -21,6 +21,8 @@ import type {
   InvestorReport,
   InvestorWallet,
   PredictionResult,
+  PredictionQueueItem,
+  PredictionWorkflowQueue,
   PublishedIntelligence,
   PlatformHealth,
   PublicUserRole,
@@ -135,6 +137,8 @@ export default function App() {
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
   const [adminPredictions, setAdminPredictions] = useState<PredictionResult[]>([]);
   const [adminDecisionOutputs, setAdminDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
+  const [predictionWorkflowQueue, setPredictionWorkflowQueue] = useState<PredictionWorkflowQueue | null>(null);
+  const [publishedWorkflowPredictions, setPublishedWorkflowPredictions] = useState<PredictionQueueItem[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
@@ -311,11 +315,13 @@ export default function App() {
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const approvedData = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
       const intelligenceData = await apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token);
+      const workflowPublicationData = await apiGet<{ predictions: PredictionQueueItem[] }>("/predictions/published-workflow", token);
       setSubscriberCommandCenter(commandCenter);
       setFixtures(fixtureData.fixtures);
       setLiveFixtures(liveData.fixtures);
       setDecisionOutputs(decisionData.decisions);
       setPublishedIntelligence(intelligenceData.intelligence);
+      setPublishedWorkflowPredictions(workflowPublicationData.predictions);
       if (fixtureData.fixtures[0]) await loadFixtureDetail(fixtureData.fixtures[0].id, token);
 
       const enriched = await Promise.all(
@@ -351,9 +357,11 @@ export default function App() {
       const reportsData = await apiGet<AdminReports>("/admin/reports", token);
       const monitoringData = await apiGet<PlatformHealth>("/admin/monitoring", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
+      const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
+      setPredictionWorkflowQueue(workflowData);
       setAdminUsers(usersData.users);
       setAuditLogs(logsData.logs);
       setAdminSettings(settingsData);
@@ -398,16 +406,18 @@ export default function App() {
 
   async function loadAnalystData(token: string) {
     try {
-      const [dashboard, assignmentsData, submissionsData, fixtureData] = await Promise.all([
+      const [dashboard, assignmentsData, submissionsData, fixtureData, workflowData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
         apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/analyst/intelligence", token),
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
+        apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
       ]);
       setAnalystDashboard(dashboard);
       setAnalystAssignments(assignmentsData.assignments);
       setAnalystSubmissions(submissionsData.submissions);
       setFixtures(fixtureData.fixtures);
+      setPredictionWorkflowQueue(workflowData);
       setLoadingLabel("Analyst workspace ready");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load analyst workspace");
@@ -679,6 +689,7 @@ export default function App() {
               auditLogs={auditLogs}
               fixtures={fixtures}
               decisions={adminDecisionOutputs}
+              workflowQueue={predictionWorkflowQueue}
               overview={adminOverview}
               predictions={adminPredictions}
               intelligence={adminIntelligence}
@@ -698,6 +709,7 @@ export default function App() {
               assistance={analystAssistance}
               dashboard={analystDashboard}
               fixtures={fixtures}
+              workflowQueue={predictionWorkflowQueue}
               submissions={analystSubmissions}
               onAction={analystAction}
               onAssistance={loadAnalystAssistance}
@@ -722,6 +734,7 @@ export default function App() {
             <DashboardView
               commandCenter={subscriberCommandCenter}
               decisions={decisionOutputs}
+              workflowPredictions={publishedWorkflowPredictions}
               featured={featured}
               intelligence={publishedIntelligence}
               liveFixtures={liveFixtures}
@@ -736,6 +749,7 @@ export default function App() {
             <OpportunityCenterView
               commandCenter={subscriberCommandCenter}
               decisions={decisionOutputs}
+              workflowPredictions={publishedWorkflowPredictions}
               filters={filters}
               fixtures={fixtures}
               intelligence={publishedIntelligence}
@@ -798,6 +812,7 @@ function AdminPortal({
   settings,
   syncLogs,
   users,
+  workflowQueue,
 }: {
   activeView: AdminNavItem;
   auditLogs: AuditLogEntry[];
@@ -812,6 +827,7 @@ function AdminPortal({
   settings: AdminSettings | null;
   syncLogs: AuditLogEntry[];
   users: AdminUser[];
+  workflowQueue: PredictionWorkflowQueue | null;
 }) {
   const pending = predictions.filter((prediction) => prediction.approvalStatus === "PENDING");
 
@@ -833,6 +849,7 @@ function AdminPortal({
     return (
       <Panel title="Prediction Review">
         <div className="space-y-3">
+          <PredictionWorkflowPanel queue={workflowQueue} onAction={onAction} />
           <DecisionOutputCards decisions={decisions} compact />
           {predictions.map((prediction) => (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={prediction.id}>
@@ -1044,6 +1061,7 @@ function AnalystPortal({
   onAction,
   onAssistance,
   submissions,
+  workflowQueue,
 }: {
   activeView: AnalystNavItem;
   assignments: AnalystAssignment[];
@@ -1053,6 +1071,7 @@ function AnalystPortal({
   onAction: (path: string, body?: object) => Promise<void>;
   onAssistance: (fixtureId: string) => Promise<void>;
   submissions: AnalystIntelligenceSubmission[];
+  workflowQueue: PredictionWorkflowQueue | null;
 }) {
   if (activeView === "Analyst Dashboard") {
     return (
@@ -1077,6 +1096,7 @@ function AnalystPortal({
             {!assignments.length ? <p className="text-sm text-zinc-400">No matches have been assigned yet.</p> : null}
           </div>
         </Panel>
+        <PredictionWorkflowPanel queue={workflowQueue} onAction={onAction} />
         <Panel title="Submitted Intelligence">
           <InternalSubmissionList submissions={submissions} />
         </Panel>
@@ -1489,6 +1509,7 @@ function DashboardView({
   predictions,
   recent,
   upcomingFixtures,
+  workflowPredictions,
 }: {
   commandCenter: SubscriberCommandCenter | null;
   decisions: DecisionEngineOutput[];
@@ -1500,6 +1521,7 @@ function DashboardView({
   predictions: PredictionWithFixture[];
   recent: PredictionWithFixture[];
   upcomingFixtures: FootballFixtureSummary[];
+  workflowPredictions: PredictionQueueItem[];
 }) {
   const averageConfidence = predictions.length
     ? Math.round(predictions.reduce((total, item) => total + item.confidenceScore, 0) / predictions.length)
@@ -1534,6 +1556,7 @@ function DashboardView({
       </div>
       <Panel title="Today's Opportunities">
         <DecisionOutputCards decisions={decisions} />
+        <WorkflowPublicationCards predictions={workflowPredictions} />
         <SubscriberOpportunityCards opportunities={opportunities} />
         {!opportunities.length ? <OpportunityCards predictions={featured} onAdd={onAdd} /> : null}
       </Panel>
@@ -1642,6 +1665,84 @@ function DecisionOutputCards({ compact = false, decisions }: { compact?: boolean
   );
 }
 
+function PredictionWorkflowPanel({
+  onAction,
+  queue,
+}: {
+  onAction: (path: string, body?: object) => Promise<void>;
+  queue: PredictionWorkflowQueue | null;
+}) {
+  const summary = queue?.summary;
+  const items = queue?.items ?? [];
+
+  return (
+    <Panel title="Prediction Intelligence Workflow">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+        <Metric label="Pending" value={String(summary?.pending ?? 0)} />
+        <Metric label="Approved" value={String(summary?.approved ?? 0)} />
+        <Metric label="Rejected" value={String(summary?.rejected ?? 0)} />
+        <Metric label="Published" value={String(summary?.published ?? 0)} />
+        <Metric label="Draft" value={String(summary?.draft ?? 0)} />
+        <Metric label="Expired" value={String(summary?.expired ?? 0)} />
+        <Metric label="Archived" value={String(summary?.archived ?? 0)} />
+      </div>
+      <div className="mt-4 space-y-3">
+        {items.map((item) => (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{item.status} · Priority {item.priority}</p>
+                <h3 className="mt-2 font-semibold">{item.match}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{item.league} · {item.recommendedMarket} · {item.predictedOutcome}</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">{item.explanation || item.reasoning[0] || "Pending analyst review."}</p>
+                {item.warnings[0] ? <p className="mt-2 text-xs text-amber-200">{item.warnings[0]}</p> : null}
+              </div>
+              <div className="grid min-w-64 grid-cols-3 gap-2 text-xs">
+                <MiniStat label="Conf" value={`${item.confidenceScore}%`} />
+                <MiniStat label="Risk" value={String(item.riskScore)} />
+                <MiniStat label="Opp" value={String(item.opportunityScore)} />
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "APPROVE", reason: "Analyst approved candidate." })}>Approve</button>
+              <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "REJECT", reason: "Analyst rejected candidate." })}>Reject</button>
+              <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "REQUEST_REVIEW", reason: "Further review requested." })}>Request review</button>
+              <button className="rounded-md border border-amber-700 px-3 py-2 text-sm text-amber-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "FLAG_HIGH_RISK", notes: "High risk flag added." })}>Flag risk</button>
+              <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "MARK_FEATURED", notes: "Featured candidate." })}>Feature</button>
+              <button className="rounded-md border border-emerald-700 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "PUBLISH", reason: "Final intelligence approval for subscriber publication." })}>Publish</button>
+              <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "ARCHIVE", reason: "Archived by workflow reviewer." })}>Archive</button>
+            </div>
+          </div>
+        ))}
+        {!items.length ? <EmptyState message="Prediction candidates will appear here after Decision Engine evaluation or fixture synchronization." /> : null}
+      </div>
+    </Panel>
+  );
+}
+
+function WorkflowPublicationCards({ predictions }: { predictions: PredictionQueueItem[] }) {
+  if (!predictions.length) return null;
+
+  return (
+    <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {predictions.map((prediction) => (
+        <div className="rounded-lg border border-emerald-400/20 bg-slate-950/80 p-4" key={prediction.id}>
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Published Prediction Intelligence</p>
+          <h3 className="mt-2 font-semibold">{prediction.match}</h3>
+          <p className="mt-1 text-sm text-slate-400">{prediction.league}</p>
+          <p className="mt-4 text-sm font-medium text-white">{prediction.recommendedMarket}: {prediction.predictedOutcome}</p>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+            <MiniStat label="Conf" value={`${prediction.confidenceScore}%`} />
+            <MiniStat label="Risk" value={String(prediction.riskScore)} />
+            <MiniStat label="Opp" value={String(prediction.opportunityScore)} />
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-300">{prediction.explanation || prediction.reasoning[0]}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OpportunityCenterView({
   commandCenter,
   decisions,
@@ -1655,6 +1756,7 @@ function OpportunityCenterView({
   predictions,
   selectedFixture,
   setFilters,
+  workflowPredictions,
 }: {
   commandCenter: SubscriberCommandCenter | null;
   decisions: DecisionEngineOutput[];
@@ -1668,6 +1770,7 @@ function OpportunityCenterView({
   predictions: PredictionWithFixture[];
   selectedFixture: FootballFixtureDetail | null;
   setFilters: (filters: { search: string; league: string; country: string; date: string }) => void;
+  workflowPredictions: PredictionQueueItem[];
 }) {
   const opportunities = commandCenter?.opportunities ?? [];
   const lowRisk = opportunities.filter((item) => item.riskGrade === "Low");
@@ -1689,6 +1792,7 @@ function OpportunityCenterView({
       </Panel>
       <Panel title="Institutional Opportunity Center">
         <DecisionOutputCards decisions={decisions} />
+        <WorkflowPublicationCards predictions={workflowPredictions} />
         <SubscriberOpportunityCards opportunities={opportunities} />
       </Panel>
       <OpportunityList intelligence={intelligence} predictions={predictions} onAdd={onAdd} onSelect={onSelectPrediction} />
