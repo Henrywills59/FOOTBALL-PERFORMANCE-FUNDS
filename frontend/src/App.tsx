@@ -302,24 +302,25 @@ export default function App() {
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
-      const commandCenter = await apiGet<SubscriberCommandCenter>("/subscriber/command-center", token);
-      const fixtureData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token);
+      const commandCenter = await apiGet<SubscriberCommandCenter>("/intelligence/dashboard", token);
+      const fixtureData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token);
+      const liveData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/live?limit=20", token);
       const approvedData = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
       const intelligenceData = await apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token);
       setSubscriberCommandCenter(commandCenter);
       setFixtures(fixtureData.fixtures);
-      setLiveFixtures(fixtureData.fixtures.filter((fixture) => fixture.status === "LIVE"));
+      setLiveFixtures(liveData.fixtures);
       setPublishedIntelligence(intelligenceData.intelligence);
       if (fixtureData.fixtures[0]) await loadFixtureDetail(fixtureData.fixtures[0].id, token);
 
       const enriched = await Promise.all(
         approvedData.predictions.map(async (prediction) => {
           try {
-            const detail = await apiGet<{ fixture: FootballFixtureDetail }>(
-              `/football/fixtures/${prediction.fixtureId}`,
+            const detail = await apiGet<{ intelligence: { fixture: FootballFixtureDetail | null } }>(
+              `/intelligence/match/${prediction.fixtureId}`,
               token,
             );
-            return { ...prediction, fixture: detail.fixture };
+            return detail.intelligence.fixture ? { ...prediction, fixture: detail.intelligence.fixture } : prediction;
           } catch {
             return prediction;
           }
@@ -381,7 +382,7 @@ export default function App() {
 
   async function loadLiveFixtures(token: string) {
     try {
-      const data = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?live=true&limit=20", token);
+      const data = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/live?limit=20", token);
       setLiveFixtures(data.fixtures);
     } catch {
       setLiveFixtures((current) => current);
@@ -394,7 +395,7 @@ export default function App() {
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
         apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/analyst/intelligence", token),
-        apiGet<{ fixtures: FootballFixtureSummary[] }>("/football/fixtures?limit=30", token),
+        apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
       ]);
       setAnalystDashboard(dashboard);
       setAnalystAssignments(assignmentsData.assignments);
@@ -454,8 +455,8 @@ export default function App() {
 
   async function loadFixtureDetail(id: string, token = session?.token) {
     if (!token) return;
-    const data = await apiGet<{ fixture: FootballFixtureDetail }>(`/football/fixtures/${id}`, token);
-    setSelectedFixture(data.fixture);
+    const data = await apiGet<{ intelligence: { fixture: FootballFixtureDetail | null } }>(`/intelligence/match/${id}`, token);
+    setSelectedFixture(data.intelligence.fixture);
   }
 
   async function loadFilteredFixtures(event?: FormEvent<HTMLFormElement>) {
@@ -465,10 +466,7 @@ export default function App() {
     if (filters.search) params.set("search", filters.search);
     if (filters.league) params.set("league", filters.league);
     if (filters.date) params.set("date", filters.date);
-    const data = await apiGet<{ fixtures: FootballFixtureSummary[] }>(
-      `/football/fixtures?${params.toString()}`,
-      session.token,
-    );
+    const data = await apiGet<{ fixtures: FootballFixtureSummary[] }>(`/intelligence/fixtures?${params.toString()}`, session.token);
     setFixtures(
       filters.country
         ? data.fixtures.filter((fixture) =>

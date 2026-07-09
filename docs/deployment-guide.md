@@ -27,6 +27,14 @@ Required variables:
 - `NOWPAYMENTS_API_KEY`
 - `NOWPAYMENTS_IPN_SECRET`
 
+Optional Intelligence Core provider variables:
+
+- `SPORTMONKS_API_KEY`
+- `FOOTBALL_DATA_API_KEY`
+- `WEATHER_API_KEY`
+- `OPENAI_API_KEY`
+- `REDIS_URL` (future cache backend; in-memory cache is used when unset)
+
 Run:
 
 ```bash

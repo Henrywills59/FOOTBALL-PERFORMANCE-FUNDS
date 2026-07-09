@@ -25,6 +25,10 @@ import { createFootballRouter } from "./football/footballRoutes.js";
 import { FootballSyncService } from "./football/footballSyncService.js";
 import { OddsApiClient } from "./football/oddsApiClient.js";
 import type { FootballRepository } from "./football/types.js";
+import { MemoryCacheStore } from "./intelligence/cache.js";
+import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
+import { createIntelligenceRouter } from "./intelligence/routes.js";
+import { IntelligenceService } from "./intelligence/service.js";
 import { PrismaInvestorRepository } from "./investor/investorRepository.js";
 import { createInvestorRouter } from "./investor/investorRoutes.js";
 import { InvestorService } from "./investor/investorService.js";
@@ -162,6 +166,8 @@ export function createApp(options?: {
     options?.jwtSecret ?? getJwtSecret(),
   );
   const footballRepository = options?.footballRepository ?? new PrismaFootballRepository();
+  const predictionRepository = options?.predictionRepository ?? new PrismaPredictionRepository();
+  const analystRepository = options?.analystRepository ?? new PrismaAnalystRepository();
   const footballSyncService = new FootballSyncService(
     footballRepository,
     new ApiFootballClient(footballConfig),
@@ -169,9 +175,7 @@ export function createApp(options?: {
     footballConfig,
   );
   const footballScheduler = new FootballJobScheduler(footballSyncService, footballConfig);
-  const predictionService = new PredictionService(
-    options?.predictionRepository ?? new PrismaPredictionRepository(),
-  );
+  const predictionService = new PredictionService(predictionRepository);
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
   const investorService = new InvestorService(
     options?.investorRepository ?? new PrismaInvestorRepository(),
@@ -183,14 +187,18 @@ export function createApp(options?: {
     adminService,
   );
   const analystService = new AnalystService(
-    options?.analystRepository ?? new PrismaAnalystRepository(),
+    analystRepository,
     footballRepository,
     adminService,
   );
   const subscriberService = new SubscriberService(
     footballRepository,
-    options?.predictionRepository ?? new PrismaPredictionRepository(),
-    options?.analystRepository ?? new PrismaAnalystRepository(),
+    predictionRepository,
+    analystRepository,
+  );
+  const intelligenceService = new IntelligenceService(
+    new IntelligenceRepositoryAdapter(footballRepository, predictionRepository, analystRepository),
+    new MemoryCacheStore(),
   );
 
   if (options?.startFootballJobs ?? true) {
@@ -338,6 +346,13 @@ export function createApp(options?: {
     createAnalystRouter({
       authService,
       analystService,
+    }),
+  );
+  app.use(
+    "/api",
+    createIntelligenceRouter({
+      authService,
+      intelligenceService,
     }),
   );
   app.use(
