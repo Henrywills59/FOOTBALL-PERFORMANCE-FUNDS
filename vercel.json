@@ -1,7 +1,7 @@
 {
   "version": 2,
   "installCommand": "npm install",
-  "buildCommand": "npm run build -w shared && npm run prisma:generate -w database && npm run build -w backend",
+  "buildCommand": "npm run build -w shared && npm run db:deploy -w database && npm run prisma:generate -w database && npm run build -w backend",
   "builds": [
     {
       "src": "api/health.ts",
