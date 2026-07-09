@@ -26,6 +26,7 @@ import { FootballSyncService } from "./football/footballSyncService.js";
 import { OddsApiClient } from "./football/oddsApiClient.js";
 import type { FootballRepository } from "./football/types.js";
 import { MemoryCacheStore } from "./intelligence/cache.js";
+import { DecisionEngineService } from "./intelligence/decision/decisionService.js";
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
 import { createIntelligenceRouter } from "./intelligence/routes.js";
 import { IntelligenceService } from "./intelligence/service.js";
@@ -200,6 +201,7 @@ export function createApp(options?: {
     new IntelligenceRepositoryAdapter(footballRepository, predictionRepository, analystRepository),
     new MemoryCacheStore(),
   );
+  const decisionEngineService = new DecisionEngineService(intelligenceService);
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -353,6 +355,7 @@ export function createApp(options?: {
     createIntelligenceRouter({
       authService,
       intelligenceService,
+      decisionEngineService,
     }),
   );
   app.use(

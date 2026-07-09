@@ -12,6 +12,7 @@ import type {
   AuditLogEntry,
   AuthResponse,
   AuthUser,
+  DecisionEngineOutput,
   FootballFixtureDetail,
   FootballFixtureSummary,
   InvestmentPlan,
@@ -133,6 +134,7 @@ export default function App() {
   const [loadingLabel, setLoadingLabel] = useState("Loading");
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
   const [adminPredictions, setAdminPredictions] = useState<PredictionResult[]>([]);
+  const [adminDecisionOutputs, setAdminDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
@@ -152,6 +154,7 @@ export default function App() {
   const [analystAssistance, setAnalystAssistance] = useState<AnalystAssistance | null>(null);
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
+  const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
 
   useEffect(() => {
     if (!session) return;
@@ -305,11 +308,13 @@ export default function App() {
       const commandCenter = await apiGet<SubscriberCommandCenter>("/intelligence/dashboard", token);
       const fixtureData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token);
       const liveData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/live?limit=20", token);
+      const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const approvedData = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
       const intelligenceData = await apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token);
       setSubscriberCommandCenter(commandCenter);
       setFixtures(fixtureData.fixtures);
       setLiveFixtures(liveData.fixtures);
+      setDecisionOutputs(decisionData.decisions);
       setPublishedIntelligence(intelligenceData.intelligence);
       if (fixtureData.fixtures[0]) await loadFixtureDetail(fixtureData.fixtures[0].id, token);
 
@@ -345,8 +350,10 @@ export default function App() {
       const intelligenceData = await apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token);
       const reportsData = await apiGet<AdminReports>("/admin/reports", token);
       const monitoringData = await apiGet<PlatformHealth>("/admin/monitoring", token);
+      const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
+      setAdminDecisionOutputs(decisionData.decisions);
       setAdminUsers(usersData.users);
       setAuditLogs(logsData.logs);
       setAdminSettings(settingsData);
@@ -671,6 +678,7 @@ export default function App() {
               activeView={activeAdminView}
               auditLogs={auditLogs}
               fixtures={fixtures}
+              decisions={adminDecisionOutputs}
               overview={adminOverview}
               predictions={adminPredictions}
               intelligence={adminIntelligence}
@@ -713,6 +721,7 @@ export default function App() {
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Subscriber Home" ? (
             <DashboardView
               commandCenter={subscriberCommandCenter}
+              decisions={decisionOutputs}
               featured={featured}
               intelligence={publishedIntelligence}
               liveFixtures={liveFixtures}
@@ -726,6 +735,7 @@ export default function App() {
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Opportunity Center" ? (
             <OpportunityCenterView
               commandCenter={subscriberCommandCenter}
+              decisions={decisionOutputs}
               filters={filters}
               fixtures={fixtures}
               intelligence={publishedIntelligence}
@@ -777,6 +787,7 @@ export default function App() {
 function AdminPortal({
   activeView,
   auditLogs,
+  decisions,
   fixtures,
   health,
   intelligence,
@@ -790,6 +801,7 @@ function AdminPortal({
 }: {
   activeView: AdminNavItem;
   auditLogs: AuditLogEntry[];
+  decisions: DecisionEngineOutput[];
   fixtures: FootballFixtureSummary[];
   health: PlatformHealth | null;
   intelligence: AnalystIntelligenceSubmission[];
@@ -821,6 +833,7 @@ function AdminPortal({
     return (
       <Panel title="Prediction Review">
         <div className="space-y-3">
+          <DecisionOutputCards decisions={decisions} compact />
           {predictions.map((prediction) => (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={prediction.id}>
               <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
@@ -1467,6 +1480,7 @@ function AuthPanel({
 
 function DashboardView({
   commandCenter,
+  decisions,
   featured,
   intelligence,
   liveFixtures,
@@ -1477,6 +1491,7 @@ function DashboardView({
   upcomingFixtures,
 }: {
   commandCenter: SubscriberCommandCenter | null;
+  decisions: DecisionEngineOutput[];
   featured: PredictionWithFixture[];
   intelligence: PublishedIntelligence[];
   liveFixtures: FootballFixtureSummary[];
@@ -1518,6 +1533,7 @@ function DashboardView({
         <Metric label="Subscription" value={overview?.subscriptionStatus ?? "Active"} />
       </div>
       <Panel title="Today's Opportunities">
+        <DecisionOutputCards decisions={decisions} />
         <SubscriberOpportunityCards opportunities={opportunities} />
         {!opportunities.length ? <OpportunityCards predictions={featured} onAdd={onAdd} /> : null}
       </Panel>
@@ -1590,8 +1606,45 @@ function SubscriberOpportunityCards({ opportunities }: { opportunities: Subscrib
   );
 }
 
+function DecisionOutputCards({ compact = false, decisions }: { compact?: boolean; decisions: DecisionEngineOutput[] }) {
+  if (!decisions.length) {
+    return <EmptyState message="AI Decision Engine candidates will appear when synchronized fixtures are available." />;
+  }
+
+  return (
+    <div className={`grid gap-3 ${compact ? "mb-4" : "mb-4 md:grid-cols-2 xl:grid-cols-3"}`}>
+      {decisions.map((decision) => (
+        <div className="rounded-lg border border-blue-400/20 bg-slate-950/80 p-4" key={decision.id}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-blue-200">AI Decision Engine</p>
+              <h3 className="mt-2 font-semibold">{decision.match}</h3>
+              <p className="mt-1 text-sm text-slate-400">{decision.league}</p>
+            </div>
+            <span className="rounded-md border border-blue-400/30 px-2 py-1 text-xs text-blue-100">{decision.status.replace("_", " ")}</span>
+          </div>
+          <p className="mt-4 text-sm font-medium text-white">{decision.recommendedMarket}: {decision.predictedOutcome}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <MiniStat label="Conf" value={`${decision.scores.confidenceScore}%`} />
+            <MiniStat label="Risk" value={`${decision.scores.riskScore}`} />
+            <MiniStat label="Value" value={`${decision.scores.valueScore}`} />
+            <MiniStat label="Opp" value={`${decision.scores.opportunityScore}`} />
+          </div>
+          <ul className="mt-4 space-y-1 text-sm leading-6 text-slate-300">
+            {decision.reasoning.slice(0, compact ? 2 : 3).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+          {decision.warnings.length ? <p className="mt-3 text-xs text-amber-200">{decision.warnings[0]}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OpportunityCenterView({
   commandCenter,
+  decisions,
   filters,
   fixtures,
   intelligence,
@@ -1604,6 +1657,7 @@ function OpportunityCenterView({
   setFilters,
 }: {
   commandCenter: SubscriberCommandCenter | null;
+  decisions: DecisionEngineOutput[];
   filters: { search: string; league: string; country: string; date: string };
   fixtures: FootballFixtureSummary[];
   intelligence: PublishedIntelligence[];
@@ -1634,6 +1688,7 @@ function OpportunityCenterView({
         </div>
       </Panel>
       <Panel title="Institutional Opportunity Center">
+        <DecisionOutputCards decisions={decisions} />
         <SubscriberOpportunityCards opportunities={opportunities} />
       </Panel>
       <OpportunityList intelligence={intelligence} predictions={predictions} onAdd={onAdd} onSelect={onSelectPrediction} />

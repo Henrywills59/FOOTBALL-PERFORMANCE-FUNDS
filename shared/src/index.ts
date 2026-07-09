@@ -406,3 +406,46 @@ export type SubscriberCommandCenter = {
   notifications: SubscriberNotification[];
   referral: SubscriberReferralSummary;
 };
+
+export type DecisionRecommendationStatus = "APPROVED_CANDIDATE" | "NEEDS_REVIEW" | "REJECTED";
+
+export type DecisionEngineScoreBreakdown = {
+  teamFormScore: number;
+  attackStrengthScore: number;
+  defenceStrengthScore: number;
+  homeAwayAdvantageScore: number;
+  injuryImpactScore: number;
+  oddsMovementScore: number;
+  marketValueScore: number;
+  liveMomentumScore: number;
+  riskScore: number;
+  confidenceScore: number;
+  opportunityScore: number;
+  valueScore: number;
+  momentumScore: number;
+  volatilityScore: number;
+};
+
+export type DecisionEngineOutput = {
+  id: string;
+  fixtureId: string;
+  match: string;
+  league: string;
+  kickoffTime: string | null;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  status: DecisionRecommendationStatus;
+  scores: DecisionEngineScoreBreakdown;
+  reasoning: string[];
+  warnings: string[];
+  dataQualityStatus: PredictionDataQualityStatus;
+  generatedAt: string;
+};
+
+export type DecisionEngineHealth = {
+  status: "ok";
+  service: "fpf-ai-decision-engine";
+  modelMode: "SAFE_PLACEHOLDER";
+  providersRequired: false;
+  generatedAt: string;
+};

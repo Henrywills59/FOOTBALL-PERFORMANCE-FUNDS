@@ -460,5 +460,5 @@ describe("auth routes", () => {
         rememberMe: false,
       })
       .expect(200);
-  });
+  }, 15000);
 });

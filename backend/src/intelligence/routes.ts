@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { IntelligenceService } from "./service.js";
+import type { DecisionEngineService } from "./decision/decisionService.js";
 import { intelligenceLogger } from "./logger.js";
 
 function toLimit(value: unknown, fallback: number) {
@@ -37,10 +38,49 @@ function timed(endpoint: string, handler: RequestHandler): RequestHandler {
 export function createIntelligenceRouter(input: {
   authService: AuthService;
   intelligenceService: IntelligenceService;
+  decisionEngineService: DecisionEngineService;
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
   const intelligenceAccess = [signedIn, requireRole(["SUBSCRIBER", "ANALYST", "ADMIN"])];
+  const decisionReviewAccess = [signedIn, requireRole(["ANALYST", "ADMIN"])];
+
+  router.get(
+    "/intelligence/decision/health",
+    ...intelligenceAccess,
+    timed("/api/intelligence/decision/health", async (_request, response) => {
+      response.status(200).json(input.decisionEngineService.health());
+    }),
+  );
+
+  router.get(
+    "/intelligence/decision/match/:id",
+    ...intelligenceAccess,
+    timed("/api/intelligence/decision/match/:id", async (request, response) => {
+      response.status(200).json({ decision: await input.decisionEngineService.evaluateMatch(request.params.id) });
+    }),
+  );
+
+  router.get(
+    "/intelligence/decision/opportunities",
+    ...intelligenceAccess,
+    timed("/api/intelligence/decision/opportunities", async (request, response) => {
+      response.status(200).json({
+        decisions: await input.decisionEngineService.getOpportunities(toLimit(request.query.limit, 20)),
+      });
+    }),
+  );
+
+  router.post(
+    "/intelligence/decision/recalculate",
+    ...decisionReviewAccess,
+    timed("/api/intelligence/decision/recalculate", async (request, response) => {
+      const fixtureIds = Array.isArray(request.body?.fixtureIds)
+        ? request.body.fixtureIds.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+        : undefined;
+      response.status(200).json(await input.decisionEngineService.recalculate(fixtureIds));
+    }),
+  );
 
   router.get(
     "/intelligence/fixtures",
