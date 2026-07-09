@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type {
   AdminOverview,
   AdminReports,
+  AdminInvestorManagement,
   AdminSettings,
   AdminUser,
   AnalystAssignment,
@@ -17,8 +18,10 @@ import type {
   FootballFixtureSummary,
   InvestmentPlan,
   InvestorDashboard,
+  InvestorDistribution,
   InvestorInvestment,
-  InvestorReport,
+  InvestorProfile,
+  InvestorPortalReport,
   InvestorWallet,
   PredictionResult,
   PredictionQueueItem,
@@ -87,8 +90,8 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
-const investorNavItemsWithWallet = ["Investor Dashboard", "Wallet", "Investment Plans", "Portfolio", "Investor Reports", "Withdrawals"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const investorNavItemsWithWallet = ["Investor Dashboard", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
@@ -145,10 +148,13 @@ export default function App() {
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
   const [adminReports, setAdminReports] = useState<AdminReports | null>(null);
   const [platformHealth, setPlatformHealth] = useState<PlatformHealth | null>(null);
+  const [adminInvestorManagement, setAdminInvestorManagement] = useState<AdminInvestorManagement | null>(null);
   const [investorDashboard, setInvestorDashboard] = useState<InvestorDashboard | null>(null);
+  const [investorProfile, setInvestorProfile] = useState<InvestorProfile | null>(null);
   const [investmentPlans, setInvestmentPlans] = useState<InvestmentPlan[]>([]);
   const [portfolio, setPortfolio] = useState<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>({ active: [], completed: [] });
-  const [investorReports, setInvestorReports] = useState<InvestorReport[]>([]);
+  const [investorReports, setInvestorReports] = useState<InvestorPortalReport[]>([]);
+  const [investorDistributions, setInvestorDistributions] = useState<InvestorDistribution[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [wallet, setWallet] = useState<InvestorWallet | null>(null);
   const [publishedIntelligence, setPublishedIntelligence] = useState<PublishedIntelligence[]>([]);
@@ -358,6 +364,7 @@ export default function App() {
       const monitoringData = await apiGet<PlatformHealth>("/admin/monitoring", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
+      const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
@@ -369,6 +376,7 @@ export default function App() {
       setAdminIntelligence(intelligenceData.submissions);
       setAdminReports(reportsData);
       setPlatformHealth(monitoringData);
+      setAdminInvestorManagement(investorManagementData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
@@ -376,18 +384,22 @@ export default function App() {
 
   async function loadInvestorData(token: string) {
     try {
-      const [dashboard, plans, portfolioData, reports, withdrawalData, walletData] = await Promise.all([
+      const [dashboard, profile, plans, portfolioData, reports, distributions, withdrawalData, walletData] = await Promise.all([
         apiGet<InvestorDashboard>("/investor/dashboard", token),
+        apiGet<InvestorProfile>("/investor/profile", token),
         apiGet<{ plans: InvestmentPlan[] }>("/investor/plans", token),
         apiGet<{ active: InvestorInvestment[]; completed: InvestorInvestment[] }>("/investor/portfolio", token),
-        apiGet<{ reports: InvestorReport[] }>("/investor/reports", token),
+        apiGet<{ reports: InvestorPortalReport[] }>("/investor/reports", token),
+        apiGet<{ distributions: InvestorDistribution[] }>("/investor/distributions", token),
         apiGet<{ withdrawals: WithdrawalRequest[] }>("/investor/withdrawals", token),
         apiGet<InvestorWallet>("/wallet", token),
       ]);
       setInvestorDashboard(dashboard);
+      setInvestorProfile(profile);
       setInvestmentPlans(plans.plans);
       setPortfolio(portfolioData);
       setInvestorReports(reports.reports);
+      setInvestorDistributions(distributions.distributions);
       setWithdrawals(withdrawalData.withdrawals);
       setWallet(walletData);
     } catch (caughtError) {
@@ -693,6 +705,7 @@ export default function App() {
               overview={adminOverview}
               predictions={adminPredictions}
               intelligence={adminIntelligence}
+              investorManagement={adminInvestorManagement}
               reports={adminReports}
               settings={adminSettings}
               health={platformHealth}
@@ -720,6 +733,8 @@ export default function App() {
             <InvestorPortal
               activeView={activeInvestorView}
               dashboard={investorDashboard}
+              distributions={investorDistributions}
+              profile={investorProfile}
               plans={investmentPlans}
               portfolio={portfolio}
               reports={investorReports}
@@ -805,6 +820,7 @@ function AdminPortal({
   fixtures,
   health,
   intelligence,
+  investorManagement,
   onAction,
   overview,
   predictions,
@@ -820,6 +836,7 @@ function AdminPortal({
   fixtures: FootballFixtureSummary[];
   health: PlatformHealth | null;
   intelligence: AnalystIntelligenceSubmission[];
+  investorManagement: AdminInvestorManagement | null;
   onAction: (path: string, body?: object) => Promise<void>;
   overview: AdminOverview | null;
   predictions: PredictionResult[];
@@ -893,6 +910,10 @@ function AdminPortal({
 
   if (activeView === "Reports") {
     return <AdminReportsView reports={reports} />;
+  }
+
+  if (activeView === "Investor Management") {
+    return <AdminInvestorManagementView management={investorManagement} onAction={onAction} />;
   }
 
   if (activeView === "Monitoring") {
@@ -1219,24 +1240,140 @@ function AdminReportsView({ reports }: { reports: AdminReports | null }) {
   );
 }
 
+function AdminInvestorManagementView({
+  management,
+  onAction,
+}: {
+  management: AdminInvestorManagement | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  const investors = management?.investors ?? [];
+  const queue = management?.distributionQueue ?? [];
+  const latestBatch = management?.latestBatch ?? null;
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Investors" value={String(investors.length)} />
+        <Metric label="Distribution queue" value={String(queue.length)} />
+        <Metric label="Batch status" value={latestBatch?.status ?? "PENDING_CALCULATION"} />
+        <Metric label="Queued payout" value={money(latestBatch?.totalNetDistributionCents ?? 0)} />
+      </div>
+      <Panel title="Weekly Distribution Queue">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950"
+            type="button"
+            onClick={() => void onAction("/admin/investor-distributions/calculate")}
+          >
+            Calculate weekly distributions
+          </button>
+          <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            Placeholder returns only. Admin approval required before payout.
+          </span>
+        </div>
+        <div className="space-y-3">
+          {queue.map((distribution) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={distribution.id}>
+              <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{distribution.status}</p>
+                  <h3 className="mt-2 text-lg font-semibold">{distribution.investorName}</h3>
+                  <p className="mt-1 text-sm text-zinc-400">{distribution.investorEmail}</p>
+                  <p className="mt-2 text-sm text-zinc-300">
+                    {new Date(distribution.periodStart).toLocaleDateString()} to {new Date(distribution.periodEnd).toLocaleDateString()}
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-500">{distribution.adminNotes ?? "No admin notes yet."}</p>
+                </div>
+                <div className="grid gap-2 text-sm">
+                  <MiniStat label="Capital base" value={money(distribution.capitalBaseCents)} />
+                  <MiniStat label="Return rate" value={`${distribution.returnRatePercent.toFixed(2)}%`} />
+                  <MiniStat label="Net distribution" value={money(distribution.netDistributionCents)} />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/investor-distributions/${distribution.id}/approve`, { adminNotes: "Approved by admin." })}>Approve</button>
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/investor-distributions/${distribution.id}/reject`, { adminNotes: "Rejected by admin." })}>Reject</button>
+                <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-200" type="button" onClick={() => void onAction(`/admin/investor-distributions/${distribution.id}/mark-paid`, { adminNotes: "Marked paid placeholder." })}>Mark paid</button>
+              </div>
+            </div>
+          ))}
+          {!queue.length ? <p className="text-sm text-zinc-400">No distribution records yet. Run the placeholder weekly calculation when ready.</p> : null}
+        </div>
+      </Panel>
+      <Panel title="Investor Records">
+        <div className="space-y-3">
+          {investors.map((investor) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={investor.id}>
+              <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+                <div>
+                  <h3 className="text-lg font-semibold">{investor.name}</h3>
+                  <p className="mt-1 text-sm text-zinc-400">{investor.email}</p>
+                  <p className="mt-2 text-sm text-zinc-300">{investor.tier} - {investor.accountStatus}</p>
+                  <p className="mt-1 text-sm text-zinc-500">KYC: {investor.kycStatus} - Agreement: {investor.agreementStatus}</p>
+                </div>
+                <div className="grid gap-2">
+                  <MiniStat label="Capital" value={money(investor.totalCapitalCents)} />
+                  <MiniStat label="Active balance" value={money(investor.activeInvestmentBalanceCents)} />
+                  <MiniStat label="Pending payout" value={money(investor.pendingDistributionCents)} />
+                </div>
+              </div>
+              <form
+                className="mt-3 flex flex-col gap-2 sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  void onAction(`/admin/investors/${investor.id}/notes`, { note: form.get("note") });
+                  event.currentTarget.reset();
+                }}
+              >
+                <input className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white" name="note" placeholder="Add investor note" />
+                <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="submit">Add note</button>
+              </form>
+            </div>
+          ))}
+          {!investors.length ? <p className="text-sm text-zinc-400">No investor accounts yet.</p> : null}
+        </div>
+      </Panel>
+      <Panel title="Investor Audit Trail">
+        <CompactAuditList
+          logs={(management?.auditTrail ?? []).map((log) => ({
+            id: log.id,
+            actorUserId: log.actorUserId,
+            action: log.action,
+            entityType: log.entityType,
+            entityId: log.entityId,
+            createdAt: log.createdAt,
+          }))}
+          emptyLabel="No investor audit logs yet."
+        />
+      </Panel>
+    </div>
+  );
+}
+
 function InvestorPortal({
   activeView,
   dashboard,
+  distributions,
   notifications,
   onAction,
   plans,
   portfolio,
+  profile,
   reports,
   wallet,
   withdrawals,
 }: {
   activeView: InvestorNavItem;
   dashboard: InvestorDashboard | null;
+  distributions: InvestorDistribution[];
   notifications: string[];
   onAction: (path: string, body: object) => Promise<void>;
   plans: InvestmentPlan[];
+  profile: InvestorProfile | null;
   portfolio: { active: InvestorInvestment[]; completed: InvestorInvestment[] };
-  reports: InvestorReport[];
+  reports: InvestorPortalReport[];
   wallet: InvestorWallet | null;
   withdrawals: WithdrawalRequest[];
 }) {
@@ -1245,16 +1382,142 @@ function InvestorPortal({
       <div className="mt-6 space-y-4">
         <RiskDisclaimer />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric label="Total investment" value={money(dashboard?.totalInvestmentCents ?? 0)} />
-          <Metric label="Portfolio value" value={money(dashboard?.currentPortfolioValueCents ?? 0)} />
-          <Metric label="Weekly ROI" value={`${(dashboard?.weeklyRoiPercent ?? 0).toFixed(2)}%`} />
-          <Metric label="Lifetime ROI" value={`${(dashboard?.lifetimeRoiPercent ?? 0).toFixed(2)}%`} />
-          <Metric label="Status" value={dashboard?.currentStatus ?? "Pending"} />
+          <Metric label="Total capital" value={money(dashboard?.balance.totalCapitalCents ?? 0)} />
+          <Metric label="Active balance" value={money(dashboard?.balance.activeInvestmentBalanceCents ?? 0)} />
+          <Metric label="Weekly earnings" value={money(dashboard?.weeklyEarningsCents ?? 0)} />
+          <Metric label="Total earnings" value={money(dashboard?.totalEarningsCents ?? 0)} />
+          <Metric label="Next distribution" value={dashboard?.nextDistributionDate ? new Date(dashboard.nextDistributionDate).toLocaleDateString() : "Pending"} />
         </div>
-        <Panel title="Investment History">
-          <InvestmentList investments={dashboard?.investmentHistory ?? []} />
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <Panel title="Executive Overview">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MiniStat label="Investor tier" value={dashboard?.investorTier ?? "Founding Investor"} />
+              <MiniStat label="Account status" value={dashboard?.accountStatus ?? "ACTIVE"} />
+              <MiniStat label="Distribution status" value={dashboard?.distributionStatus ?? "PENDING_CALCULATION"} />
+              <MiniStat label="Performance placeholder" value={`${(dashboard?.weeklyRoiPercent ?? 0).toFixed(2)}% weekly`} />
+            </div>
+            <p className="mt-4 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">{dashboard?.riskNotice ?? "Capital is at risk. Historical performance is not a guarantee of future results."}</p>
+            <p className="mt-3 text-sm text-zinc-400">{dashboard?.transparencyNote ?? "Distribution values are placeholders pending real settlement integrations."}</p>
+          </Panel>
+          <Panel title="Performance Chart">
+            <div className="space-y-3">
+              {(dashboard?.performanceChart ?? []).map((point) => (
+                <div key={point.label}>
+                  <div className="mb-1 flex justify-between text-sm text-zinc-300"><span>{point.label}</span><span>{money(point.valueCents)}</span></div>
+                  <div className="h-2 rounded-full bg-zinc-800"><div className="h-2 rounded-full bg-emerald-300" style={{ width: `${Math.min(100, Math.max(8, point.valueCents / 10000))}%` }} /></div>
+                </div>
+              ))}
+              {!(dashboard?.performanceChart.length) ? <p className="text-sm text-zinc-400">Performance chart will populate as capital and distributions are recorded.</p> : null}
+            </div>
+          </Panel>
+        </div>
+        <Panel title="Recent Distributions">
+          <DistributionList distributions={dashboard?.recentDistributions ?? []} />
         </Panel>
       </div>
+    );
+  }
+
+  if (activeView === "Earnings") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Weekly earnings" value={money(dashboard?.weeklyEarningsCents ?? 0)} />
+          <Metric label="Total earnings" value={money(dashboard?.totalEarningsCents ?? 0)} />
+          <Metric label="Pending distributions" value={money(dashboard?.balance.pendingDistributionCents ?? 0)} />
+          <Metric label="Paid distributions" value={money(dashboard?.balance.paidDistributionCents ?? 0)} />
+        </div>
+        <Panel title="Distribution History">
+          <DistributionList distributions={distributions} />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Reports") {
+    return (
+      <Panel title="Investor Reports">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {reports.map((report) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={report.id}>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{report.periodType}</p>
+              <h3 className="mt-2 font-semibold">{report.title}</h3>
+              <p className="mt-2 text-sm text-zinc-400">{report.summary}</p>
+              <p className="mt-2 text-sm text-zinc-300">Earnings: {money(report.earningsCents)}</p>
+              <p className="text-sm text-zinc-300">ROI: {report.roiPercent.toFixed(2)}%</p>
+              <button className="mt-3 rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button">Download placeholder</button>
+            </div>
+          ))}
+          {!reports.length ? <p className="text-sm text-zinc-400">Weekly and monthly reports will appear here.</p> : null}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (activeView === "Capital") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Panel title="Capital Summary">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MiniStat label="Investment amount" value={money(profile?.account.investmentAmountCents ?? 0)} />
+            <MiniStat label="Active investment balance" value={money(profile?.balance.activeInvestmentBalanceCents ?? 0)} />
+            <MiniStat label="Start date" value={profile?.account.startDate ? new Date(profile.account.startDate).toLocaleDateString() : "Pending"} />
+            <MiniStat label="Agreement" value={profile?.account.agreementStatus ?? "PENDING_SIGNATURE"} />
+          </div>
+        </Panel>
+        <Panel title="Investment History"><InvestmentList investments={dashboard?.investmentHistory ?? []} /></Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Profile") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Panel title="Investor Profile">
+          <div className="space-y-2 text-sm text-zinc-300">
+            <p>Name: {profile?.account.name ?? "Investor"}</p>
+            <p>Email: {profile?.account.email ?? "Pending"}</p>
+            <p>Tier: {profile?.account.tier ?? "Founding Investor"}</p>
+            <p>KYC: {profile?.account.kycStatus ?? "PENDING_REVIEW"}</p>
+            <p>Account status: {profile?.account.accountStatus ?? "ACTIVE"}</p>
+          </div>
+        </Panel>
+        <Panel title="Methods">
+          <div className="space-y-2 text-sm text-zinc-300">
+            <p>Payment method: {profile?.account.paymentMethod ?? "Placeholder - not connected"}</p>
+            <p>Withdrawal method: {profile?.account.withdrawalMethod ?? "Placeholder - admin review required"}</p>
+            <p>Security: protected by authenticated investor-only API routes.</p>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Documents") {
+    return (
+      <Panel title="Documents">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {["Investor Agreement", "Risk Disclosure", "Weekly Statement", "Monthly Statement"].map((item) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item}>
+              <h3 className="font-semibold">{item}</h3>
+              <p className="mt-2 text-sm text-zinc-400">Document generation placeholder. Secure downloads will be enabled later.</p>
+              <button className="mt-3 rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button">Download placeholder</button>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (activeView === "Support") {
+    return (
+      <Panel title="Investor Support">
+        <div className="space-y-3 text-sm text-zinc-300">
+          <p>For capital, distribution, and account questions, contact FPF operations through the official support channel.</p>
+          <p className="rounded-md bg-emerald-500/10 p-3 text-emerald-100">Support ticketing placeholder. No external helpdesk integration is connected yet.</p>
+          <NotificationList notifications={notifications} />
+        </div>
+      </Panel>
     );
   }
 
@@ -1363,24 +1626,6 @@ function InvestorPortal({
         <Panel title="Active Investments"><InvestmentList investments={portfolio.active} /></Panel>
         <Panel title="Completed Investments"><InvestmentList investments={portfolio.completed} /></Panel>
       </div>
-    );
-  }
-
-  if (activeView === "Investor Reports") {
-    return (
-      <Panel title="Investor Reports">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {reports.map((report) => (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={report.id}>
-              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{report.periodType}</p>
-              <p className="mt-2 font-semibold">{report.summary}</p>
-              <p className="mt-2 text-sm text-zinc-400">ROI: {report.roiPercent.toFixed(2)}%</p>
-              <p className="text-sm text-zinc-400">Portfolio: {money(report.portfolioValueCents)}</p>
-            </div>
-          ))}
-          {!reports.length ? <p className="text-sm text-zinc-400">Weekly and monthly reports will appear here.</p> : null}
-        </div>
-      </Panel>
     );
   }
 
@@ -2364,6 +2609,30 @@ function InvestmentList({ investments }: { investments: InvestorInvestment[] }) 
         </div>
       ))}
       {!investments.length ? <p className="text-sm text-zinc-400">No investments in this category.</p> : null}
+    </div>
+  );
+}
+
+function DistributionList({ distributions }: { distributions: InvestorDistribution[] }) {
+  return (
+    <div className="space-y-2">
+      {distributions.map((distribution) => (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={distribution.id}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">{money(distribution.netDistributionCents)} - {distribution.status}</p>
+              <p className="mt-1 text-sm text-zinc-400">
+                {new Date(distribution.periodStart).toLocaleDateString()} to {new Date(distribution.periodEnd).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="text-sm text-zinc-400">
+              <p>Capital {money(distribution.capitalBaseCents)}</p>
+              <p>Return {distribution.returnRatePercent.toFixed(2)}%</p>
+            </div>
+          </div>
+        </div>
+      ))}
+      {!distributions.length ? <p className="text-sm text-zinc-400">No distributions yet.</p> : null}
     </div>
   );
 }

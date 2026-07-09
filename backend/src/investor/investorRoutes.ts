@@ -19,6 +19,14 @@ const reviewSchema = z.object({
   adminNotes: z.string().max(1000).optional(),
 });
 
+const noteSchema = z.object({
+  note: z.string().min(1).max(2000),
+});
+
+const distributionReviewSchema = z.object({
+  adminNotes: z.string().max(1000).optional(),
+});
+
 export function createInvestorRouter(input: {
   authService: AuthService;
   investorService: InvestorService;
@@ -30,6 +38,14 @@ export function createInvestorRouter(input: {
   router.get("/investor/dashboard", ...investorOnly, async (request, response, next) => {
     try {
       response.status(200).json(await input.investorService.dashboard(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/investor/profile", ...investorOnly, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.investorService.profile(request.user!.id));
     } catch (error) {
       next(error);
     }
@@ -74,6 +90,14 @@ export function createInvestorRouter(input: {
     }
   });
 
+  router.get("/investor/distributions", ...investorOnly, async (request, response, next) => {
+    try {
+      response.status(200).json({ distributions: await input.investorService.distributions(request.user!.id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/investor/withdrawals", ...investorOnly, async (request, response, next) => {
     try {
       response.status(200).json({ withdrawals: await input.investorService.withdrawals(request.user!.id) });
@@ -107,6 +131,91 @@ export function createInvestorRouter(input: {
         return;
       }
       response.status(200).json({ withdrawal });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/investors", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json(await input.investorService.adminManagement());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/investors/:id", ...adminOnly, async (request, response, next) => {
+    try {
+      const detail = await input.investorService.adminInvestorDetail(request.params.id);
+      if (!detail) {
+        response.status(404).json({ error: "Investor not found" });
+        return;
+      }
+      response.status(200).json(detail);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/investors/:id/notes", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = noteSchema.parse(request.body);
+      const detail = await input.investorService.addInvestorNote(request.user!.id, request.params.id, body.note);
+      if (!detail) {
+        response.status(404).json({ error: "Investor not found" });
+        return;
+      }
+      response.status(200).json(detail);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/investor-distributions/calculate", ...adminOnly, async (request, response, next) => {
+    try {
+      response.status(201).json(await input.investorService.calculateWeeklyDistributions(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/investor-distributions/:id/approve", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = distributionReviewSchema.parse(request.body);
+      const distribution = await input.investorService.approveDistribution(request.user!.id, request.params.id, body.adminNotes);
+      if (!distribution) {
+        response.status(404).json({ error: "Distribution not found" });
+        return;
+      }
+      response.status(200).json({ distribution });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/investor-distributions/:id/reject", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = distributionReviewSchema.parse(request.body);
+      const distribution = await input.investorService.rejectDistribution(request.user!.id, request.params.id, body.adminNotes);
+      if (!distribution) {
+        response.status(404).json({ error: "Distribution not found" });
+        return;
+      }
+      response.status(200).json({ distribution });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/investor-distributions/:id/mark-paid", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = distributionReviewSchema.parse(request.body);
+      const distribution = await input.investorService.markDistributionPaid(request.user!.id, request.params.id, body.adminNotes);
+      if (!distribution) {
+        response.status(404).json({ error: "Distribution not found" });
+        return;
+      }
+      response.status(200).json({ distribution });
     } catch (error) {
       next(error);
     }

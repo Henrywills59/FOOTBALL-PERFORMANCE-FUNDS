@@ -95,4 +95,81 @@ describe("investor routes", () => {
 
     expect(adminRepository.logs.map((log) => log.action)).toContain("WITHDRAWAL_APPROVED");
   });
+
+  it("loads investor profile, reports, and distribution history with safe defaults", async () => {
+    const { app, users } = testApp();
+    const investorToken = seedUser(users, "INVESTOR");
+
+    const profile = await request(app)
+      .get("/api/investor/profile")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .expect(200);
+    const reports = await request(app)
+      .get("/api/investor/reports")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .expect(200);
+    const distributions = await request(app)
+      .get("/api/investor/distributions")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .expect(200);
+
+    expect(profile.body.account.kycStatus).toBe("PENDING_REVIEW");
+    expect(reports.body.reports[0].title).toBe("Weekly Investor Report");
+    expect(distributions.body.distributions).toEqual([]);
+  });
+
+  it("lets admins calculate, approve, reject, and mark distributions paid", async () => {
+    const { app, adminRepository, users } = testApp();
+    const investorToken = seedUser(users, "INVESTOR");
+    const adminToken = seedUser(users, "ADMIN");
+
+    await request(app)
+      .post("/api/investor/investments")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .send({ planId: "starter", amountCents: 100000, riskAccepted: true })
+      .expect(201);
+
+    const managementBefore = await request(app)
+      .get("/api/admin/investors")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(managementBefore.body.investors).toHaveLength(1);
+
+    const calculated = await request(app)
+      .post("/api/admin/investor-distributions/calculate")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(201);
+    const distributionId = calculated.body.distributions[0].id;
+
+    await request(app)
+      .post(`/api/admin/investor-distributions/${distributionId}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ adminNotes: "Approved placeholder distribution." })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/admin/investor-distributions/${distributionId}/mark-paid`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ adminNotes: "Marked paid placeholder." })
+      .expect(200);
+
+    const finalManagement = await request(app)
+      .get("/api/admin/investors")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(finalManagement.body.distributionQueue[0].status).toBe("PAID");
+    expect(adminRepository.logs.map((log) => log.action)).toContain("INVESTOR_DISTRIBUTIONS_CALCULATED");
+    expect(adminRepository.logs.map((log) => log.action)).toContain("INVESTOR_DISTRIBUTION_MARKED_PAID");
+  }, 15000);
+
+  it("blocks subscribers and analysts from investor financial management", async () => {
+    const { app, users } = testApp();
+    const subscriberToken = seedUser(users, "SUBSCRIBER");
+
+    await request(app)
+      .get("/api/admin/investors")
+      .set("Authorization", `Bearer ${subscriberToken}`)
+      .expect(403);
+  });
 });

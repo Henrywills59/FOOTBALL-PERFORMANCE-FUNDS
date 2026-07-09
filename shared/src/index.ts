@@ -221,6 +221,111 @@ export type InvestorReport = {
   periodEnd: string;
 };
 
+export type InvestorDistributionStatus =
+  | "PENDING_CALCULATION"
+  | "CALCULATED"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "PAID"
+  | "FAILED"
+  | "CANCELLED";
+
+export type InvestorAccount = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  tier: string;
+  accountStatus: "ACTIVE" | "DISABLED";
+  kycStatus: string;
+  agreementStatus: string;
+  paymentMethod: string;
+  withdrawalMethod: string;
+  investmentAmountCents: number;
+  startDate: string | null;
+  riskNotice: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvestorBalance = {
+  totalCapitalCents: number;
+  activeInvestmentBalanceCents: number;
+  weeklyEarningsCents: number;
+  totalEarningsCents: number;
+  pendingDistributionCents: number;
+  paidDistributionCents: number;
+  updatedAt: string | null;
+};
+
+export type InvestorDistribution = {
+  id: string;
+  investorAccountId: string;
+  investorName: string;
+  investorEmail: string;
+  batchId: string | null;
+  periodStart: string;
+  periodEnd: string;
+  capitalBaseCents: number;
+  returnRatePercent: number;
+  grossReturnCents: number;
+  platformFeeCents: number;
+  netDistributionCents: number;
+  status: InvestorDistributionStatus;
+  adminNotes: string | null;
+  calculatedAt: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  failedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvestorDistributionBatch = {
+  id: string;
+  weekStart: string;
+  weekEnd: string;
+  status: InvestorDistributionStatus;
+  totalCapitalCents: number;
+  totalGrossReturnCents: number;
+  totalNetDistributionCents: number;
+  investorCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvestorAuditLog = {
+  id: string;
+  investorAccountId: string | null;
+  actorUserId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  details: unknown;
+  createdAt: string;
+};
+
+export type InvestorNote = {
+  id: string;
+  investorAccountId: string;
+  authorUserId: string | null;
+  note: string;
+  createdAt: string;
+};
+
+export type InvestorPortalReport = {
+  id: string;
+  investorAccountId: string;
+  periodType: "WEEKLY" | "MONTHLY";
+  title: string;
+  summary: string;
+  earningsCents: number;
+  capitalCents: number;
+  roiPercent: number;
+  downloadUrl: string | null;
+  generatedAt: string;
+};
+
 export type WithdrawalRequest = {
   id: string;
   amountCents: number;
@@ -237,6 +342,56 @@ export type InvestorDashboard = {
   lifetimeRoiPercent: number;
   currentStatus: string;
   investmentHistory: InvestorInvestment[];
+  account: InvestorAccount;
+  balance: InvestorBalance;
+  nextDistributionDate: string;
+  distributionStatus: InvestorDistributionStatus;
+  weeklyEarningsCents: number;
+  totalEarningsCents: number;
+  investorTier: string;
+  accountStatus: "ACTIVE" | "DISABLED";
+  riskNotice: string;
+  performanceChart: Array<{ label: string; valueCents: number }>;
+  recentDistributions: InvestorDistribution[];
+  transparencyNote: string;
+};
+
+export type InvestorProfile = {
+  account: InvestorAccount;
+  balance: InvestorBalance;
+  activeInvestments: InvestorInvestment[];
+};
+
+export type AdminInvestorSummary = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  tier: string;
+  accountStatus: "ACTIVE" | "DISABLED";
+  kycStatus: string;
+  agreementStatus: string;
+  totalCapitalCents: number;
+  activeInvestmentBalanceCents: number;
+  pendingDistributionCents: number;
+  paidDistributionCents: number;
+  createdAt: string;
+};
+
+export type AdminInvestorDetail = {
+  investor: AdminInvestorSummary;
+  profile: InvestorProfile;
+  distributions: InvestorDistribution[];
+  reports: InvestorPortalReport[];
+  auditLogs: InvestorAuditLog[];
+  notes: InvestorNote[];
+};
+
+export type AdminInvestorManagement = {
+  investors: AdminInvestorSummary[];
+  distributionQueue: InvestorDistribution[];
+  latestBatch: InvestorDistributionBatch | null;
+  auditTrail: InvestorAuditLog[];
 };
 
 export type WalletTransaction = {

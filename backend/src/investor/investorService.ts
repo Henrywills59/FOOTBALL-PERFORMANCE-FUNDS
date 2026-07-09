@@ -11,6 +11,10 @@ export class InvestorService {
     return this.repository.dashboard(userId);
   }
 
+  profile(userId: string) {
+    return this.repository.profile(userId);
+  }
+
   plans() {
     return this.repository.plans();
   }
@@ -20,7 +24,15 @@ export class InvestorService {
   }
 
   reports(userId: string) {
+    return this.repository.portalReports(userId);
+  }
+
+  legacyReports(userId: string) {
     return this.repository.reports(userId);
+  }
+
+  distributions(userId: string) {
+    return this.repository.distributions(userId);
   }
 
   withdrawals(userId: string) {
@@ -43,5 +55,56 @@ export class InvestorService {
     const request = await this.repository.reviewWithdrawal({ id, status, adminNotes });
     await this.adminService.audit(actorUserId, `WITHDRAWAL_${status}`, "WITHDRAWAL_REQUEST", id);
     return request;
+  }
+
+  adminManagement() {
+    return this.repository.adminManagement();
+  }
+
+  adminInvestorDetail(investorAccountId: string) {
+    return this.repository.adminInvestorDetail(investorAccountId);
+  }
+
+  async calculateWeeklyDistributions(actorUserId: string) {
+    const result = await this.repository.calculateWeeklyDistributions(actorUserId);
+    await this.adminService.audit(actorUserId, "INVESTOR_DISTRIBUTIONS_CALCULATED", "INVESTOR_DISTRIBUTION_BATCH", result.batch.id);
+    return result;
+  }
+
+  async approveDistribution(actorUserId: string, distributionId: string, adminNotes?: string | null) {
+    const distribution = await this.repository.updateDistributionStatus({
+      actorUserId,
+      distributionId,
+      status: "APPROVED",
+      adminNotes,
+    });
+    await this.adminService.audit(actorUserId, "INVESTOR_DISTRIBUTION_APPROVED", "INVESTOR_DISTRIBUTION", distributionId);
+    return distribution;
+  }
+
+  async rejectDistribution(actorUserId: string, distributionId: string, adminNotes?: string | null) {
+    const distribution = await this.repository.updateDistributionStatus({
+      actorUserId,
+      distributionId,
+      status: "CANCELLED",
+      adminNotes,
+    });
+    await this.adminService.audit(actorUserId, "INVESTOR_DISTRIBUTION_REJECTED", "INVESTOR_DISTRIBUTION", distributionId);
+    return distribution;
+  }
+
+  async markDistributionPaid(actorUserId: string, distributionId: string, adminNotes?: string | null) {
+    const distribution = await this.repository.updateDistributionStatus({
+      actorUserId,
+      distributionId,
+      status: "PAID",
+      adminNotes,
+    });
+    await this.adminService.audit(actorUserId, "INVESTOR_DISTRIBUTION_MARKED_PAID", "INVESTOR_DISTRIBUTION", distributionId);
+    return distribution;
+  }
+
+  addInvestorNote(actorUserId: string, investorAccountId: string, note: string) {
+    return this.repository.addInvestorNote({ actorUserId, investorAccountId, note });
   }
 }

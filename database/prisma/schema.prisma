@@ -102,6 +102,9 @@ model User {
   investments    Investment[]
   withdrawalRequests WithdrawalRequest[]
   wallet         InvestorWallet?
+  investorAccount InvestorAccount?
+  investorAuditLogs InvestorAuditLog[] @relation("InvestorAuditActor")
+  investorNotes InvestorNote[] @relation("InvestorNoteAuthor")
   analystAssignments AnalystAssignment[]
   intelligenceSubmissions AnalystIntelligenceSubmission[]
 }
@@ -512,6 +515,142 @@ model WithdrawalRequest {
 
   @@index([userId])
   @@index([status])
+}
+
+model InvestorAccount {
+  id                        String                    @id @default(uuid())
+  userId                    String                    @unique
+  tier                      String                    @default("Founding Investor")
+  kycStatus                 String                    @default("PENDING_REVIEW")
+  agreementStatus           String                    @default("PENDING_SIGNATURE")
+  paymentMethod             String                    @default("Placeholder - not connected")
+  withdrawalMethod          String                    @default("Placeholder - admin review required")
+  riskNotice                String                    @default("Capital is at risk. Historical performance is not a guarantee of future results.")
+  startDate                 DateTime?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  user                      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance                   InvestorBalance?
+  distributions             InvestorDistribution[]
+  reports                   InvestorPortalReport[]
+  auditLogs                 InvestorAuditLog[]
+  notes                     InvestorNote[]
+
+  @@map("investor_accounts")
+}
+
+model InvestorBalance {
+  id                              String          @id @default(uuid())
+  investorAccountId               String          @unique
+  totalCapitalCents               Int             @default(0)
+  activeInvestmentBalanceCents    Int             @default(0)
+  weeklyEarningsCents             Int             @default(0)
+  totalEarningsCents              Int             @default(0)
+  pendingDistributionCents        Int             @default(0)
+  paidDistributionCents           Int             @default(0)
+  createdAt                       DateTime        @default(now())
+  updatedAt                       DateTime        @updatedAt
+  investorAccount                 InvestorAccount @relation(fields: [investorAccountId], references: [id], onDelete: Cascade)
+
+  @@map("investor_balances")
+}
+
+model InvestorDistributionBatch {
+  id                         String                 @id @default(uuid())
+  weekStart                  DateTime
+  weekEnd                    DateTime
+  status                     String                 @default("PENDING_APPROVAL")
+  totalCapitalCents          Int                    @default(0)
+  totalGrossReturnCents      Int                    @default(0)
+  totalNetDistributionCents  Int                    @default(0)
+  investorCount              Int                    @default(0)
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  distributions              InvestorDistribution[]
+
+  @@index([status])
+  @@index([weekStart, weekEnd])
+  @@map("investor_distribution_batches")
+}
+
+model InvestorDistribution {
+  id                       String                     @id @default(uuid())
+  investorAccountId        String
+  batchId                  String?
+  periodStart              DateTime
+  periodEnd                DateTime
+  capitalBaseCents         Int
+  returnRatePercent        Float                      @default(0)
+  grossReturnCents         Int                        @default(0)
+  platformFeeCents         Int                        @default(0)
+  netDistributionCents     Int                        @default(0)
+  status                   String                     @default("PENDING_CALCULATION")
+  adminNotes               String?
+  calculatedAt             DateTime?
+  approvedAt               DateTime?
+  paidAt                   DateTime?
+  failedAt                 DateTime?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  investorAccount          InvestorAccount            @relation(fields: [investorAccountId], references: [id], onDelete: Cascade)
+  batch                    InvestorDistributionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([investorAccountId])
+  @@index([batchId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+  @@map("investor_distributions")
+}
+
+model InvestorPortalReport {
+  id                 String          @id @default(uuid())
+  investorAccountId  String
+  periodType         String
+  title              String
+  summary            String
+  earningsCents      Int             @default(0)
+  capitalCents       Int             @default(0)
+  roiPercent         Float           @default(0)
+  downloadUrl        String?
+  generatedAt        DateTime        @default(now())
+  investorAccount    InvestorAccount @relation(fields: [investorAccountId], references: [id], onDelete: Cascade)
+
+  @@index([investorAccountId])
+  @@index([periodType])
+  @@map("investor_reports")
+}
+
+model InvestorAuditLog {
+  id                 String           @id @default(uuid())
+  investorAccountId  String?
+  actorUserId        String?
+  action             String
+  entityType         String
+  entityId           String?
+  details            Json?
+  createdAt          DateTime         @default(now())
+  investorAccount    InvestorAccount? @relation(fields: [investorAccountId], references: [id], onDelete: SetNull)
+  actor              User?            @relation("InvestorAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([investorAccountId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("investor_audit_logs")
+}
+
+model InvestorNote {
+  id                 String          @id @default(uuid())
+  investorAccountId  String
+  authorUserId       String?
+  note               String
+  createdAt          DateTime        @default(now())
+  investorAccount    InvestorAccount @relation(fields: [investorAccountId], references: [id], onDelete: Cascade)
+  author             User?           @relation("InvestorNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([investorAccountId])
+  @@index([authorUserId])
+  @@map("investor_notes")
 }
 
 model InvestorWallet {
