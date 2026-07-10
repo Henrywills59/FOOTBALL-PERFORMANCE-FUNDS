@@ -130,6 +130,81 @@ type AnalystNavItem = (typeof analystNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 type SearchResult = { category: string; title: string; description: string; target?: string };
 type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem | AnalystNavItem;
+type PublicPageDefinition = {
+  label: string;
+  path: string;
+  id: string;
+  description: string;
+};
+
+const publicPageDefinitions: PublicPageDefinition[] = [
+  { label: "Home", path: "/", id: "home", description: "Cinematic FPF homepage and launch gateway." },
+  { label: "About", path: "/about", id: "about", description: "The Football Performance Fund mission and operating model." },
+  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, analyst, and admin platform." },
+  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How data, AI, analysts, and admin approval become FPF intelligence." },
+  { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
+  { label: "Investors", path: "/investors", id: "investors", description: "Investor transparency, simulator, reports, and risk-first controls." },
+  { label: "Analyst Applications", path: "/analyst-applications", id: "analyst-applications", description: "Professional internal analyst application journey." },
+  { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
+  { label: "AI Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Explainable football intelligence, confidence, risk, and value scores." },
+  { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
+  { label: "Pricing", path: "/pricing", id: "pricing", description: "Subscriber pricing and commercial structure." },
+  { label: "Investor Packages", path: "/investor-packages", id: "investor-packages", description: "Placeholder investor packages and lock-period education." },
+  { label: "Security", path: "/security", id: "security", description: "Authentication, authorization, privacy, and risk controls." },
+  { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and media placeholders." },
+  { label: "Media", path: "/media", id: "media", description: "Media center, announcements, and press resources." },
+  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal analyst pathway, and partner placeholders." },
+  { label: "Contact", path: "/contact", id: "contact", description: "Contact and support entry points." },
+  { label: "FAQ", path: "/faq", id: "faq", description: "Frequently asked questions." },
+  { label: "Privacy Policy", path: "/privacy-policy", id: "privacy-policy", description: "Privacy and data preference information." },
+  { label: "Terms and Conditions", path: "/terms-and-conditions", id: "terms-and-conditions", description: "Terms and conditions placeholder." },
+  { label: "Risk Disclosure", path: "/risk-disclosure", id: "risk-disclosure", description: "Financial and football intelligence risk disclosures." },
+  { label: "Responsible Participation", path: "/responsible-participation", id: "responsible-participation", description: "Responsible participation guidance." },
+  { label: "Cookie Policy", path: "/cookie-policy", id: "cookie-policy", description: "Cookie and tracking placeholder policy." },
+];
+
+const publicPathAliases: Record<string, string> = {
+  "/for-subscribers": "/subscribers",
+  "/for-investors": "/investors",
+  "/for-analysts": "/analyst-applications",
+  "/legal": "/terms-and-conditions",
+  "/privacy": "/privacy-policy",
+  "/terms": "/terms-and-conditions",
+};
+
+const legacyPrivatePaths = ["/app", "/dashboard", "/dashboard/admin", "/dashboard/subscriber", "/dashboard/investor", "/dashboard/analyst"];
+
+function normalizedPathname(pathname = window.location.pathname) {
+  const clean = pathname.replace(/\/+$/, "");
+  return clean || "/";
+}
+
+function getCanonicalPublicPage(pathname = window.location.pathname) {
+  const normalized = normalizedPathname(pathname);
+  const canonicalPath = publicPathAliases[normalized] ?? normalized;
+  return publicPageDefinitions.find((page) => page.path === canonicalPath) ?? null;
+}
+
+function isLegacyPrivatePath(pathname = window.location.pathname) {
+  const normalized = normalizedPathname(pathname);
+  return legacyPrivatePaths.some((path) => normalized === path || normalized.startsWith(`${path}/`));
+}
+
+function scrollPublicSection(id: string) {
+  window.requestAnimationFrame(() => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function setMetaTag(name: string, content: string, attribute: "name" | "property" = "name") {
+  let element = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${name}"]`);
+  if (!element) {
+    element = document.createElement("meta");
+    element.setAttribute(attribute, name);
+    document.head.appendChild(element);
+  }
+  element.content = content;
+}
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
   SUBSCRIBER: "Subscriber",
@@ -186,6 +261,7 @@ function getStoredPreferences() {
 
 export default function App() {
   const [mode, setMode] = useState<AuthMode>("login");
+  const [currentPath, setCurrentPath] = useState(() => normalizedPathname());
   const [session, setSession] = useState<AuthResponse | null>(() => getStoredSession());
   const [activeView, setActiveView] = useState<NavItem>("Subscriber Home");
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
@@ -269,6 +345,40 @@ export default function App() {
   const [mediaDashboard, setMediaDashboard] = useState<MediaDashboard | null>(null);
   const [commercialControl, setCommercialControl] = useState<CommercialControlCenter | null>(null);
   const [infrastructureControl, setInfrastructureControl] = useState<InfrastructureControlCenter | null>(null);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(normalizedPathname());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!session && isLegacyPrivatePath(currentPath)) setMode("login");
+    if (!session && ["/login", "/signin", "/sign-in"].includes(currentPath)) setMode("login");
+    if (!session && ["/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst"].includes(currentPath)) setMode("register");
+    if (!session && ["/forgot-password", "/reset-password"].includes(currentPath)) setMode("forgot");
+  }, [currentPath, session]);
+
+  useEffect(() => {
+    if (session && !isLegacyPrivatePath(currentPath)) {
+      window.history.replaceState(null, "", "/app");
+      setCurrentPath("/app");
+    }
+  }, [currentPath, session]);
+
+  useEffect(() => {
+    const publicPage = getCanonicalPublicPage(currentPath);
+    const isPrivate = Boolean(session) || isLegacyPrivatePath(currentPath);
+    document.title = isPrivate
+      ? "FPF Operating System"
+      : publicPage
+        ? `${publicPage.label} | Football Performance Fund`
+        : "Page Not Found | Football Performance Fund";
+    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, investor, analyst, treasury, and executive operating system.");
+    setMetaTag("robots", isPrivate ? "noindex,nofollow" : "index,follow");
+    setMetaTag("og:title", publicPage ? `${publicPage.label} | Football Performance Fund` : "Football Performance Fund", "property");
+    setMetaTag("og:description", publicPage?.description ?? "We Don't Chase Luck. We Build Performance.", "property");
+  }, [currentPath, session]);
 
   useEffect(() => {
     const loadPublicGlobalization = async () => {
@@ -381,6 +491,12 @@ export default function App() {
     const query = globalSearch.trim().toLowerCase();
     if (!query) return [];
     const pool: SearchResult[] = [
+      ...publicPageDefinitions.map((page) => ({
+        category: "Public Pages",
+        title: page.label,
+        description: page.description,
+        target: undefined,
+      })),
       ...predictions.map((prediction) => ({
         category: "Predictions",
         title: prediction.predictedOutcome,
@@ -465,6 +581,8 @@ export default function App() {
     setActiveAnalystView("Analyst Dashboard");
     setActiveView("Subscriber Home");
     setSession(nextSession);
+    window.history.pushState(null, "", "/app");
+    setCurrentPath("/app");
   }
 
   async function postPublic(path: string, body: object) {
@@ -931,6 +1049,16 @@ export default function App() {
     setMessage("");
     setError("");
     setSlip([]);
+    window.history.pushState(null, "", "/");
+    setCurrentPath("/");
+  }
+
+  function navigatePublic(path: string, id?: string) {
+    const page = getCanonicalPublicPage(path);
+    const nextPath = page?.path ?? path;
+    window.history.pushState(null, "", nextPath);
+    setCurrentPath(nextPath);
+    if (id ?? page?.id) scrollPublicSection(id ?? page!.id);
   }
 
   function currentModuleLabel() {
@@ -986,8 +1114,10 @@ export default function App() {
         languages={languages}
         message={message}
         mode={mode}
+        currentPath={currentPath}
         onApiTest={testApiConnection}
         onForgot={safelySubmit(handleForgotPassword)}
+        onNavigate={navigatePublic}
         onLocalPreferenceChange={(next) => {
           const updated = { ...globalPreferences, ...next };
           setGlobalPreferences(updated);
@@ -3953,6 +4083,7 @@ function PublicLaunchExperience({
   apiUrl,
   commercialStructure,
   currencies,
+  currentPath,
   error,
   languages,
   message,
@@ -3961,6 +4092,7 @@ function PublicLaunchExperience({
   onForgot,
   onLocalPreferenceChange,
   onLogin,
+  onNavigate,
   onRegister,
   preferences,
   setMode,
@@ -3969,6 +4101,7 @@ function PublicLaunchExperience({
   apiUrl: string;
   commercialStructure: CommercialStructure;
   currencies: CurrencySetting[];
+  currentPath: string;
   error: string;
   languages: LanguageSetting[];
   message: string;
@@ -3977,6 +4110,7 @@ function PublicLaunchExperience({
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
   onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
+  onNavigate: (path: string, id?: string) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
   preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
@@ -3986,28 +4120,11 @@ function PublicLaunchExperience({
     "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1600&q=80",
     "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1600&q=80",
   ];
-  const publicPages = [
-    "Home",
-    "About",
-    "Technology",
-    "How FPF Works",
-    "For Subscribers",
-    "For Investors",
-    "For Analysts",
-    "Pricing",
-    "Investor Packages",
-    "Performance",
-    "Security",
-    "FAQ",
-    "Contact",
-    "Legal",
-    "Privacy",
-    "Terms",
-    "Blog",
-    "Media",
-    "Careers",
-    "Affiliate Partners",
-  ];
+  const currentPage = getCanonicalPublicPage(currentPath);
+  const isUnknownPublicRoute = !currentPage && !isLegacyPrivatePath(currentPath) && !["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst", "/forgot-password", "/reset-password"].includes(currentPath);
+  if (isUnknownPublicRoute) {
+    return <PublicNotFoundPage onNavigate={onNavigate} />;
+  }
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <nav className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/85 px-4 py-3 backdrop-blur">
@@ -4017,9 +4134,17 @@ function PublicLaunchExperience({
             <h1 className="text-lg font-semibold">FPF Global Intelligence Platform</h1>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            {publicPages.slice(0, 10).map((item) => (
-              <a className="rounded-md px-3 py-2 text-zinc-300 transition hover:bg-zinc-900 hover:text-white" href={`#${item.toLowerCase().replaceAll(" ", "-")}`} key={item}>{item}</a>
+            {publicPageDefinitions.slice(0, 11).map((item) => (
+              <button
+                className={`rounded-md px-3 py-2 text-left transition ${currentPage?.path === item.path ? "bg-emerald-300 text-zinc-950" : "text-zinc-300 hover:bg-zinc-900 hover:text-white"}`}
+                key={item.path}
+                type="button"
+                onClick={() => onNavigate(item.path, item.id)}
+              >
+                {item.label}
+              </button>
             ))}
+            <button className="rounded-md border border-emerald-800 px-3 py-2 text-emerald-100 hover:border-emerald-300" type="button" onClick={() => { setMode("login"); onNavigate("/login", "auth"); }}>Sign In</button>
           </div>
         </div>
       </nav>
@@ -4044,23 +4169,31 @@ function PublicLaunchExperience({
               <MiniStat label="Accuracy" value="Tracked" />
               <MiniStat label="Status" value="Ready" />
             </div>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button className="rounded-md bg-emerald-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200" type="button" onClick={() => { setMode("register"); onNavigate("/get-started", "auth"); }}>Get Started</button>
+              <button className="rounded-md border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:border-emerald-300" type="button" onClick={() => onNavigate("/platform", "platform")}>Explore Platform</button>
+              <button className="rounded-md border border-emerald-700 bg-emerald-950/30 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300" type="button" onClick={() => { setMode("register"); onNavigate("/become-an-investor", "auth"); }}>Become an Investor</button>
+              <button className="rounded-md border border-zinc-700 px-5 py-3 text-sm font-semibold text-zinc-100 transition hover:border-emerald-300" type="button" onClick={() => onNavigate("/analyst-applications", "analyst-applications")}>Apply as Analyst</button>
+            </div>
           </div>
-          <AuthPanel
-            apiCheck={apiCheck}
-            apiUrl={apiUrl}
-            currencies={currencies}
-            error={error}
-            languages={languages}
-            message={message}
-            mode={mode}
-            onApiTest={onApiTest}
-            onForgot={onForgot}
-            onLocalPreferenceChange={onLocalPreferenceChange}
-            onLogin={onLogin}
-            onRegister={onRegister}
-            preferences={preferences}
-            setMode={setMode}
-          />
+          <div id="auth">
+            <AuthPanel
+              apiCheck={apiCheck}
+              apiUrl={apiUrl}
+              currencies={currencies}
+              error={error}
+              languages={languages}
+              message={message}
+              mode={mode}
+              onApiTest={onApiTest}
+              onForgot={onForgot}
+              onLocalPreferenceChange={onLocalPreferenceChange}
+              onLogin={onLogin}
+              onRegister={onRegister}
+              preferences={preferences}
+              setMode={setMode}
+            />
+          </div>
         </div>
       </section>
       <section className="mx-auto max-w-7xl space-y-10 px-6 py-12">
@@ -4071,14 +4204,16 @@ function PublicLaunchExperience({
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
           <LaunchPanel id="about" title="About" items={["FPF is a global football intelligence operating system.", "Subscribers, investors, analysts, and administrators use one secure platform.", "Every module shares the same authentication, settings, search, notifications, and brand system."]} />
+          <LaunchPanel id="platform" title="Platform" items={["One frontend application and one backend API.", "Public pages and secure workspaces share the same design system.", "Private modules are protected by backend authorization."]} />
           <LaunchPanel id="technology" title="Technology" items={["Node, Express, PostgreSQL/Supabase, Prisma, React, Vite, Tailwind, Vercel.", "Provider-ready interfaces for football data, AI, payments, exchange rates, and exports.", "No API keys or secrets are exposed in the frontend."]} />
           <LaunchPanel id="how-fpf-works" title="How FPF Works" items={["Data enters the Intelligence Core.", "AI and analyst workflows prepare intelligence.", "Admin approval controls publication, treasury, and executive reporting."]} />
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <LaunchPanel id="for-subscribers" title="For Subscribers" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
-          <LaunchPanel id="for-investors" title="For Investors" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
+          <LaunchPanel id="subscribers" title="Subscribers" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
+          <LaunchPanel id="investors" title="Investors" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
         </div>
         <AnalystApplicationPortal />
+        <LaunchPanel id="ai-intelligence" title="AI Intelligence" items={["Explainable confidence, risk, value, momentum, volatility, and opportunity scores.", "Missing live data produces safe fallback results instead of invented claims.", "Final publication remains admin controlled."]} />
         <PricingCards plans={commercialStructure.subscriberPlans} />
         <div className="grid gap-4 lg:grid-cols-3">
           <LaunchPanel id="investor-packages" title="Investor Packages" items={["Minimum investment placeholder starts at $100.", "6-month and 12-month lock-period placeholders are supported.", "All projected performance remains simulation-only."]} />
@@ -4094,8 +4229,13 @@ function PublicLaunchExperience({
         <div className="grid gap-4 lg:grid-cols-4">
           <LaunchPanel id="contact" title="Contact" items={["Contact form placeholder ready.", "Support routes are centralized inside the unified app.", "Enterprise inquiries route to admin operations."]} />
           <LaunchPanel id="legal" title="Legal" items={["Legal center placeholder.", "Risk disclaimers remain visible across finance modules.", "No real payment processing is active."]} />
-          <LaunchPanel id="privacy" title="Privacy" items={["Privacy policy placeholder.", "Preferences and notification controls are user-owned.", "Security alerts remain mandatory."]} />
-          <LaunchPanel id="terms" title="Terms" items={["Terms placeholder.", "Simulation outputs are not guaranteed returns.", "FPF intelligence requires admin approval before publication."]} />
+          <LaunchPanel id="privacy-policy" title="Privacy Policy" items={["Privacy policy placeholder.", "Preferences and notification controls are user-owned.", "Security alerts remain mandatory."]} />
+          <LaunchPanel id="terms-and-conditions" title="Terms and Conditions" items={["Terms placeholder.", "Simulation outputs are not guaranteed returns.", "FPF intelligence requires admin approval before publication."]} />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <LaunchPanel id="risk-disclosure" title="Risk Disclosure" items={["Football intelligence can be wrong.", "Investment simulations are not promised returns.", "Final payout logic remains disconnected until approved providers are integrated."]} />
+          <LaunchPanel id="responsible-participation" title="Responsible Participation" items={["Use intelligence responsibly.", "Avoid chasing losses.", "FPF never guarantees fixed outcomes or fixed returns."]} />
+          <LaunchPanel id="cookie-policy" title="Cookie Policy" items={["Cookie policy placeholder.", "Future analytics and marketing pixels must be approved through the Infrastructure Center.", "Private dashboard routes are not intended for indexing."]} />
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
           <LaunchPanel id="blog" title="Blog" items={["Market trends placeholder.", "Technology updates placeholder.", "Education articles placeholder."]} />
@@ -4136,7 +4276,7 @@ function LaunchPanel({ id, items, title }: { id: string; items: string[]; title:
 function AnalystApplicationPortal() {
   const [status, setStatus] = useState("");
   return (
-    <section className="rounded-lg border border-emerald-400/20 bg-zinc-900 p-5" id="for-analysts">
+    <section className="rounded-lg border border-emerald-400/20 bg-zinc-900 p-5" id="analyst-applications">
       <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Professional Analyst Portal</p>
@@ -4194,6 +4334,25 @@ function AnalystApplicationPortal() {
         </form>
       </div>
     </section>
+  );
+}
+
+function PublicNotFoundPage({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
+  return (
+    <main className="min-h-screen bg-zinc-950 px-6 py-10 text-white">
+      <div className="mx-auto flex min-h-[80vh] max-w-3xl flex-col justify-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">404</p>
+        <h1 className="mt-4 text-4xl font-black tracking-normal sm:text-6xl">This FPF page moved.</h1>
+        <p className="mt-5 text-lg leading-8 text-zinc-300">
+          The public website and operating system now run as one platform. Use the unified navigation to continue.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <button className="rounded-md bg-emerald-300 px-5 py-3 text-sm font-semibold text-zinc-950" type="button" onClick={() => onNavigate("/", "home")}>Go Home</button>
+          <button className="rounded-md border border-zinc-700 px-5 py-3 text-sm font-semibold text-zinc-100" type="button" onClick={() => onNavigate("/platform", "platform")}>View Platform</button>
+          <button className="rounded-md border border-emerald-700 px-5 py-3 text-sm font-semibold text-emerald-100" type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Pricing</button>
+        </div>
+      </div>
+    </main>
   );
 }
 

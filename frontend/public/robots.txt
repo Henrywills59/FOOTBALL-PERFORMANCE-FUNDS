@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /app
+Disallow: /dashboard
 
 Sitemap: https://football-performance-fund-frontend.vercel.app/sitemap.xml
