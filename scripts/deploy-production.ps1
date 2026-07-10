@@ -542,7 +542,8 @@ function Sync-DefaultAdminPassword {
     -Uri "$BackendUrl/api/admin/seed-default-admin" `
     -Method "Post" `
     -Body $seedBody `
-    -Headers @{ "x-admin-seed-token" = $script:AdminSeedToken }
+    -Headers @{ "x-admin-seed-token" = $script:AdminSeedToken } `
+    -TimeoutSec 120
 
   if (-not $seedResult.Ok -or $seedResult.Response.ok -ne $true) {
     $detail = if ($seedResult.Ok) {
@@ -560,7 +561,8 @@ function Invoke-JsonRequest {
     [string]$Uri,
     [string]$Method = "Get",
     [object]$Body = $null,
-    [hashtable]$Headers = @{}
+    [hashtable]$Headers = @{},
+    [int]$TimeoutSec = 30
   )
 
   Add-ReportLine ""
@@ -571,7 +573,7 @@ function Invoke-JsonRequest {
     $parameters = @{
       Uri = $Uri
       Method = $Method
-      TimeoutSec = 30
+      TimeoutSec = $TimeoutSec
     }
 
     if ($Headers.Count -gt 0) {
