@@ -335,6 +335,162 @@ async function ensureCommercialSchema(prisma: PrismaClient) {
   `);
 }
 
+async function ensureBusinessCommercialSchema(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "subscriptions" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "userId" TEXT NOT NULL,
+      "planCode" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'TRIAL',
+      "billingCycle" TEXT NOT NULL DEFAULT 'MONTHLY',
+      "renewalDate" TIMESTAMP(3),
+      "trialEndsAt" TIMESTAMP(3),
+      "gracePeriodEndsAt" TIMESTAMP(3),
+      "invoices" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "receipts" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "failedPayments" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "discounts" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "coupons" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "taxesPlaceholder" TEXT NOT NULL DEFAULT 'Taxes are placeholder-only until billing providers are connected.',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "subscriptions_userId_idx" ON "subscriptions"("userId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "subscriptions_status_idx" ON "subscriptions"("status")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "investor_packages" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "minimumAmountCents" INTEGER NOT NULL,
+      "maximumAmountCents" INTEGER,
+      "lockPeriodCode" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+      "visible" BOOLEAN NOT NULL DEFAULT true,
+      "projectedPerformanceNote" TEXT NOT NULL,
+      "riskDisclosure" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "pricing_rules" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "name" TEXT NOT NULL,
+      "countryCode" TEXT,
+      "currency" TEXT NOT NULL DEFAULT 'USD',
+      "discountPercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "couponCode" TEXT,
+      "promotionType" TEXT NOT NULL,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "pricing_countries" (
+      "countryCode" TEXT PRIMARY KEY,
+      "countryName" TEXT NOT NULL,
+      "currency" TEXT NOT NULL,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "discounts" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "name" TEXT NOT NULL,
+      "discountPercent" DOUBLE PRECISION NOT NULL,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "startsAt" TIMESTAMP(3),
+      "endsAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "coupons" (
+      "code" TEXT PRIMARY KEY,
+      "discountPercent" DOUBLE PRECISION NOT NULL,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "maxRedemptions" INTEGER,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "revenue_metrics" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "period" TEXT NOT NULL,
+      "metrics" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "provider_registry" (
+      "id" TEXT PRIMARY KEY,
+      "providerName" TEXT NOT NULL,
+      "purpose" TEXT NOT NULL,
+      "dashboardUrl" TEXT,
+      "documentationUrl" TEXT,
+      "status" TEXT NOT NULL,
+      "health" TEXT NOT NULL,
+      "apiKeyStatus" TEXT NOT NULL,
+      "productionStatus" TEXT NOT NULL,
+      "developmentStatus" TEXT NOT NULL,
+      "supportContact" TEXT,
+      "category" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "provider_costs" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "providerId" TEXT NOT NULL,
+      "monthlyCostCents" INTEGER NOT NULL DEFAULT 0,
+      "annualCostCents" INTEGER NOT NULL DEFAULT 0,
+      "billingCycle" TEXT NOT NULL DEFAULT 'MONTHLY',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "provider_renewals" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "providerId" TEXT NOT NULL,
+      "renewalDate" TIMESTAMP(3),
+      "status" TEXT NOT NULL DEFAULT 'PENDING',
+      "reminders" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "procurement" (
+      "id" TEXT PRIMARY KEY,
+      "vendor" TEXT NOT NULL,
+      "plan" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "license" TEXT,
+      "invoice" TEXT,
+      "costCents" INTEGER NOT NULL DEFAULT 0,
+      "renewalDate" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "billing_events" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "userId" TEXT,
+      "eventType" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "amountCents" INTEGER NOT NULL DEFAULT 0,
+      "currency" TEXT NOT NULL DEFAULT 'USD',
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
 async function ensureOperationsSchema(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "reports" (
@@ -652,6 +808,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     await ensureInvestorSchema(prisma);
     await ensureGlobalizationSchema(prisma);
     await ensureCommercialSchema(prisma);
+    await ensureBusinessCommercialSchema(prisma);
     await ensureOperationsSchema(prisma);
     await ensureMediaSchema(prisma);
 
@@ -697,6 +854,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       investorSchemaEnsured: true,
       globalizationSchemaEnsured: true,
       commercialSchemaEnsured: true,
+      businessCommercialSchemaEnsured: true,
       operationsSchemaEnsured: true,
       mediaSchemaEnsured: true,
       user,

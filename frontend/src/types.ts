@@ -129,15 +129,38 @@ export type AdminSettings = {
   defaultPlatformFeePercent?: number;
 };
 
-export type SubscriberPlanCode = "STARTER" | "PRO" | "ELITE";
+export type SubscriberPlanCode = "FREE_TRIAL" | "STARTER" | "PRO" | "PROFESSIONAL" | "PREMIUM" | "ENTERPRISE" | "ELITE";
 
 export type SubscriberPlan = {
   code: SubscriberPlanCode;
   name: string;
   monthlyPriceCents: number;
   yearlyPriceCents: number;
+  trialDays?: number;
+  gracePeriodDays?: number;
+  countryPricing?: Array<{ countryCode: string; currency: string; monthlyPriceCents: number; yearlyPriceCents: number }>;
   features: string[];
   highlighted: boolean;
+};
+
+export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "GRACE_PERIOD" | "CANCELLED" | "EXPIRED";
+export type BillingCycle = "MONTHLY" | "ANNUAL";
+
+export type SubscriptionRecord = {
+  id: string;
+  userId: string;
+  planCode: SubscriberPlanCode;
+  status: SubscriptionStatus;
+  billingCycle: BillingCycle;
+  renewalDate: string | null;
+  trialEndsAt: string | null;
+  gracePeriodEndsAt: string | null;
+  invoices: Array<{ id: string; amountCents: number; currency: string; status: string; issuedAt: string }>;
+  receipts: Array<{ id: string; amountCents: number; currency: string; issuedAt: string }>;
+  failedPayments: Array<{ id: string; reason: string; attemptedAt: string }>;
+  discounts: string[];
+  coupons: string[];
+  taxesPlaceholder: string;
 };
 
 export type InvestorLevel = {
@@ -153,10 +176,106 @@ export type InvestmentLockPeriod = {
   enabled: boolean;
 };
 
+export type InvestorPackage = {
+  id: string;
+  name: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond" | string;
+  minimumAmountCents: number;
+  maximumAmountCents: number | null;
+  lockPeriodCode: InvestmentLockPeriod["code"];
+  status: "ACTIVE" | "PAUSED" | "ARCHIVED";
+  visible: boolean;
+  projectedPerformanceNote: string;
+  riskDisclosure: string;
+};
+
+export type InvestmentLockSnapshot = {
+  investmentId: string;
+  investmentDate: string;
+  unlockDate: string;
+  remainingDays: number;
+  completionPercentage: number;
+  status: "LOCKED" | "UNLOCKING_SOON" | "UNLOCKED" | "COMPLETED";
+};
+
+export type PricingRule = {
+  id: string;
+  name: string;
+  countryCode: string | null;
+  currency: string;
+  discountPercent: number;
+  couponCode: string | null;
+  promotionType: "DISCOUNT" | "REFERRAL" | "LAUNCH" | "SEASONAL" | "ADMIN_OVERRIDE";
+  active: boolean;
+};
+
+export type BusinessDashboard = {
+  monthlyRevenueCents: number;
+  annualRevenueCents: number;
+  mrrCents: number;
+  arrCents: number;
+  subscriberCount: number;
+  investorCount: number;
+  investmentCapitalCents: number;
+  weeklyDistributionsCents: number;
+  pendingDistributionsCents: number;
+  pendingRenewals: number;
+  platformGrowthPercent: number;
+  predictionAccuracyPercent: number;
+  marketingPerformance: string;
+  infrastructureCostCents: number;
+  apiCostCents: number;
+  systemHealth: "READY" | "DEGRADED";
+};
+
+export type InfrastructureProvider = {
+  id: string;
+  providerName: string;
+  purpose: string;
+  monthlyCostCents: number;
+  annualCostCents: number;
+  renewalDate: string | null;
+  billingCycle: BillingCycle;
+  dashboardUrl: string | null;
+  documentationUrl: string | null;
+  status: "ACTIVE" | "TRIAL" | "PAUSED" | "EXPIRED";
+  health: "GREEN" | "AMBER" | "RED";
+  apiKeyStatus: "NOT_REQUIRED" | "CONFIGURED" | "MISSING" | "PLACEHOLDER";
+  productionStatus: "READY" | "PLACEHOLDER" | "NOT_CONNECTED";
+  developmentStatus: "READY" | "PLACEHOLDER" | "NOT_CONNECTED";
+  supportContact: string | null;
+  category: "Football APIs" | "AI APIs" | "Payments" | "Messaging" | "Infrastructure" | "Hosting" | "Domains" | "Analytics" | "Security" | "Marketing";
+};
+
+export type RenewalReminder = {
+  id: string;
+  providerId: string | null;
+  title: string;
+  dueAt: string;
+  reminderWindows: string[];
+  dashboardNotification: boolean;
+  emailPlaceholder: boolean;
+  whatsappPlaceholder: boolean;
+  smsPlaceholder: boolean;
+  status: "PENDING" | "SENT_PLACEHOLDER" | "DISMISSED";
+};
+
+export type ProcurementItem = {
+  id: string;
+  vendor: string;
+  plan: string;
+  status: "PURCHASED" | "PENDING_PURCHASE" | "CANCELLED" | "TRIAL" | "EXPIRED" | "RENEWAL_PENDING";
+  license: string | null;
+  invoice: string | null;
+  costCents: number;
+  renewalDate: string | null;
+};
+
 export type CommercialStructure = {
   subscriberPlans: SubscriberPlan[];
   investorLevels: InvestorLevel[];
+  investorPackages: InvestorPackage[];
   lockPeriods: InvestmentLockPeriod[];
+  pricingRules: PricingRule[];
   minimumInvestmentCents: number;
   simulatorDefaults: {
     weeklyReturnPercent: number;
@@ -167,6 +286,16 @@ export type CommercialStructure = {
     investmentRisk: string;
     simulationOnly: string;
   };
+};
+
+export type CommercialControlCenter = {
+  structure: CommercialStructure;
+  businessDashboard: BusinessDashboard;
+  subscription: SubscriptionRecord;
+  lockSnapshots: InvestmentLockSnapshot[];
+  infrastructureProviders: InfrastructureProvider[];
+  renewals: RenewalReminder[];
+  procurement: ProcurementItem[];
 };
 
 export type OperationalReportStatus = "DRAFT" | "GENERATING" | "READY" | "FAILED" | "ARCHIVED";

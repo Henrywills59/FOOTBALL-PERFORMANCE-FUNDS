@@ -15,6 +15,7 @@ import type {
   AuthResponse,
   AuthUser,
   CommercialStructure,
+  CommercialControlCenter,
   DecisionEngineOutput,
   FootballFixtureDetail,
   FootballFixtureSummary,
@@ -106,7 +107,7 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
 
@@ -148,7 +149,9 @@ const defaultGlobalPreferences: UserGlobalPreferences = {
 const defaultCommercialStructure: CommercialStructure = {
   subscriberPlans: [],
   investorLevels: [],
+  investorPackages: [],
   lockPeriods: [],
+  pricingRules: [],
   minimumInvestmentCents: 10000,
   simulatorDefaults: { weeklyReturnPercent: 1.25, platformFeePercent: 10 },
   notices: {
@@ -227,6 +230,7 @@ export default function App() {
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null);
   const [adminAnnouncements, setAdminAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [mediaDashboard, setMediaDashboard] = useState<MediaDashboard | null>(null);
+  const [commercialControl, setCommercialControl] = useState<CommercialControlCenter | null>(null);
 
   useEffect(() => {
     const loadPublicGlobalization = async () => {
@@ -499,6 +503,7 @@ export default function App() {
       const incidentsData = await apiGet<{ incidents: SystemIncident[] }>("/admin/monitoring/incidents", token);
       const announcementsData = await apiGet<{ announcements: AdminAnnouncement[] }>("/admin/announcements", token);
       const mediaData = await apiGet<MediaDashboard>("/admin/media/dashboard", token);
+      const commercialControlData = await apiGet<CommercialControlCenter>("/admin/commercial/control", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
@@ -517,6 +522,7 @@ export default function App() {
       setSystemIncidents(incidentsData.incidents);
       setAdminAnnouncements(announcementsData.announcements);
       setMediaDashboard(mediaData);
+      setCommercialControl(commercialControlData);
       setAdminInvestorManagement(investorManagementData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
@@ -621,7 +627,8 @@ export default function App() {
       path.includes("/notes") ||
       path.includes("/admin/monitoring/incidents/") ||
       path.includes("/admin/announcements/") ||
-      path.includes("/admin/media/posts/")
+      path.includes("/admin/media/posts/") ||
+      path.includes("/admin/commercial/investor-packages/")
       ? "PATCH"
       : "POST";
     await fetchJson(
@@ -939,6 +946,7 @@ export default function App() {
               systemIncidents={systemIncidents}
               adminAnnouncements={adminAnnouncements}
               mediaDashboard={mediaDashboard}
+              commercialControl={commercialControl}
             />
           ) : null}
 
@@ -1071,6 +1079,7 @@ function AdminPortal({
   systemIncidents,
   adminAnnouncements,
   mediaDashboard,
+  commercialControl,
   onGlobalPreferences,
   onAction,
   onSimulate,
@@ -1101,6 +1110,7 @@ function AdminPortal({
   systemIncidents: SystemIncident[];
   adminAnnouncements: AdminAnnouncement[];
   mediaDashboard: MediaDashboard | null;
+  commercialControl: CommercialControlCenter | null;
   onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1180,6 +1190,10 @@ function AdminPortal({
 
   if (activeView === "Investor Management") {
     return <AdminInvestorManagementView commercialStructure={commercialStructure} management={investorManagement} onAction={onAction} onSimulate={onSimulate} />;
+  }
+
+  if (activeView === "Business Control") {
+    return <BusinessControlCenterView control={commercialControl} onAction={onAction} />;
   }
 
   if (activeView === "Media Command") {
@@ -1484,6 +1498,198 @@ function AnalystPortal({
 }
 
 const mediaPlatforms: MediaPlatform[] = ["FACEBOOK", "INSTAGRAM", "TIKTOK", "X", "LINKEDIN", "TELEGRAM", "WHATSAPP_CHANNELS", "YOUTUBE_COMMUNITY", "DISCORD"];
+
+function BusinessControlCenterView({
+  control,
+  onAction,
+}: {
+  control: CommercialControlCenter | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  if (!control) return <LoadingSkeleton label="Preparing Business Control Center" />;
+  const dashboard = control.businessDashboard;
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Monthly revenue" value={money(dashboard.monthlyRevenueCents)} />
+        <Metric label="Annual revenue" value={money(dashboard.annualRevenueCents)} />
+        <Metric label="MRR" value={money(dashboard.mrrCents)} />
+        <Metric label="ARR" value={money(dashboard.arrCents)} />
+        <Metric label="Subscribers" value={String(dashboard.subscriberCount)} />
+        <Metric label="Investors" value={String(dashboard.investorCount)} />
+        <Metric label="Investment capital" value={money(dashboard.investmentCapitalCents)} />
+        <Metric label="System health" value={dashboard.systemHealth} />
+      </div>
+
+      <Panel title="Executive Dashboard">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Weekly distributions" value={money(dashboard.weeklyDistributionsCents)} />
+          <MiniStat label="Pending distributions" value={money(dashboard.pendingDistributionsCents)} />
+          <MiniStat label="Pending renewals" value={String(dashboard.pendingRenewals)} />
+          <MiniStat label="Platform growth" value={`${dashboard.platformGrowthPercent}%`} />
+          <MiniStat label="Prediction accuracy" value={`${dashboard.predictionAccuracyPercent}%`} />
+          <MiniStat label="Infrastructure cost" value={money(dashboard.infrastructureCostCents)} />
+          <MiniStat label="API cost" value={money(dashboard.apiCostCents)} />
+          <MiniStat label="Marketing" value={dashboard.marketingPerformance} />
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Subscription Manager">
+          <div className="grid gap-3 md:grid-cols-2">
+            {control.structure.subscriberPlans.map((plan) => (
+              <article className={`rounded-lg border p-4 ${plan.highlighted ? "border-emerald-300 bg-emerald-950/20" : "border-zinc-800 bg-zinc-950"}`} key={plan.code}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{plan.code}</p>
+                <h3 className="mt-2 font-semibold">{plan.name}</h3>
+                <p className="mt-2 text-sm text-zinc-300">{money(plan.monthlyPriceCents)}/month | {money(plan.yearlyPriceCents)}/year</p>
+                <p className="mt-2 text-xs text-zinc-500">Trial: {plan.trialDays ?? 0} days | Grace: {plan.gracePeriodDays ?? 0} days</p>
+                <p className="mt-3 text-sm text-zinc-400">{plan.features.join(", ")}</p>
+              </article>
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+            Current placeholder subscription: {control.subscription.planCode} - {control.subscription.status}. Renewal: {control.subscription.renewalDate ? new Date(control.subscription.renewalDate).toLocaleDateString() : "None"}.
+          </div>
+        </Panel>
+
+        <Panel title="Investment Package Manager">
+          <div className="space-y-3">
+            {control.structure.investorPackages.map((item) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.status} - {item.lockPeriodCode}</p>
+                    <h3 className="mt-2 font-semibold">{item.name}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">Minimum {money(item.minimumAmountCents)} | Maximum {item.maximumAmountCents ? money(item.maximumAmountCents) : "Open"}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/commercial/investor-packages/${item.id}`, { visible: !item.visible })}>{item.visible ? "Hide" : "Show"}</button>
+                    <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/commercial/investor-packages/${item.id}`, { status: item.status === "ACTIVE" ? "PAUSED" : "ACTIVE" })}>{item.status === "ACTIVE" ? "Pause" : "Activate"}</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Pricing Engine">
+          <form
+            className="mb-4 grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/commercial/pricing-rules", {
+                name: form.get("name"),
+                countryCode: form.get("countryCode") || null,
+                currency: form.get("currency") || "USD",
+                discountPercent: Number(form.get("discountPercent") ?? 0),
+                couponCode: form.get("couponCode") || null,
+                promotionType: form.get("promotionType"),
+                active: true,
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Rule name" name="name" type="text" />
+            <TextField label="Country code" name="countryCode" type="text" />
+            <TextField label="Currency" name="currency" type="text" value="USD" />
+            <TextField label="Discount %" name="discountPercent" type="number" value="0" />
+            <TextField label="Coupon code" name="couponCode" type="text" />
+            <SelectField label="Promotion type" name="promotionType" value="DISCOUNT" options={["DISCOUNT", "REFERRAL", "LAUNCH", "SEASONAL", "ADMIN_OVERRIDE"].map((item) => ({ value: item, label: item }))} />
+            <div className="md:col-span-2"><SubmitButton>Create pricing rule</SubmitButton></div>
+          </form>
+          <div className="space-y-2">
+            {control.structure.pricingRules.map((rule) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={rule.id}>
+                <p className="font-semibold">{rule.name} - {rule.discountPercent}%</p>
+                <p className="text-zinc-400">{rule.currency} | {rule.countryCode ?? "Global"} | {rule.promotionType}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Infrastructure & API Control Center">
+          <form
+            className="mb-4 grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/infrastructure/providers", {
+                providerName: form.get("providerName"),
+                purpose: form.get("purpose"),
+                category: form.get("category"),
+                monthlyCostCents: Math.round(Number(form.get("monthlyCost")) * 100),
+                annualCostCents: Math.round(Number(form.get("annualCost")) * 100),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Provider" name="providerName" type="text" />
+            <TextField label="Purpose" name="purpose" type="text" />
+            <SelectField label="Category" name="category" value="Infrastructure" options={["Football APIs", "AI APIs", "Payments", "Messaging", "Infrastructure", "Hosting", "Domains", "Analytics", "Security", "Marketing"].map((item) => ({ value: item, label: item }))} />
+            <TextField label="Monthly cost" name="monthlyCost" type="number" value="0" />
+            <TextField label="Annual cost" name="annualCost" type="number" value="0" />
+            <div className="md:col-span-2"><SubmitButton>Add provider placeholder</SubmitButton></div>
+          </form>
+          <div className="space-y-2">
+            {control.infrastructureProviders.map((provider) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={provider.id}>
+                <p className="font-semibold">{provider.providerName} - {provider.health}</p>
+                <p className="text-zinc-400">{provider.category} | {provider.apiKeyStatus} | {money(provider.monthlyCostCents)}/month</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Smart Renewal Center">
+          <div className="space-y-3">
+            {control.renewals.map((renewal) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={renewal.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{renewal.status}</p>
+                <h3 className="mt-2 font-semibold">{renewal.title}</h3>
+                <p className="mt-2 text-sm text-zinc-400">Due {new Date(renewal.dueAt).toLocaleDateString()} | Alerts: {renewal.reminderWindows.join(", ")}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Procurement Center">
+          <form
+            className="mb-4 grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/procurement", {
+                vendor: form.get("vendor"),
+                plan: form.get("plan"),
+                status: form.get("status"),
+                costCents: Math.round(Number(form.get("cost")) * 100),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Vendor" name="vendor" type="text" />
+            <TextField label="Plan" name="plan" type="text" />
+            <SelectField label="Status" name="status" value="PENDING_PURCHASE" options={["PURCHASED", "PENDING_PURCHASE", "CANCELLED", "TRIAL", "EXPIRED", "RENEWAL_PENDING"].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))} />
+            <TextField label="Cost" name="cost" type="number" value="0" />
+            <div className="md:col-span-2"><SubmitButton>Add procurement item</SubmitButton></div>
+          </form>
+          <div className="space-y-2">
+            {control.procurement.map((item) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={item.id}>
+                <p className="font-semibold">{item.vendor} - {item.status}</p>
+                <p className="text-zinc-400">{item.plan} | {money(item.costCents)}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
 
 function MediaCommandCenterView({
   dashboard,
