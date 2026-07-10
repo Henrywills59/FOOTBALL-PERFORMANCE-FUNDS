@@ -5,6 +5,7 @@ import type { FootballConfig } from "./config.js";
 const baseConfig: FootballConfig = {
   apiFootballBaseUrl: "https://v3.football.api-sports.io",
   apiFootballKey: "test-key",
+  apiFootballAuthMode: "api-sports",
   oddsApiBaseUrl: "https://example.test",
   oddsApiSport: "soccer_epl",
   season: 2026,
@@ -60,6 +61,7 @@ describe("ApiFootballClient", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][1].headers["x-apisports-key"]).toBe("test-key");
+    expect(fetchMock.mock.calls[0][1].headers["x-rapidapi-key"]).toBeUndefined();
     expect(client.getStatus()).toMatchObject({
       configured: true,
       connectionStatus: "OPERATIONAL",
@@ -67,6 +69,23 @@ describe("ApiFootballClient", () => {
       requestsUsed: 12,
       dailyLimit: 100,
     });
+  });
+
+  it("uses RapidAPI headers only when RapidAPI auth mode is configured", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ response: ["UTC"] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiFootballClient({
+      ...baseConfig,
+      apiFootballAuthMode: "rapidapi",
+      apiFootballBaseUrl: "https://api-football-v1.p.rapidapi.com/v3",
+      apiFootballHost: "api-football-v1.p.rapidapi.com",
+    });
+
+    await client.timezones();
+
+    expect(fetchMock.mock.calls[0][1].headers["x-rapidapi-key"]).toBe("test-key");
+    expect(fetchMock.mock.calls[0][1].headers["x-rapidapi-host"]).toBe("api-football-v1.p.rapidapi.com");
+    expect(fetchMock.mock.calls[0][1].headers["x-apisports-key"]).toBeUndefined();
   });
 
   it("uses cache for stable requests and redacts provider failures", async () => {

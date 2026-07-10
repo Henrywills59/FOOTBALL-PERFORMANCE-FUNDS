@@ -1,5 +1,6 @@
 import type { FootballConfig } from "./config.js";
 import { fetchWithRetry, ProviderRequestError } from "./http.js";
+import { createHash } from "node:crypto";
 
 type ApiFootballEnvelope<T> = {
   response: T;
@@ -61,6 +62,10 @@ export class ApiFootballClient {
 
   timezones() {
     return this.get<string[]>("/timezone", {}, this.config.cacheWindows.catalogMs);
+  }
+
+  status() {
+    return this.get<unknown>("/status", {}, 0);
   }
 
   async fixtures(params: Record<string, string | number | boolean>) {
@@ -125,6 +130,61 @@ export class ApiFootballClient {
     };
   }
 
+  getSafeConfiguration() {
+    return {
+      configured: this.isConfigured(),
+      baseUrl: this.config.apiFootballBaseUrl,
+      authMode: this.config.apiFootballAuthMode,
+      hostConfigured: Boolean(this.config.apiFootballHost),
+      keyConfigured: Boolean(this.config.apiFootballKey),
+      keyFingerprint: fingerprintSecret(this.config.apiFootballKey),
+      headerNames: Object.keys(this.buildHeaders()),
+      missingVariables: this.getStatus().missingVariables,
+    };
+  }
+
+  async diagnosticRequest(path: string, params: Record<string, string | number | boolean> = {}) {
+    if (!this.config.apiFootballKey) {
+      return {
+        ok: false,
+        path,
+        url: null,
+        statusCode: null,
+        responseBody: { errors: ["API_FOOTBALL_KEY is not configured"] },
+        quota: null,
+      };
+    }
+
+    const url = this.buildUrl(path, params);
+    const startedAt = Date.now();
+    const response = await fetch(url.toString(), {
+      headers: this.buildHeaders(),
+      signal: AbortSignal.timeout(this.config.providerTimeoutMs),
+    });
+    const text = await response.text();
+    const responseBody = parseJsonOrText(text);
+    const quota = {
+      remaining:
+        response.headers.get("x-ratelimit-requests-remaining") ??
+        response.headers.get("x-requests-remaining"),
+      used:
+        response.headers.get("x-ratelimit-requests-used") ??
+        response.headers.get("x-requests-used"),
+      limit:
+        response.headers.get("x-ratelimit-requests-limit") ??
+        response.headers.get("x-requests-limit"),
+    };
+    return {
+      ok: response.ok,
+      path,
+      url: redactQuery(url),
+      statusCode: response.status,
+      responseTimeMs: Date.now() - startedAt,
+      quota,
+      responseBody,
+    };
+  }
+
   private async get<T>(
     path: string,
     params: Record<string, string | number | boolean>,
@@ -134,10 +194,7 @@ export class ApiFootballClient {
       throw new Error("API_FOOTBALL_KEY is not configured");
     }
 
-    const url = new URL(path, this.config.apiFootballBaseUrl);
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, String(value));
-    }
+    const url = this.buildUrl(path, params);
     const cacheKey = url.toString();
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -146,13 +203,7 @@ export class ApiFootballClient {
     }
     this.cacheMisses += 1;
 
-    const headers: Record<string, string> = {
-      "x-apisports-key": this.config.apiFootballKey,
-    };
-
-    if (this.config.apiFootballHost) {
-      headers["x-rapidapi-host"] = this.config.apiFootballHost;
-    }
+    const headers = this.buildHeaders();
 
     try {
       console.info("API_FOOTBALL_REQUEST", { path, params, cached: false });
@@ -196,6 +247,27 @@ export class ApiFootballClient {
       throw new Error(sanitizeProviderError(error));
     }
   }
+
+  private buildUrl(path: string, params: Record<string, string | number | boolean>) {
+    const url = new URL(path, this.config.apiFootballBaseUrl);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, String(value));
+    }
+    return url;
+  }
+
+  private buildHeaders() {
+    if (!this.config.apiFootballKey) return {};
+    if (this.config.apiFootballAuthMode === "rapidapi") {
+      return {
+        "x-rapidapi-key": this.config.apiFootballKey,
+        "x-rapidapi-host": this.config.apiFootballHost ?? "api-football-v1.p.rapidapi.com",
+      };
+    }
+    return {
+      "x-apisports-key": this.config.apiFootballKey,
+    };
+  }
 }
 
 function toNumberOrNull(value: string | null | undefined) {
@@ -230,4 +302,21 @@ function summarizeEnvelopeErrors(errors: unknown) {
       .join("; ")}`;
   }
   return `API-Football returned provider error: ${String(errors)}`;
+}
+
+function fingerprintSecret(value: string | undefined) {
+  if (!value) return null;
+  return createHash("sha256").update(value.trim()).digest("hex").slice(0, 12);
+}
+
+function parseJsonOrText(text: string) {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text.slice(0, 500);
+  }
+}
+
+function redactQuery(url: URL) {
+  return `${url.origin}${url.pathname}${url.search}`;
 }

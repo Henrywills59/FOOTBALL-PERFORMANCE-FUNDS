@@ -233,5 +233,20 @@ export function createFootballRouter(input: {
     },
   );
 
+  router.post(
+    "/football/provider/diagnostics",
+    signedIn,
+    requireRole(["ADMIN"]),
+    async (_request, response, next) => {
+      try {
+        const result = await input.syncService.diagnoseProvider();
+        const ok = result.diagnostics.status.ok && result.diagnostics.timezone.ok && result.diagnostics.fixture.ok;
+        response.status(ok ? 200 : 503).json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
   return router;
 }

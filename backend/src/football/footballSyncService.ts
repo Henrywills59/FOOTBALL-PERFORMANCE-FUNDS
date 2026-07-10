@@ -116,6 +116,24 @@ export class FootballSyncService {
     };
   }
 
+  async diagnoseProvider() {
+    const configuration = this.apiFootball.getSafeConfiguration();
+    const status = await this.apiFootball.diagnosticRequest("/status");
+    const timezone = await this.apiFootball.diagnosticRequest("/timezone");
+    const fixture = await this.apiFootball.diagnosticRequest("/fixtures", { next: 1 });
+    return {
+      provider: "API-Football" as const,
+      configuration,
+      requestsConsumed: [status, timezone, fixture].filter((request) => request.statusCode !== null).length,
+      diagnostics: {
+        status,
+        timezone,
+        fixture,
+      },
+      providerStatus: this.providerStatus(),
+    };
+  }
+
   async syncFixtures(): Promise<FootballSyncResult> {
     const runId = await this.repository.startSyncRun({ provider: "api-football", jobName: "fixtures" });
     let recordsRead = 0;

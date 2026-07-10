@@ -175,6 +175,7 @@ describe("football routes", () => {
     const repository = new InMemoryFootballRepository();
     const config = {
       apiFootballBaseUrl: "https://example.com",
+      apiFootballAuthMode: "api-sports" as const,
       oddsApiBaseUrl: "https://example.com",
       oddsApiSport: "soccer_epl",
       season: 2026,

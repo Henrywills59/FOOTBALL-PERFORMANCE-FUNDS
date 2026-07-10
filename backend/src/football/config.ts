@@ -2,6 +2,7 @@ export type FootballConfig = {
   apiFootballBaseUrl: string;
   apiFootballKey?: string;
   apiFootballHost?: string;
+  apiFootballAuthMode: "api-sports" | "rapidapi";
   oddsApiBaseUrl: string;
   oddsApiKey?: string;
   oddsApiSport: string;
@@ -37,10 +38,18 @@ function numberList(value: string | undefined, fallback: number[]) {
 export function getFootballConfig(): FootballConfig {
   const minute = 60 * 1000;
   const hour = 60 * minute;
+  const apiFootballBaseUrl = process.env.API_FOOTBALL_BASE_URL ?? "https://v3.football.api-sports.io";
+  const configuredAuthMode = process.env.API_FOOTBALL_AUTH_MODE;
+  const apiFootballAuthMode = configuredAuthMode === "rapidapi" || configuredAuthMode === "api-sports"
+    ? configuredAuthMode
+    : apiFootballBaseUrl.includes("rapidapi.com")
+      ? "rapidapi"
+      : "api-sports";
   return {
-    apiFootballBaseUrl: process.env.API_FOOTBALL_BASE_URL ?? "https://v3.football.api-sports.io",
+    apiFootballBaseUrl,
     apiFootballKey: process.env.API_FOOTBALL_KEY,
     apiFootballHost: process.env.API_FOOTBALL_HOST,
+    apiFootballAuthMode,
     oddsApiBaseUrl: process.env.ODDS_API_BASE_URL ?? "https://api.the-odds-api.com",
     oddsApiKey: process.env.ODDS_API_KEY,
     oddsApiSport: process.env.ODDS_API_SPORT ?? "soccer_epl",
