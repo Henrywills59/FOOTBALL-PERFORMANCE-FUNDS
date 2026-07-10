@@ -20,6 +20,7 @@ import type {
   CommercialStructure,
   CommercialControlCenter,
   DecisionEngineOutput,
+  ExecutiveSituationRoom,
   FootballFixtureDetail,
   FootballFixtureSummary,
   GlobalizationBootstrap,
@@ -48,6 +49,8 @@ import type {
   SubscriberOpportunity,
   SubscriberReport,
   SystemIncident,
+  TreasuryDashboard,
+  AnalystTreasuryView,
   UserGlobalPreferences,
   WarRoomDashboard,
   WithdrawalRequest,
@@ -112,9 +115,9 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
-const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "Rewards"] as const;
+const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "Treasury", "Rewards"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
@@ -227,6 +230,9 @@ export default function App() {
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
   const [adminAnalystControl, setAdminAnalystControl] = useState<AdminAnalystControlCenter | null>(null);
   const [warRoom, setWarRoom] = useState<WarRoomDashboard | null>(null);
+  const [treasuryDashboard, setTreasuryDashboard] = useState<TreasuryDashboard | null>(null);
+  const [executiveSituation, setExecutiveSituation] = useState<ExecutiveSituationRoom | null>(null);
+  const [analystTreasury, setAnalystTreasury] = useState<AnalystTreasuryView | null>(null);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
   const [commercialStructure, setCommercialStructure] = useState<CommercialStructure>(defaultCommercialStructure);
@@ -571,6 +577,8 @@ export default function App() {
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
       const analystControlData = await apiGet<AdminAnalystControlCenter>("/analysts", token);
       const warRoomData = await apiGet<WarRoomDashboard>("/war-room", token);
+      const treasuryData = await apiGet<TreasuryDashboard>("/treasury", token);
+      const executiveSituationData = await apiGet<ExecutiveSituationRoom>("/treasury/executive-situation-room", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
@@ -590,6 +598,8 @@ export default function App() {
       setAdminInvestorManagement(investorManagementData);
       setAdminAnalystControl(analystControlData);
       setWarRoom(warRoomData);
+      setTreasuryDashboard(treasuryData);
+      setExecutiveSituation(executiveSituationData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
@@ -657,7 +667,7 @@ export default function App() {
 
   async function loadAnalystData(token: string) {
     try {
-      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData] = await Promise.all([
+      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData, treasuryData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<AnalystPerformanceDashboard>("/analyst/performance", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
@@ -665,6 +675,7 @@ export default function App() {
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
         apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
         apiGet<WarRoomDashboard>("/war-room", token),
+        apiGet<AnalystTreasuryView>("/treasury/analyst/me", token),
       ]);
       setAnalystDashboard(dashboard);
       setAnalystPerformance(performanceData);
@@ -673,6 +684,7 @@ export default function App() {
       setFixtures(fixtureData.fixtures);
       setPredictionWorkflowQueue(workflowData);
       setWarRoom(warRoomData);
+      setAnalystTreasury(treasuryData);
       setLoadingLabel("Analyst workspace ready");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load analyst workspace");
@@ -1037,6 +1049,8 @@ export default function App() {
               analystControl={adminAnalystControl}
               mediaDashboard={mediaDashboard}
               commercialControl={commercialControl}
+              treasuryDashboard={treasuryDashboard}
+              executiveSituation={executiveSituation}
             />
           ) : null}
 
@@ -1050,6 +1064,7 @@ export default function App() {
               fixtures={fixtures}
               workflowQueue={predictionWorkflowQueue}
               warRoom={warRoom}
+              treasury={analystTreasury}
               submissions={analystSubmissions}
               onAction={analystAction}
               onAssistance={loadAnalystAssistance}
@@ -1188,6 +1203,8 @@ function AdminPortal({
   adminAnnouncements,
   mediaDashboard,
   commercialControl,
+  treasuryDashboard,
+  executiveSituation,
   onGlobalPreferences,
   onAction,
   onSimulate,
@@ -1221,6 +1238,8 @@ function AdminPortal({
   adminAnnouncements: AdminAnnouncement[];
   mediaDashboard: MediaDashboard | null;
   commercialControl: CommercialControlCenter | null;
+  treasuryDashboard: TreasuryDashboard | null;
+  executiveSituation: ExecutiveSituationRoom | null;
   onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1391,6 +1410,14 @@ function AdminPortal({
     return <WarRoomView dashboard={warRoom} isAdmin={true} onAction={onAction} />;
   }
 
+  if (activeView === "Treasury Center") {
+    return <TreasuryCenterView dashboard={treasuryDashboard} onAction={onAction} />;
+  }
+
+  if (activeView === "Executive Situation") {
+    return <ExecutiveSituationRoomView situation={executiveSituation} />;
+  }
+
   if (activeView === "Fixture Management") {
     return (
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -1500,6 +1527,7 @@ function AnalystPortal({
   submissions,
   workflowQueue,
   warRoom,
+  treasury,
 }: {
   activeView: AnalystNavItem;
   assignments: AnalystAssignment[];
@@ -1512,6 +1540,7 @@ function AnalystPortal({
   submissions: AnalystIntelligenceSubmission[];
   workflowQueue: PredictionWorkflowQueue | null;
   warRoom: WarRoomDashboard | null;
+  treasury: AnalystTreasuryView | null;
 }) {
   if (activeView === "Analyst Dashboard") {
     return (
@@ -1559,6 +1588,10 @@ function AnalystPortal({
 
   if (activeView === "War Room") {
     return <WarRoomView dashboard={warRoom} isAdmin={false} onAction={onAction} />;
+  }
+
+  if (activeView === "Treasury") {
+    return <AnalystTreasuryViewPanel treasury={treasury} />;
   }
 
   if (activeView === "Performance") {
@@ -2050,6 +2083,213 @@ function WarRoomView({
           <p className="mt-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">{dashboard.rulebook.confidentialityReminder}</p>
         </Panel>
       </div>
+    </div>
+  );
+}
+
+function TreasuryCenterView({ dashboard, onAction }: { dashboard: TreasuryDashboard | null; onAction: (path: string, body?: object) => Promise<void> }) {
+  if (!dashboard) return <LoadingSkeleton label="Preparing FPF Treasury Center" />;
+  const firstAllocation = dashboard.capitalAllocations[0];
+  const firstExecution = dashboard.executions[0];
+  const firstSettlement = dashboard.settlements[0];
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Treasury Accounts">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <MiniStat label="Company treasury" value={money(dashboard.accounts.companyTreasuryBalanceCents)} />
+          <MiniStat label="Investor principal" value={money(dashboard.accounts.investorCapitalBalanceCents)} />
+          <MiniStat label="Available staking" value={money(dashboard.accounts.capitalAvailableForStakingCents)} />
+          <MiniStat label="Open exposure" value={money(dashboard.accounts.capitalCurrentlyExposedCents)} />
+          <MiniStat label="Outstanding recon" value={money(dashboard.accounts.outstandingReconciliationCents)} />
+        </div>
+        <p className="mt-4 text-sm text-zinc-400">Investor principal, company profit, analyst rewards, and investor distributions are tracked separately. No payment or bookmaker API is connected.</p>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Panel title="Capital Allocation Extension">
+          <div className="space-y-3">
+            {dashboard.capitalAllocations.map((allocation) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={allocation.id}>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{allocation.approvalStatus} · {allocation.riskGrade}</p>
+                <h3 className="mt-2 font-semibold">{allocation.fixture}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{allocation.market} · {allocation.selection}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                  <MiniStat label="Recommended stake" value={money(allocation.recommendedStakeCents)} />
+                  <MiniStat label="Max stake" value={money(allocation.maximumAllowedStakeCents)} />
+                  <MiniStat label="Expected return" value={money(allocation.expectedReturnCents)} />
+                  <MiniStat label="Reliability" value={`${allocation.controls.reliabilityIndex}/100`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Manual Execution Desk">
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/treasury/executions", {
+                allocationId: form.get("allocationId"),
+                actualStakeCents: Number(form.get("actualStakeCents") ?? 0),
+                recommendedOdds: Number(form.get("recommendedOdds") ?? 0),
+                actualOdds: Number(form.get("actualOdds") ?? 0),
+                bookmaker: form.get("bookmaker"),
+                betReference: form.get("betReference"),
+                varianceReason: form.get("varianceReason"),
+                executionNotes: form.get("executionNotes"),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Allocation ID" name="allocationId" type="text" value={firstAllocation?.id ?? ""} />
+            <TextField label="Actual stake cents" name="actualStakeCents" type="number" value={String(firstAllocation?.recommendedStakeCents ?? 0)} />
+            <TextField label="Recommended odds" name="recommendedOdds" type="number" value="1.8" />
+            <TextField label="Actual odds" name="actualOdds" type="number" value="1.8" />
+            <TextField label="Bookmaker" name="bookmaker" type="text" />
+            <TextField label="Bet reference" name="betReference" type="text" />
+            <TextField label="Variance reason" name="varianceReason" type="text" />
+            <TextField label="Execution notes" name="executionNotes" type="text" />
+            <SubmitButton>Confirm manual execution placeholder</SubmitButton>
+          </form>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Settlement Engine">
+          {firstExecution ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                void onAction(`/treasury/executions/${firstExecution.id}/settle`, {
+                  outcome: form.get("outcome"),
+                  verificationStatus: form.get("verificationStatus"),
+                });
+              }}
+            >
+              <SelectField label="Outcome" name="outcome" value="WIN" options={["WIN", "LOSS", "VOID", "HALF_WIN", "HALF_LOSS", "CANCELLED", "PENDING_VERIFICATION"].map((value) => ({ value, label: value }))} />
+              <SelectField label="Verification" name="verificationStatus" value="PENDING" options={["PENDING", "VERIFIED"].map((value) => ({ value, label: value }))} />
+              <SubmitButton>Settle execution</SubmitButton>
+            </form>
+          ) : <p className="text-sm text-zinc-400">Create an execution before settlement.</p>}
+          <CompactTreasuryList items={dashboard.settlements.map((item) => `${item.outcome}: ${money(item.grossReturnCents)} returned`)} />
+        </Panel>
+
+        <Panel title="Match Reconciliation">
+          {firstSettlement ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                void onAction(`/treasury/settlements/${firstSettlement.id}/reconcile`, {
+                  amountDepositedBackCents: Number(form.get("amountDepositedBackCents") ?? 0),
+                  notes: form.get("notes"),
+                });
+              }}
+            >
+              <TextField label="Amount deposited back cents" name="amountDepositedBackCents" type="number" value={String(firstSettlement.grossReturnCents)} />
+              <TextField label="Notes" name="notes" type="text" />
+              <SubmitButton>Record reconciliation</SubmitButton>
+            </form>
+          ) : <p className="text-sm text-zinc-400">Settle a match before reconciliation.</p>}
+          <CompactTreasuryList items={dashboard.reconciliations.map((item) => `${item.status}: outstanding ${money(item.outstandingDifferenceCents)}`)} />
+        </Panel>
+
+        <Panel title="Financial Exceptions">
+          <CompactTreasuryList items={dashboard.exceptions.map((item) => `${item.severity}: ${item.message}`)} />
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Daily Treasury Reconciliation">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <MiniStat label="Staked" value={money(dashboard.daily.capitalActuallyStakedCents)} />
+            <MiniStat label="Expected back" value={money(dashboard.daily.amountExpectedBackCents)} />
+            <MiniStat label="Net P/L" value={money(dashboard.daily.netDailyProfitCents)} />
+          </div>
+          <button className="mt-4 rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-200" type="button" onClick={() => void onAction("/treasury/daily/close", { overrideReason: null })}>Close trading day</button>
+        </Panel>
+
+        <Panel title="Weekly Financial Closure">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <MiniStat label="Net profit" value={money(dashboard.weekly.confirmedWeeklyNetProfitCents)} />
+            <MiniStat label="Company" value={`${dashboard.policy.companySharePercent}%`} />
+            <MiniStat label="Analysts / Investors" value={`${dashboard.policy.analystRewardPercent}% / ${dashboard.policy.investorDistributionPercent}%`} />
+          </div>
+          <button className="mt-4 rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-200" type="button" onClick={() => void onAction("/treasury/weekly/close", { executiveApproval: true, approvalNotes: "Executive placeholder approval" })}>Close weekly period</button>
+        </Panel>
+      </div>
+
+      <Panel title="Treasury Ledger">
+        <CompactTreasuryList items={dashboard.ledger.map((entry) => `${entry.direction} ${money(entry.amountCents)} · ${entry.account} · ${entry.classification}`)} />
+      </Panel>
+    </div>
+  );
+}
+
+function ExecutiveSituationRoomView({ situation }: { situation: ExecutiveSituationRoom | null }) {
+  if (!situation) return <LoadingSkeleton label="Preparing Executive Situation Room" />;
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Executive Situation Room">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <MiniStat label="Approved selections" value={String(situation.approvedSelectionsToday)} />
+          <MiniStat label="Capital recommended" value={money(situation.capitalRecommendedCents)} />
+          <MiniStat label="Capital placed" value={money(situation.capitalActuallyPlacedCents)} />
+          <MiniStat label="Open exposure" value={money(situation.openExposureCents)} />
+          <MiniStat label="System health" value={situation.systemHealth} />
+        </div>
+      </Panel>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Profit Split Projection">
+          <MiniStat label="Weekly net profit" value={money(situation.weeklyConfirmedNetProfitCents)} />
+          <MiniStat label="Company share" value={money(situation.companyShareProjectionCents)} />
+          <MiniStat label="Analyst pool" value={money(situation.analystRewardPoolProjectionCents)} />
+          <MiniStat label="Investor pool" value={money(situation.investorDistributionPoolProjectionCents)} />
+        </Panel>
+        <Panel title="Pending Controls">
+          <CompactTreasuryList items={[
+            `Pending settlements: ${situation.pendingSettlements.length}`,
+            `Pending reconciliations: ${situation.pendingReconciliations.length}`,
+            `Pending approvals: ${situation.pendingApprovals.length}`,
+          ]} />
+        </Panel>
+        <Panel title="Critical Alerts">
+          <CompactTreasuryList items={situation.criticalFinancialAlerts.map((alert) => `${alert.severity}: ${alert.message}`)} />
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function AnalystTreasuryViewPanel({ treasury }: { treasury: AnalystTreasuryView | null }) {
+  if (!treasury) return <LoadingSkeleton label="Preparing analyst treasury controls" />;
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Analyst Treasury Visibility">
+        <p className="text-sm text-zinc-400">{treasury.notice}</p>
+      </Panel>
+      <Panel title="My Approved Allocations">
+        <CompactTreasuryList items={treasury.allocations.map((allocation) => `${allocation.fixture} · ${allocation.market} · ${money(allocation.recommendedStakeCents)} · ${allocation.riskGrade}`)} />
+      </Panel>
+      <Panel title="My Reward Calculations">
+        <CompactTreasuryList items={treasury.rewards.map((reward) => `${reward.analystName}: ${money(reward.rewardCents)} · ${reward.status}`)} />
+      </Panel>
+    </div>
+  );
+}
+
+function CompactTreasuryList({ items }: { items: string[] }) {
+  return (
+    <div className="mt-3 space-y-2">
+      {items.map((item) => (
+        <p className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-300" key={item}>{item}</p>
+      ))}
+      {!items.length ? <p className="text-sm text-zinc-400">No records yet.</p> : null}
     </div>
   );
 }

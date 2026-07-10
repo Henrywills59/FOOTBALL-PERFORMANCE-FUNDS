@@ -58,6 +58,8 @@ import { PredictionWorkflowService } from "./predictionWorkflow/predictionWorkfl
 import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js";
 import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
+import { createTreasuryRouter } from "./treasury/treasuryRoutes.js";
+import { TreasuryService } from "./treasury/treasuryService.js";
 import { getNowPaymentsConfig, NowPaymentsClient } from "./wallet/nowPaymentsClient.js";
 import { PrismaWalletRepository } from "./wallet/walletRepository.js";
 import { createWalletRouter } from "./wallet/walletRoutes.js";
@@ -242,6 +244,7 @@ export function createApp(options?: {
       : new PrismaMediaRepository()
   );
   const mediaService = new MediaService(mediaRepository);
+  const treasuryService = new TreasuryService();
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -440,6 +443,13 @@ export function createApp(options?: {
     createSubscriberRouter({
       authService,
       subscriberService,
+    }),
+  );
+  app.use(
+    "/api",
+    createTreasuryRouter({
+      authService,
+      treasuryService,
     }),
   );
   app.use(errorHandler);

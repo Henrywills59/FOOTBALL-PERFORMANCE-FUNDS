@@ -1593,3 +1593,366 @@ model FootballSyncRun {
   recordsRead Int                @default(0)
   recordsSaved Int               @default(0)
 }
+
+model TreasuryAccount {
+  id            String   @id @default(uuid())
+  name          String
+  accountType   String
+  balanceCents  Int      @default(0)
+  currency      String   @default("USD")
+  status        String   @default("ACTIVE")
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([accountType])
+  @@index([status])
+  @@map("treasury_accounts")
+}
+
+model TreasuryLedger {
+  id            String   @id @default(uuid())
+  account       String
+  direction     String
+  amountCents   Int      @default(0)
+  classification String
+  referenceType String
+  referenceId   String?
+  notes         String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  @@index([account])
+  @@index([referenceType, referenceId])
+  @@map("treasury_ledger")
+}
+
+model CapitalAllocationExtension {
+  id                       String   @id @default(uuid())
+  fixture                  String
+  market                   String
+  selection                String
+  analystIds               Json     @default("[]")
+  recommendedStakeCents    Int      @default(0)
+  maximumAllowedStakeCents Int      @default(0)
+  dailyAllocationCents     Int      @default(0)
+  weeklyAllocationCents    Int      @default(0)
+  matchAllocationCents     Int      @default(0)
+  marketAllocationCents    Int      @default(0)
+  riskGrade                String
+  expectedReturnCents      Int      @default(0)
+  approvalStatus           String   @default("PENDING")
+  allocationTimestamp      DateTime @default(now())
+  allocatedBy              String
+  controls                 Json     @default("{}")
+
+  @@index([approvalStatus])
+  @@index([riskGrade])
+  @@map("capital_allocation_extensions")
+}
+
+model BetExecutionRecord {
+  id                       String   @id @default(uuid())
+  allocationId             String
+  fixture                  String
+  market                   String
+  selection                String
+  recommendedStakeCents    Int      @default(0)
+  actualStakeCents         Int      @default(0)
+  recommendedOdds          Float    @default(0)
+  actualOdds               Float    @default(0)
+  bookmaker                String
+  betReference             String
+  placedAt                 DateTime @default(now())
+  currency                 String   @default("USD")
+  status                   String   @default("PENDING_EXECUTION")
+  varianceReason           String?
+  executionNotes           String?
+  evidencePlaceholder      String?
+  executedBy               String
+  createdAt                DateTime @default(now())
+
+  @@index([allocationId])
+  @@index([status])
+  @@map("bet_execution_records")
+}
+
+model MatchSettlement {
+  id                                  String   @id @default(uuid())
+  executionId                         String
+  outcome                             String
+  actualStakeCents                    Int      @default(0)
+  actualOdds                          Float    @default(0)
+  grossReturnCents                    Int      @default(0)
+  capitalReturnedCents                Int      @default(0)
+  grossProfitCents                    Int      @default(0)
+  lossCents                           Int      @default(0)
+  netResultCents                      Int      @default(0)
+  bookmakerDeductionCents             Int      @default(0)
+  currencyConversionPlaceholderCents  Int      @default(0)
+  verificationStatus                  String   @default("PENDING")
+  settledBy                           String
+  settledAt                           DateTime @default(now())
+
+  @@unique([executionId])
+  @@index([outcome])
+  @@map("match_settlements")
+}
+
+model MatchReconciliation {
+  id                         String   @id @default(uuid())
+  settlementId               String
+  capitalApprovedCents       Int      @default(0)
+  capitalActuallyStakedCents Int      @default(0)
+  expectedReturnCents        Int      @default(0)
+  actualReturnCents          Int      @default(0)
+  capitalExpectedBackCents   Int      @default(0)
+  amountDepositedBackCents   Int      @default(0)
+  outstandingDifferenceCents Int      @default(0)
+  status                     String   @default("NOT_STARTED")
+  notes                      String?
+  evidencePlaceholder        String?
+  reconciledBy               String
+  reconciledAt               DateTime @default(now())
+
+  @@index([settlementId])
+  @@index([status])
+  @@map("match_reconciliations")
+}
+
+model TreasuryReconciliation {
+  id             String   @id @default(uuid())
+  periodType     String
+  periodLabel    String
+  expectedCents  Int      @default(0)
+  actualCents    Int      @default(0)
+  differenceCents Int     @default(0)
+  status         String   @default("PENDING")
+  notes          String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+
+  @@index([periodType, periodLabel])
+  @@index([status])
+  @@map("treasury_reconciliations")
+}
+
+model TradingDay {
+  id                              String   @id @default(uuid())
+  date                            DateTime
+  openingTreasuryBalanceCents     Int      @default(0)
+  capitalAllocatedCents           Int      @default(0)
+  capitalActuallyStakedCents      Int      @default(0)
+  unusedAllocatedCapitalCents     Int      @default(0)
+  openExposureCents               Int      @default(0)
+  settledCapitalCents             Int      @default(0)
+  grossReturnsCents               Int      @default(0)
+  grossProfitCents                Int      @default(0)
+  totalLossesCents                Int      @default(0)
+  netDailyProfitCents             Int      @default(0)
+  amountExpectedBackCents         Int      @default(0)
+  amountDepositedBackCents        Int      @default(0)
+  outstandingReconciliationCents  Int      @default(0)
+  closingTreasuryBalanceCents     Int      @default(0)
+  status                          String   @default("OPEN")
+  closureNotes                    String?
+  closedBy                        String?
+  closedAt                        DateTime?
+
+  @@index([date])
+  @@index([status])
+  @@map("trading_days")
+}
+
+model WeeklyFinancialPeriod {
+  id                                String   @id @default(uuid())
+  weekLabel                         String
+  openingTreasuryCents              Int      @default(0)
+  investorPrincipalCents            Int      @default(0)
+  companyCapitalCents               Int      @default(0)
+  totalCapitalStakedCents           Int      @default(0)
+  grossReturnsCents                 Int      @default(0)
+  grossProfitCents                  Int      @default(0)
+  totalLossesCents                  Int      @default(0)
+  confirmedWeeklyNetProfitCents     Int      @default(0)
+  outstandingReconciliationsCents   Int      @default(0)
+  closingTreasuryBalanceCents       Int      @default(0)
+  status                            String   @default("OPEN")
+  createdAt                         DateTime @default(now())
+  closedAt                          DateTime?
+
+  @@index([weekLabel])
+  @@index([status])
+  @@map("weekly_financial_periods")
+}
+
+model ProfitDistributionPolicy {
+  id                          String   @id @default(uuid())
+  version                     Int      @default(1)
+  companySharePercent         Float    @default(50)
+  analystRewardPercent        Float    @default(20)
+  investorDistributionPercent Float    @default(30)
+  active                      Boolean  @default(true)
+  updatedBy                   String
+  updatedAt                   DateTime @updatedAt
+
+  @@index([active])
+  @@map("profit_distribution_policies")
+}
+
+model ProfitDistributionPolicyVersion {
+  id            String   @id @default(uuid())
+  policyId      String
+  version       Int
+  previousValue Json     @default("{}")
+  newValue      Json     @default("{}")
+  changedBy     String
+  changedAt     DateTime @default(now())
+
+  @@index([policyId])
+  @@map("profit_distribution_policy_versions")
+}
+
+model ProfitDistributionRun {
+  id             String   @id @default(uuid())
+  weeklyPeriodId String
+  netProfitCents Int      @default(0)
+  companyShareCents Int   @default(0)
+  analystPoolCents Int    @default(0)
+  investorPoolCents Int   @default(0)
+  status         String   @default("CALCULATED")
+  createdBy      String
+  createdAt      DateTime @default(now())
+
+  @@index([weeklyPeriodId])
+  @@index([status])
+  @@map("profit_distribution_runs")
+}
+
+model CompanyProfitShare {
+  id             String   @id @default(uuid())
+  distributionRunId String
+  amountCents    Int      @default(0)
+  classification String
+  ledgerEntryId  String
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([distributionRunId])
+  @@map("company_profit_shares")
+}
+
+model AnalystRewardPool {
+  id             String   @id @default(uuid())
+  distributionRunId String
+  totalPoolCents Int      @default(0)
+  status         String   @default("CALCULATED")
+  createdAt      DateTime @default(now())
+
+  @@index([distributionRunId])
+  @@index([status])
+  @@map("analyst_reward_pools")
+}
+
+model AnalystRewardAllocation {
+  id             String   @id @default(uuid())
+  rewardPoolId   String
+  analystId      String
+  contributionWeight Float @default(0)
+  rewardCents    Int      @default(0)
+  status         String   @default("CALCULATED")
+  breakdown      Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  @@index([analystId])
+  @@index([status])
+  @@map("analyst_reward_allocations")
+}
+
+model InvestorDistributionPool {
+  id             String   @id @default(uuid())
+  distributionRunId String
+  totalPoolCents Int      @default(0)
+  status         String   @default("CALCULATED")
+  createdAt      DateTime @default(now())
+
+  @@index([distributionRunId])
+  @@index([status])
+  @@map("investor_distribution_pools")
+}
+
+model InvestorDistributionAllocation {
+  id                  String   @id @default(uuid())
+  investorPoolId       String
+  investorId           String
+  participationWeight  Float    @default(0)
+  distributionCents    Int      @default(0)
+  reinvestmentCents    Int      @default(0)
+  withdrawalCents      Int      @default(0)
+  status               String   @default("CALCULATED")
+  explanation          String
+  createdAt            DateTime @default(now())
+
+  @@index([investorId])
+  @@index([status])
+  @@map("investor_distribution_allocations")
+}
+
+model FinancialException {
+  id          String   @id @default(uuid())
+  type        String
+  severity    String
+  status      String   @default("OPEN")
+  message     String
+  relatedId   String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@map("financial_exceptions")
+}
+
+model FinancialApproval {
+  id             String   @id @default(uuid())
+  approvalType   String
+  referenceType  String
+  referenceId    String
+  status         String   @default("PENDING")
+  reason         String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([referenceType, referenceId])
+  @@index([status])
+  @@map("financial_approvals")
+}
+
+model ReconciliationEvidence {
+  id             String   @id @default(uuid())
+  reconciliationId String
+  evidenceType   String
+  placeholderUri String?
+  notes          String?
+  uploadedBy     String
+  uploadedAt     DateTime @default(now())
+
+  @@index([reconciliationId])
+  @@map("reconciliation_evidence")
+}
+
+model WeeklyClosureReport {
+  id             String   @id @default(uuid())
+  weeklyPeriodId String
+  title          String
+  summary        String
+  metrics        Json     @default("{}")
+  generatedBy    String
+  generatedAt    DateTime @default(now())
+
+  @@index([weeklyPeriodId])
+  @@map("weekly_closure_reports")
+}
