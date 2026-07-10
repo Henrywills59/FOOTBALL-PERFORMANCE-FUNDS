@@ -86,6 +86,69 @@ describe("football routes", () => {
     expect(response.body.fixture.leagueName).toBe("Premier League");
   });
 
+  it("returns provider status and normalized football read routes", async () => {
+    const { app, token } = await signedInApp();
+
+    const status = await request(app)
+      .get("/api/football/status")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(status.body.provider.provider).toBe("API-Football");
+    expect(status.body.provider.missingVariables).toContain("API_FOOTBALL_KEY");
+
+    const leagues = await request(app)
+      .get("/api/football/leagues")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(leagues.body.leagues[0].name).toBe("Premier League");
+
+    await request(app)
+      .get("/api/football/fixtures/live")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/football/standings")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    const team = await request(app)
+      .get("/api/football/teams/1")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(team.body.team.name).toBe("Home FC");
+
+    await request(app)
+      .get("/api/football/teams/1/statistics")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/football/fixtures/1001/events")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/football/fixtures/1001/statistics")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/football/fixtures/1001/lineups")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/football/fixtures/1001/injuries")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/football/head-to-head?fixtureId=1001")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+  });
+
   it("protects manual sync for analysts and admins", async () => {
     const subscriber = await signedInApp("SUBSCRIBER");
     await request(subscriber.app)

@@ -1,5 +1,38 @@
 import type { FootballFixtureDetail, FootballFixtureSummary, FootballSyncStatus } from "@fpf/shared";
 
+export type FreshnessState = "FRESH" | "STALE" | "REFRESHING" | "PROVIDER_PENDING" | "PROVIDER_ERROR";
+
+export type FootballFreshness = {
+  provider: "API-Football";
+  lastSynchronizedAt: string | null;
+  freshnessState: FreshnessState;
+  stale: boolean;
+  nextScheduledRefresh: string | null;
+  providerAvailability: "AVAILABLE" | "MISSING_CONFIGURATION" | "DEGRADED";
+};
+
+export type NormalizedLeague = {
+  id: string;
+  apiFootballLeagueId: number;
+  name: string;
+  country: string | null;
+  logoUrl: string | null;
+  season: number;
+};
+
+export type NormalizedTeam = {
+  id: string;
+  apiFootballTeamId: number;
+  name: string;
+  country: string | null;
+  logoUrl: string | null;
+};
+
+export type FootballReadModel<T> = {
+  data: T;
+  freshness: FootballFreshness;
+};
+
 export type FixtureUpsert = {
   apiFootballFixtureId: number;
   league: {
@@ -83,5 +116,14 @@ export type FootballRepository = {
     date?: string;
   }): Promise<FootballFixtureSummary[]>;
   getFixture(id: string): Promise<FootballFixtureDetail | null>;
+  listLeagues(): Promise<NormalizedLeague[]>;
+  listStandings(input: { leagueId?: string; season?: number }): Promise<FootballReadModel<FootballFixtureDetail["standings"]>>;
+  getTeam(id: string): Promise<FootballReadModel<NormalizedTeam | null>>;
+  getTeamStatistics(id: string): Promise<FootballReadModel<unknown | null>>;
+  getFixtureEvents(id: string): Promise<FootballReadModel<unknown[]>>;
+  getFixtureStatistics(id: string): Promise<FootballReadModel<unknown[]>>;
+  getFixtureLineups(id: string): Promise<FootballReadModel<unknown[]>>;
+  getFixtureInjuries(id: string): Promise<FootballReadModel<FootballFixtureDetail["injuries"]>>;
+  getHeadToHead(id: string): Promise<FootballReadModel<FootballFixtureDetail["headToHeadRecords"]>>;
   getSyncStatus(jobsEnabled: boolean, jobsStarted: boolean): Promise<FootballSyncStatus>;
 };

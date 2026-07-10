@@ -9,6 +9,18 @@ export type FootballConfig = {
   leagueIds: number[];
   jobsEnabled: boolean;
   syncIntervalMinutes: number;
+  providerTimeoutMs: number;
+  apiFootballDailyLimit: number | null;
+  quotaWarningThresholds: number[];
+  cacheWindows: {
+    catalogMs: number;
+    teamsMs: number;
+    fixturesMs: number;
+    liveMs: number;
+    standingsMs: number;
+    injuriesMs: number;
+    finishedMs: number;
+  };
 };
 
 function numberList(value: string | undefined, fallback: number[]) {
@@ -23,6 +35,8 @@ function numberList(value: string | undefined, fallback: number[]) {
 }
 
 export function getFootballConfig(): FootballConfig {
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
   return {
     apiFootballBaseUrl: process.env.API_FOOTBALL_BASE_URL ?? "https://v3.football.api-sports.io",
     apiFootballKey: process.env.API_FOOTBALL_KEY,
@@ -34,5 +48,17 @@ export function getFootballConfig(): FootballConfig {
     leagueIds: numberList(process.env.API_FOOTBALL_LEAGUE_IDS, [39]),
     jobsEnabled: process.env.ENABLE_FOOTBALL_JOBS === "true",
     syncIntervalMinutes: Number(process.env.FOOTBALL_SYNC_INTERVAL_MINUTES ?? 15),
+    providerTimeoutMs: Number(process.env.API_FOOTBALL_TIMEOUT_MS ?? 8000),
+    apiFootballDailyLimit: process.env.API_FOOTBALL_DAILY_LIMIT ? Number(process.env.API_FOOTBALL_DAILY_LIMIT) : null,
+    quotaWarningThresholds: numberList(process.env.API_FOOTBALL_QUOTA_WARNING_THRESHOLDS, [70, 85, 95]),
+    cacheWindows: {
+      catalogMs: Number(process.env.API_FOOTBALL_CATALOG_CACHE_MINUTES ?? 1440) * minute,
+      teamsMs: Number(process.env.API_FOOTBALL_TEAM_CACHE_MINUTES ?? 1440) * minute,
+      fixturesMs: Number(process.env.API_FOOTBALL_FIXTURE_CACHE_MINUTES ?? 180) * minute,
+      liveMs: Number(process.env.API_FOOTBALL_LIVE_CACHE_SECONDS ?? 60) * 1000,
+      standingsMs: Number(process.env.API_FOOTBALL_STANDINGS_CACHE_MINUTES ?? 180) * minute,
+      injuriesMs: Number(process.env.API_FOOTBALL_INJURY_CACHE_MINUTES ?? 360) * minute,
+      finishedMs: Number(process.env.API_FOOTBALL_FINISHED_CACHE_HOURS ?? 168) * hour,
+    },
   };
 }

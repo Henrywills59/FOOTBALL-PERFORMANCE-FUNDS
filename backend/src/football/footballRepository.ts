@@ -5,8 +5,11 @@ import { isPrismaRecoverableReadError, logOptionalDataFallback } from "../databa
 import type { FootballFixtureDetail, FootballFixtureSummary } from "@fpf/shared";
 import type {
   FixtureUpsert,
+  FootballFreshness,
   FootballRepository,
   InjuryUpsert,
+  NormalizedLeague,
+  NormalizedTeam,
   OddUpsert,
   StandingUpsert,
 } from "./types.js";
@@ -141,6 +144,13 @@ export class PrismaFootballRepository implements FootballRepository {
       ? await this.prisma.footballFixture.findUnique({ where: { apiFootballFixtureId: input.fixtureApiId } })
       : null;
 
+    await this.prisma.playerInjury.deleteMany({
+      where: {
+        fixtureId: fixture?.id ?? null,
+        teamId: team.id,
+        playerName: input.playerName,
+      },
+    });
     await this.prisma.playerInjury.create({
       data: {
         fixtureId: fixture?.id,
@@ -168,6 +178,15 @@ export class PrismaFootballRepository implements FootballRepository {
       ? await this.prisma.footballFixture.findUnique({ where: { apiFootballFixtureId: input.fixtureApiId } })
       : null;
 
+    await this.prisma.matchOdd.deleteMany({
+      where: {
+        fixtureId: fixture?.id ?? null,
+        fixtureApiId: input.fixtureApiId,
+        bookmaker: input.bookmaker,
+        market: input.market,
+        outcome: input.outcome,
+      },
+    });
     await this.prisma.matchOdd.create({
       data: {
         fixtureId: fixture?.id,
@@ -308,6 +327,115 @@ export class PrismaFootballRepository implements FootballRepository {
     };
   }
 
+  async listLeagues(): Promise<NormalizedLeague[]> {
+    try {
+      const leagues = await this.prisma.footballLeague.findMany({
+        orderBy: [{ country: "asc" }, { name: "asc" }],
+      });
+      return leagues.map((league) => ({
+        id: league.id,
+        apiFootballLeagueId: league.apiFootballLeagueId,
+        name: league.name,
+        country: league.country,
+        logoUrl: league.logoUrl,
+        season: league.season,
+      }));
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback("football.leagues", error);
+      return [];
+    }
+  }
+
+  async listStandings(input: { leagueId?: string; season?: number }) {
+    const freshness = await this.getFreshness();
+    try {
+      const standings = await this.prisma.leagueStanding.findMany({
+        where: {
+          ...(input.leagueId ? { leagueId: input.leagueId } : {}),
+          ...(input.season ? { season: input.season } : {}),
+        },
+        include: { team: true },
+        orderBy: { rank: "asc" },
+      });
+      return {
+        data: standings.map((standing) => ({
+          teamName: standing.team.name,
+          rank: standing.rank,
+          points: standing.points,
+          played: standing.played,
+          won: standing.won,
+          drawn: standing.drawn,
+          lost: standing.lost,
+        })),
+        freshness,
+      };
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback("football.standings", error);
+      return { data: [], freshness: { ...freshness, freshnessState: "PROVIDER_PENDING" as const, stale: true } };
+    }
+  }
+
+  async getTeam(id: string) {
+    const freshness = await this.getFreshness();
+    try {
+      const team = await this.prisma.footballTeam.findFirst({
+        where: {
+          OR: [
+            { id },
+            ...(Number.isFinite(Number(id)) ? [{ apiFootballTeamId: Number(id) }] : []),
+          ],
+        },
+      });
+      return {
+        data: team ? this.mapTeam(team) : null,
+        freshness,
+      };
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback("football.team", error);
+      return { data: null, freshness: { ...freshness, freshnessState: "PROVIDER_PENDING" as const, stale: true } };
+    }
+  }
+
+  async getTeamStatistics(id: string) {
+    const freshness = await this.getFreshness();
+    try {
+      const team = await this.prisma.footballTeam.findFirst({
+        where: { OR: [{ id }, ...(Number.isFinite(Number(id)) ? [{ apiFootballTeamId: Number(id) }] : [])] },
+        include: { statistics: { orderBy: { updatedAt: "desc" }, take: 1 } },
+      });
+      return { data: team?.statistics[0]?.raw ?? null, freshness };
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback("football.teamStatistics", error);
+      return { data: null, freshness: { ...freshness, freshnessState: "PROVIDER_PENDING" as const, stale: true } };
+    }
+  }
+
+  async getFixtureEvents(id: string) {
+    return this.fixtureRawArray(id, "events");
+  }
+
+  async getFixtureStatistics(id: string) {
+    return this.fixtureRawArray(id, "statistics");
+  }
+
+  async getFixtureLineups(id: string) {
+    return this.fixtureRawArray(id, "lineups");
+  }
+
+  async getFixtureInjuries(id: string) {
+    const fixture = await this.getFixture(id);
+    return { data: fixture?.injuries ?? [], freshness: await this.getFreshness() };
+  }
+
+  async getHeadToHead(id: string) {
+    const fixture = await this.getFixture(id);
+    return { data: fixture?.headToHeadRecords ?? [], freshness: await this.getFreshness() };
+  }
+
   async getSyncStatus(jobsEnabled: boolean, jobsStarted: boolean) {
     let lastRun;
     try {
@@ -339,5 +467,66 @@ export class PrismaFootballRepository implements FootballRepository {
 
   private async findLeague(apiFootballLeagueId: number) {
     return this.prisma.footballLeague.findUnique({ where: { apiFootballLeagueId } });
+  }
+
+  private mapTeam(team: { id: string; apiFootballTeamId: number; name: string; country: string | null; logoUrl: string | null }): NormalizedTeam {
+    return {
+      id: team.id,
+      apiFootballTeamId: team.apiFootballTeamId,
+      name: team.name,
+      country: team.country,
+      logoUrl: team.logoUrl,
+    };
+  }
+
+  private async fixtureRawArray(id: string, key: string) {
+    const freshness = await this.getFreshness();
+    try {
+      const fixture = await this.prisma.footballFixture.findFirst({
+        where: {
+          OR: [
+            { id },
+            ...(Number.isFinite(Number(id)) ? [{ apiFootballFixtureId: Number(id) }] : []),
+          ],
+        },
+      });
+      const raw = fixture?.raw && typeof fixture.raw === "object" ? fixture.raw as Record<string, unknown> : {};
+      const value = raw[key];
+      return { data: Array.isArray(value) ? value : [], freshness };
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback(`football.fixture.${key}`, error);
+      return { data: [], freshness: { ...freshness, freshnessState: "PROVIDER_PENDING" as const, stale: true } };
+    }
+  }
+
+  private async getFreshness(): Promise<FootballFreshness> {
+    try {
+      const lastRun = await this.prisma.footballSyncRun.findFirst({
+        where: { provider: "api-football" },
+        orderBy: { startedAt: "desc" },
+      });
+      const lastSynchronizedAt = lastRun?.finishedAt ?? lastRun?.startedAt ?? null;
+      const stale = lastSynchronizedAt ? Date.now() - lastSynchronizedAt.getTime() > 3 * 60 * 60 * 1000 : true;
+      return {
+        provider: "API-Football",
+        lastSynchronizedAt: lastSynchronizedAt?.toISOString() ?? null,
+        freshnessState: !lastRun ? "PROVIDER_PENDING" : lastRun.status === "FAILED" ? "PROVIDER_ERROR" : stale ? "STALE" : "FRESH",
+        stale,
+        nextScheduledRefresh: null,
+        providerAvailability: lastRun?.status === "FAILED" ? "DEGRADED" : "AVAILABLE",
+      };
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback("football.freshness", error);
+      return {
+        provider: "API-Football",
+        lastSynchronizedAt: null,
+        freshnessState: "PROVIDER_PENDING",
+        stale: true,
+        nextScheduledRefresh: null,
+        providerAvailability: "DEGRADED",
+      };
+    }
   }
 }

@@ -66,9 +66,26 @@ export class FootballSyncService {
 
   async syncAll() {
     await this.syncFixtures();
+    if (!this.shouldRunNonCriticalSync()) return;
     await this.syncStandingsAndStatistics();
     await this.syncInjuries();
     await this.syncOdds();
+  }
+
+  providerStatus() {
+    const status = this.apiFootball.getStatus();
+    const quotaPercentUsed = status.dailyLimit && status.requestsUsed !== null
+      ? Math.round((status.requestsUsed / status.dailyLimit) * 100)
+      : null;
+    const warningThreshold = quotaPercentUsed === null
+      ? null
+      : this.config.quotaWarningThresholds.find((threshold) => quotaPercentUsed >= threshold) ?? null;
+    return {
+      ...status,
+      quotaPercentUsed,
+      warningThreshold,
+      nonCriticalSyncPaused: warningThreshold !== null && warningThreshold >= 95,
+    };
   }
 
   async syncFixtures() {
@@ -82,13 +99,13 @@ export class FootballSyncService {
         return;
       }
 
+      const live = await this.apiFootball.liveFixtures();
       for (const leagueId of this.config.leagueIds) {
         const result = await this.apiFootball.fixtures({
           league: leagueId,
           season: this.config.season,
           next: 20,
         });
-        const live = await this.apiFootball.liveFixtures();
         const fixtures = [...result.response, ...live.response];
         recordsRead += fixtures.length;
 
@@ -278,5 +295,10 @@ export class FootballSyncService {
     } catch (error) {
       return { error: error instanceof Error ? error.message : "Team statistics unavailable" };
     }
+  }
+
+  private shouldRunNonCriticalSync() {
+    const status = this.providerStatus();
+    return !(status.nonCriticalSyncPaused || status.connectionStatus === "RATE_LIMITED");
   }
 }

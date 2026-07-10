@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import type { FootballRepository } from "./types.js";
 import type { FootballSyncService } from "./footballSyncService.js";
 import type { FootballConfig } from "./config.js";
@@ -15,6 +16,48 @@ export function createFootballRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
+  const footballReadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  router.use("/football", footballReadLimiter);
+
+  router.get("/football/status", signedIn, async (_request, response, next) => {
+    try {
+      const sync = await input.repository.getSyncStatus(input.config.jobsEnabled, input.scheduler.isStarted());
+      response.status(200).json({
+        provider: input.syncService.providerStatus(),
+        sync,
+        cacheStrategy: {
+          countries: "long-lived",
+          leagues: "daily",
+          teams: "daily",
+          standings: "periodic",
+          upcomingFixtures: "several hours",
+          liveFixtures: "short-lived during active matches",
+          injuries: "periodic",
+          lineups: "close to kickoff",
+          finishedStatistics: "long-lived",
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/leagues", signedIn, async (_request, response, next) => {
+    try {
+      response.status(200).json({
+        leagues: await input.repository.listLeagues(),
+        freshness: input.syncService.providerStatus(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/football/fixtures", signedIn, async (request, response, next) => {
     try {
@@ -27,6 +70,98 @@ export function createFootballRouter(input: {
           date: request.query.date ? String(request.query.date) : undefined,
         }),
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/fixtures/live", signedIn, async (request, response, next) => {
+    try {
+      response.status(200).json({
+        fixtures: await input.repository.listFixtures({
+          live: true,
+          limit: request.query.limit ? Number(request.query.limit) : undefined,
+          search: request.query.search ? String(request.query.search) : undefined,
+          league: request.query.league ? String(request.query.league) : undefined,
+          date: request.query.date ? String(request.query.date) : undefined,
+        }),
+        freshness: input.syncService.providerStatus(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/standings", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.listStandings({
+        leagueId: request.query.leagueId ? String(request.query.leagueId) : undefined,
+        season: request.query.season ? Number(request.query.season) : undefined,
+      });
+      response.status(200).json({ standings: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/teams/:id", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getTeam(request.params.id);
+      response.status(200).json({ team: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/teams/:id/statistics", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getTeamStatistics(request.params.id);
+      response.status(200).json({ statistics: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/fixtures/:id/statistics", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getFixtureStatistics(request.params.id);
+      response.status(200).json({ statistics: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/fixtures/:id/events", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getFixtureEvents(request.params.id);
+      response.status(200).json({ events: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/fixtures/:id/lineups", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getFixtureLineups(request.params.id);
+      response.status(200).json({ lineups: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/fixtures/:id/injuries", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getFixtureInjuries(request.params.id);
+      response.status(200).json({ injuries: result.data, freshness: result.freshness });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/football/head-to-head", signedIn, async (request, response, next) => {
+    try {
+      const result = await input.repository.getHeadToHead(String(request.query.fixtureId ?? ""));
+      response.status(200).json({ headToHead: result.data, freshness: result.freshness });
     } catch (error) {
       next(error);
     }

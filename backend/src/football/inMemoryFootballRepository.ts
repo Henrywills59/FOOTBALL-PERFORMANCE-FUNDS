@@ -1,18 +1,46 @@
 import type { FootballFixtureDetail, FootballFixtureSummary, FootballSyncStatus } from "@fpf/shared";
 import type {
+  FootballFreshness,
   FixtureUpsert,
   FootballRepository,
   InjuryUpsert,
+  NormalizedLeague,
+  NormalizedTeam,
   OddUpsert,
   StandingUpsert,
 } from "./types.js";
 
 export class InMemoryFootballRepository implements FootballRepository {
   fixtures = new Map<string, FootballFixtureDetail>();
+  leagues = new Map<string, NormalizedLeague>();
+  teams = new Map<string, NormalizedTeam>();
+  teamStatistics = new Map<string, unknown>();
   syncRuns: Array<{ id: string; status: "SUCCESS" | "FAILED" | "RUNNING"; startedAt: string }> = [];
 
   async upsertFixture(input: FixtureUpsert): Promise<void> {
     const id = String(input.apiFootballFixtureId);
+    this.leagues.set(String(input.league.apiFootballLeagueId), {
+      id: String(input.league.apiFootballLeagueId),
+      apiFootballLeagueId: input.league.apiFootballLeagueId,
+      name: input.league.name,
+      country: input.league.country ?? null,
+      logoUrl: input.league.logoUrl ?? null,
+      season: input.league.season,
+    });
+    this.teams.set(String(input.homeTeam.apiFootballTeamId), {
+      id: String(input.homeTeam.apiFootballTeamId),
+      apiFootballTeamId: input.homeTeam.apiFootballTeamId,
+      name: input.homeTeam.name,
+      country: null,
+      logoUrl: input.homeTeam.logoUrl ?? null,
+    });
+    this.teams.set(String(input.awayTeam.apiFootballTeamId), {
+      id: String(input.awayTeam.apiFootballTeamId),
+      apiFootballTeamId: input.awayTeam.apiFootballTeamId,
+      name: input.awayTeam.name,
+      country: null,
+      logoUrl: input.awayTeam.logoUrl ?? null,
+    });
     this.fixtures.set(id, {
       id,
       apiFootballFixtureId: input.apiFootballFixtureId,
@@ -51,11 +79,16 @@ export class InMemoryFootballRepository implements FootballRepository {
     }
   }
 
-  async upsertTeamStatistic(): Promise<void> {}
+  async upsertTeamStatistic(input: { leagueApiId: number; teamApiId: number; season: number; raw: unknown }): Promise<void> {
+    this.teamStatistics.set(String(input.teamApiId), input.raw);
+  }
 
   async upsertInjury(input: InjuryUpsert): Promise<void> {
     if (!input.fixtureApiId) return;
     const fixture = this.fixtures.get(String(input.fixtureApiId));
+    if (fixture) {
+      fixture.injuries = fixture.injuries.filter((injury) => injury.playerName !== input.playerName);
+    }
     fixture?.injuries.push({
       playerName: input.playerName,
       teamName: input.teamName,
@@ -68,6 +101,9 @@ export class InMemoryFootballRepository implements FootballRepository {
   async upsertOdd(input: OddUpsert): Promise<void> {
     if (!input.fixtureApiId) return;
     const fixture = this.fixtures.get(String(input.fixtureApiId));
+    if (fixture) {
+      fixture.odds = fixture.odds.filter((odd) => !(odd.bookmaker === input.bookmaker && odd.market === input.market && odd.outcome === input.outcome));
+    }
       fixture?.odds.push({
         id: `${input.fixtureApiId}-${input.bookmaker}-${input.market}-${input.outcome}`,
         bookmaker: input.bookmaker,
@@ -116,6 +152,45 @@ export class InMemoryFootballRepository implements FootballRepository {
     return this.fixtures.get(id) ?? null;
   }
 
+  async listLeagues(): Promise<NormalizedLeague[]> {
+    return Array.from(this.leagues.values());
+  }
+
+  async listStandings(): Promise<{ data: FootballFixtureDetail["standings"]; freshness: FootballFreshness }> {
+    return {
+      data: Array.from(this.fixtures.values()).flatMap((fixture) => fixture.standings),
+      freshness: this.freshness(),
+    };
+  }
+
+  async getTeam(id: string): Promise<{ data: NormalizedTeam | null; freshness: FootballFreshness }> {
+    return { data: this.teams.get(id) ?? null, freshness: this.freshness() };
+  }
+
+  async getTeamStatistics(id: string): Promise<{ data: unknown | null; freshness: FootballFreshness }> {
+    return { data: this.teamStatistics.get(id) ?? null, freshness: this.freshness() };
+  }
+
+  async getFixtureEvents(): Promise<{ data: unknown[]; freshness: FootballFreshness }> {
+    return { data: [], freshness: this.freshness() };
+  }
+
+  async getFixtureStatistics(): Promise<{ data: unknown[]; freshness: FootballFreshness }> {
+    return { data: [], freshness: this.freshness() };
+  }
+
+  async getFixtureLineups(): Promise<{ data: unknown[]; freshness: FootballFreshness }> {
+    return { data: [], freshness: this.freshness() };
+  }
+
+  async getFixtureInjuries(id: string): Promise<{ data: FootballFixtureDetail["injuries"]; freshness: FootballFreshness }> {
+    return { data: this.fixtures.get(id)?.injuries ?? [], freshness: this.freshness() };
+  }
+
+  async getHeadToHead(id: string): Promise<{ data: FootballFixtureDetail["headToHeadRecords"]; freshness: FootballFreshness }> {
+    return { data: this.fixtures.get(id)?.headToHeadRecords ?? [], freshness: this.freshness() };
+  }
+
   async getSyncStatus(jobsEnabled: boolean, jobsStarted: boolean): Promise<FootballSyncStatus> {
     const lastRun = this.syncRuns.at(-1);
     return {
@@ -124,6 +199,18 @@ export class InMemoryFootballRepository implements FootballRepository {
       lastRunAt: lastRun?.startedAt ?? null,
       lastRunStatus: lastRun?.status ?? null,
       nextRunHint: jobsStarted ? "Automatic football sync is scheduled." : "Automatic football sync is not running.",
+    };
+  }
+
+  private freshness(): FootballFreshness {
+    const lastRun = this.syncRuns.at(-1);
+    return {
+      provider: "API-Football",
+      lastSynchronizedAt: lastRun?.startedAt ?? null,
+      freshnessState: lastRun ? lastRun.status === "FAILED" ? "PROVIDER_ERROR" : "FRESH" : "PROVIDER_PENDING",
+      stale: !lastRun,
+      nextScheduledRefresh: null,
+      providerAvailability: lastRun?.status === "FAILED" ? "DEGRADED" : "AVAILABLE",
     };
   }
 }
