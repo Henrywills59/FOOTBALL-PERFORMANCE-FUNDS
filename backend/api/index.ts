@@ -6,7 +6,7 @@ type ServerlessResponse = Parameters<Express>[1];
 let appPromise: Promise<Express> | null = null;
 
 async function getApp() {
-  appPromise ??= import("../dist/app.js").then(({ createApp }) =>
+  appPromise ??= import("../src/app.js").then(({ createApp }) =>
     createApp({
       startFootballJobs: false,
     }),
