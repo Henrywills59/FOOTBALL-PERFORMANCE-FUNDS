@@ -102,6 +102,14 @@ export function createPaymentRouter(input: { authService: AuthService; paymentSe
     }
   });
 
+  router.post("/admin/payments/:id/test-signed-webhook", ...adminOnly, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.paymentService.runSignedWebhookSelfTest(request.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/admin/payments/:id/notes", ...adminOnly, async (request, response, next) => {
     try {
       const body = noteSchema.parse(request.body);

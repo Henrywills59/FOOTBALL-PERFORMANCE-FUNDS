@@ -2,7 +2,7 @@ import type { AuthUser } from "@fpf/shared";
 import type { AdminService } from "../admin/adminService.js";
 import { defaultCommercialStructure } from "../commercial/defaults.js";
 import { getNowPaymentsRuntimeConfig, getNowPaymentsWebhookUrl, safeNowPaymentsConfigStatus } from "./config.js";
-import { nowPaymentsPayloadHash, verifyNowPaymentsSignature } from "./nowPaymentsProvider.js";
+import { nowPaymentsPayloadHash, signNowPaymentsPayload, verifyNowPaymentsSignature } from "./nowPaymentsProvider.js";
 import type {
   CreateInvestorFundingInput,
   CreateSubscriptionPaymentInput,
@@ -151,6 +151,48 @@ export class PaymentService {
     });
     await this.adminService.audit(actorUserId, "PAYMENT_STATUS_REFRESHED", "PAYMENT_ORDER", orderId);
     return updated;
+  }
+
+  async runSignedWebhookSelfTest(orderId: string) {
+    const config = getNowPaymentsRuntimeConfig();
+    if (!config.ipnSecret) {
+      throw new PaymentError("NOWPayments IPN secret is not configured.", 503);
+    }
+
+    const order = await this.repository.findOrderById(orderId);
+    if (!order) throw new PaymentError("Payment order not found.", 404);
+    if (!order.providerPaymentId) throw new PaymentError("Payment order has no provider payment ID yet.", 400);
+
+    const payload = {
+      payment_id: order.providerPaymentId,
+      order_id: order.id,
+      payment_status: "confirming",
+      price_amount: dollars(order.expectedAmountCents),
+      actually_paid_at_fiat: 0,
+      price_currency: order.priceCurrency,
+      pay_currency: order.payCurrency,
+      test_callback: true,
+    };
+    const response = await fetch(getNowPaymentsWebhookUrl(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-nowpayments-sig": signNowPaymentsPayload(payload, config.ipnSecret),
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new PaymentError("Signed NOWPayments webhook self-test failed.", response.status);
+    }
+    return {
+      ok: true,
+      endpoint: getNowPaymentsWebhookUrl(),
+      statusCode: response.status,
+      response: body,
+      activatedPayment: false,
+      testStatus: "confirming",
+    };
   }
 
   async processWebhook(payload: NowPaymentsWebhookPayload, signature: string | undefined | null) {
