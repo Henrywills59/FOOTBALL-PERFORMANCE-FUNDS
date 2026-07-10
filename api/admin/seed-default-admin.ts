@@ -339,11 +339,58 @@ async function ensurePaymentSchema(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
 
   await prisma.$executeRawUnsafe(`
+    DO $$ BEGIN
+      CREATE TYPE "PaymentPurpose" AS ENUM (
+        'SUBSCRIPTION',
+        'INVESTOR_FUNDING',
+        'SUBSCRIPTION_RENEWAL',
+        'SUBSCRIPTION_UPGRADE',
+        'OTHER_ADMIN_APPROVED'
+      );
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    DO $$ BEGIN
+      CREATE TYPE "PaymentStatus" AS ENUM (
+        'CREATED',
+        'WAITING',
+        'CONFIRMING',
+        'PARTIALLY_PAID',
+        'CONFIRMED',
+        'FINISHED',
+        'FAILED',
+        'EXPIRED',
+        'REFUNDED',
+        'DISPUTED',
+        'MANUAL_REVIEW'
+      );
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    DO $$ BEGIN
+      CREATE TYPE "PaymentReconciliationStatus" AS ENUM (
+        'NOT_STARTED',
+        'MATCHED',
+        'AMOUNT_MISMATCH',
+        'CURRENCY_MISMATCH',
+        'PROVIDER_DISCREPANCY',
+        'MANUAL_REVIEW',
+        'RECONCILED'
+      );
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "payment_orders" (
       "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       "userId" TEXT NOT NULL,
-      "purpose" TEXT NOT NULL,
-      "status" TEXT NOT NULL DEFAULT 'CREATED',
+      "purpose" "PaymentPurpose" NOT NULL,
+      "status" "PaymentStatus" NOT NULL DEFAULT 'CREATED',
       "provider" TEXT NOT NULL DEFAULT 'NOWPAYMENTS',
       "providerPaymentId" TEXT UNIQUE,
       "providerInvoiceId" TEXT,
@@ -359,7 +406,7 @@ async function ensurePaymentSchema(prisma: PrismaClient) {
       "checkoutUrl" TEXT,
       "expiresAt" TIMESTAMP(3),
       "confirmedAt" TIMESTAMP(3),
-      "reconciliationStatus" TEXT NOT NULL DEFAULT 'NOT_STARTED',
+      "reconciliationStatus" "PaymentReconciliationStatus" NOT NULL DEFAULT 'NOT_STARTED',
       "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -374,7 +421,7 @@ async function ensurePaymentSchema(prisma: PrismaClient) {
       "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       "orderId" TEXT NOT NULL,
       "providerPaymentId" TEXT,
-      "status" TEXT NOT NULL,
+      "status" "PaymentStatus" NOT NULL,
       "expectedAmountCents" INTEGER NOT NULL,
       "receivedAmountCents" INTEGER NOT NULL DEFAULT 0,
       "priceCurrency" TEXT NOT NULL DEFAULT 'USD',
@@ -412,8 +459,8 @@ async function ensurePaymentSchema(prisma: PrismaClient) {
     CREATE TABLE IF NOT EXISTS "payment_status_history" (
       "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       "orderId" TEXT NOT NULL,
-      "previousStatus" TEXT,
-      "newStatus" TEXT NOT NULL,
+      "previousStatus" "PaymentStatus",
+      "newStatus" "PaymentStatus" NOT NULL,
       "reason" TEXT,
       "source" TEXT NOT NULL DEFAULT 'SYSTEM',
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -427,7 +474,7 @@ async function ensurePaymentSchema(prisma: PrismaClient) {
     CREATE TABLE IF NOT EXISTS "payment_reconciliation" (
       "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       "orderId" TEXT NOT NULL UNIQUE,
-      "status" TEXT NOT NULL DEFAULT 'NOT_STARTED',
+      "status" "PaymentReconciliationStatus" NOT NULL DEFAULT 'NOT_STARTED',
       "expectedAmountCents" INTEGER NOT NULL,
       "receivedAmountCents" INTEGER NOT NULL DEFAULT 0,
       "differenceCents" INTEGER NOT NULL DEFAULT 0,
@@ -473,6 +520,26 @@ async function ensurePaymentSchema(prisma: PrismaClient) {
         ON DELETE CASCADE ON UPDATE CASCADE
     )
   `);
+
+  const enumMigrations = [
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "purpose" TYPE "PaymentPurpose" USING "purpose"::"PaymentPurpose"`,
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "status" DROP DEFAULT`,
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "status" TYPE "PaymentStatus" USING "status"::"PaymentStatus"`,
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "status" SET DEFAULT 'CREATED'::"PaymentStatus"`,
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "reconciliationStatus" DROP DEFAULT`,
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "reconciliationStatus" TYPE "PaymentReconciliationStatus" USING "reconciliationStatus"::"PaymentReconciliationStatus"`,
+    `ALTER TABLE IF EXISTS "payment_orders" ALTER COLUMN "reconciliationStatus" SET DEFAULT 'NOT_STARTED'::"PaymentReconciliationStatus"`,
+    `ALTER TABLE IF EXISTS "payment_transactions" ALTER COLUMN "status" TYPE "PaymentStatus" USING "status"::"PaymentStatus"`,
+    `ALTER TABLE IF EXISTS "payment_status_history" ALTER COLUMN "previousStatus" TYPE "PaymentStatus" USING "previousStatus"::"PaymentStatus"`,
+    `ALTER TABLE IF EXISTS "payment_status_history" ALTER COLUMN "newStatus" TYPE "PaymentStatus" USING "newStatus"::"PaymentStatus"`,
+    `ALTER TABLE IF EXISTS "payment_reconciliation" ALTER COLUMN "status" DROP DEFAULT`,
+    `ALTER TABLE IF EXISTS "payment_reconciliation" ALTER COLUMN "status" TYPE "PaymentReconciliationStatus" USING "status"::"PaymentReconciliationStatus"`,
+    `ALTER TABLE IF EXISTS "payment_reconciliation" ALTER COLUMN "status" SET DEFAULT 'NOT_STARTED'::"PaymentReconciliationStatus"`,
+  ];
+
+  for (const statement of enumMigrations) {
+    await prisma.$executeRawUnsafe(statement);
+  }
 
   const indexes = [
     `CREATE INDEX IF NOT EXISTS "payment_orders_userId_idx" ON "payment_orders"("userId")`,
