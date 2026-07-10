@@ -47,6 +47,8 @@ import type {
   UserGlobalPreferences,
   WithdrawalRequest,
   LanguageSetting,
+  MediaDashboard,
+  MediaPlatform,
   CurrencySetting,
   TimezoneSetting,
 } from "./types";
@@ -104,7 +106,7 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
 
@@ -224,6 +226,7 @@ export default function App() {
   const [operationalNotifications, setOperationalNotifications] = useState<OperationalNotification[]>([]);
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null);
   const [adminAnnouncements, setAdminAnnouncements] = useState<AdminAnnouncement[]>([]);
+  const [mediaDashboard, setMediaDashboard] = useState<MediaDashboard | null>(null);
 
   useEffect(() => {
     const loadPublicGlobalization = async () => {
@@ -495,6 +498,7 @@ export default function App() {
       const operationsMonitoringData = await apiGet<MonitoringOverview>("/admin/monitoring/overview", token);
       const incidentsData = await apiGet<{ incidents: SystemIncident[] }>("/admin/monitoring/incidents", token);
       const announcementsData = await apiGet<{ announcements: AdminAnnouncement[] }>("/admin/announcements", token);
+      const mediaData = await apiGet<MediaDashboard>("/admin/media/dashboard", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
@@ -512,6 +516,7 @@ export default function App() {
       setMonitoringOverview(operationsMonitoringData);
       setSystemIncidents(incidentsData.incidents);
       setAdminAnnouncements(announcementsData.announcements);
+      setMediaDashboard(mediaData);
       setAdminInvestorManagement(investorManagementData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
@@ -615,7 +620,8 @@ export default function App() {
     const method = path.includes("/settings") ||
       path.includes("/notes") ||
       path.includes("/admin/monitoring/incidents/") ||
-      path.includes("/admin/announcements/")
+      path.includes("/admin/announcements/") ||
+      path.includes("/admin/media/posts/")
       ? "PATCH"
       : "POST";
     await fetchJson(
@@ -932,6 +938,7 @@ export default function App() {
               operationalReports={operationalReports}
               systemIncidents={systemIncidents}
               adminAnnouncements={adminAnnouncements}
+              mediaDashboard={mediaDashboard}
             />
           ) : null}
 
@@ -1063,6 +1070,7 @@ function AdminPortal({
   operationalReports,
   systemIncidents,
   adminAnnouncements,
+  mediaDashboard,
   onGlobalPreferences,
   onAction,
   onSimulate,
@@ -1092,6 +1100,7 @@ function AdminPortal({
   operationalReports: OperationalReport[];
   systemIncidents: SystemIncident[];
   adminAnnouncements: AdminAnnouncement[];
+  mediaDashboard: MediaDashboard | null;
   onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1171,6 +1180,10 @@ function AdminPortal({
 
   if (activeView === "Investor Management") {
     return <AdminInvestorManagementView commercialStructure={commercialStructure} management={investorManagement} onAction={onAction} onSimulate={onSimulate} />;
+  }
+
+  if (activeView === "Media Command") {
+    return <MediaCommandCenterView dashboard={mediaDashboard} onAction={onAction} />;
   }
 
   if (activeView === "Monitoring") {
@@ -1464,6 +1477,221 @@ function AnalystPortal({
           ) : (
             <p className="text-sm text-zinc-400">Assistance appears after an assigned match is selected.</p>
           )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+const mediaPlatforms: MediaPlatform[] = ["FACEBOOK", "INSTAGRAM", "TIKTOK", "X", "LINKEDIN", "TELEGRAM", "WHATSAPP_CHANNELS", "YOUTUBE_COMMUNITY", "DISCORD"];
+
+function MediaCommandCenterView({
+  dashboard,
+  onAction,
+}: {
+  dashboard: MediaDashboard | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  const posts = dashboard?.posts ?? [];
+  const campaigns = dashboard?.campaigns ?? [];
+  const assets = dashboard?.assets ?? [];
+  const queue = posts.filter((post) => ["DRAFT", "REVIEW", "APPROVED", "SCHEDULED"].includes(post.status));
+  const scheduled = posts.filter((post) => ["SCHEDULED", "PUBLISHED"].includes(post.status));
+
+  if (!dashboard) return <LoadingSkeleton label="Preparing Media Command Center" />;
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Campaigns" value={String(dashboard.campaignOverview.total)} />
+        <Metric label="Scheduled posts" value={String(dashboard.scheduledPosts)} />
+        <Metric label="Published posts" value={String(dashboard.publishedPosts)} />
+        <Metric label="Approval queue" value={String(dashboard.approvalQueue)} />
+        <Metric label="AI placeholders" value={String(dashboard.aiGeneratedContent)} />
+        <Metric label="Audience growth" value={`${dashboard.audienceGrowth}%`} />
+        <Metric label="Click tracking" value={String(dashboard.clickTracking)} />
+        <Metric label="Conversions" value={String(dashboard.conversionTracking)} />
+      </div>
+
+      <Panel title="Media Command Center">
+        <p className="text-sm text-zinc-400">{dashboard.engagementSummary}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {dashboard.platformHealth.map((provider) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={provider.name}>
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{provider.mode}</p>
+              <h3 className="mt-2 font-semibold">{provider.name}</h3>
+              <p className="mt-2 text-sm text-zinc-400">{provider.configured ? "Configured" : "Provider-ready placeholder. No external API connected."}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Campaign Manager">
+          <form
+            className="grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/media/campaigns", {
+                name: form.get("name"),
+                type: form.get("type"),
+                status: form.get("status"),
+                objective: form.get("objective"),
+                startDate: form.get("startDate") || null,
+                endDate: form.get("endDate") || null,
+                budgetCents: Number(form.get("budgetCents") ?? 0),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Campaign name" name="name" type="text" />
+            <SelectField label="Campaign type" name="type" value="BRAND_AWARENESS" options={["LAUNCH", "EDUCATION", "PREDICTIONS", "INVESTOR", "REFERRAL", "SUBSCRIPTION", "HOLIDAY", "BRAND_AWARENESS"].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))} />
+            <SelectField label="Status" name="status" value="DRAFT" options={["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "COMPLETED", "ARCHIVED"].map((item) => ({ value: item, label: item }))} />
+            <TextField label="Budget cents" name="budgetCents" type="number" value="0" />
+            <TextField label="Start date" name="startDate" type="date" />
+            <TextField label="End date" name="endDate" type="date" />
+            <div className="md:col-span-2">
+              <TextField label="Objective" name="objective" type="text" />
+            </div>
+            <div className="md:col-span-2"><SubmitButton>Create campaign</SubmitButton></div>
+          </form>
+          <div className="mt-4 space-y-3">
+            {campaigns.map((campaign) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={campaign.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{campaign.type} - {campaign.status}</p>
+                <h3 className="mt-2 font-semibold">{campaign.name}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{campaign.objective}</p>
+                <p className="mt-3 text-xs text-zinc-500">Budget placeholder: {money(campaign.budgetCents)}</p>
+              </article>
+            ))}
+            {!campaigns.length ? <EmptyState message="Campaigns will appear here. External publishing remains placeholder-only." /> : null}
+          </div>
+        </Panel>
+
+        <Panel title="Content Studio">
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/media/posts", {
+                campaignId: form.get("campaignId") || null,
+                title: form.get("title"),
+                contentType: form.get("contentType"),
+                status: form.get("status"),
+                body: form.get("body"),
+                language: form.get("language") || "en",
+                country: form.get("country") || null,
+                audience: form.get("audience") || "General",
+                platforms: String(form.get("platforms") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+                scheduledAt: form.get("scheduledAt") || null,
+                timezone: form.get("timezone") || "UTC",
+                aiGenerated: form.get("aiGenerated") === "on",
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Campaign ID" name="campaignId" type="text" />
+            <TextField label="Content title" name="title" type="text" />
+            <SelectField label="Content type" name="contentType" value="EDUCATIONAL_POST" options={["ARTICLE", "MATCH_PREVIEW", "MATCH_REVIEW", "PREDICTION_EXPLANATION", "INVESTOR_UPDATE", "COMPANY_ANNOUNCEMENT", "EDUCATIONAL_POST", "PROMOTIONAL_CAMPAIGN", "SUBSCRIBER_NEWSLETTER"].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))} />
+            <SelectField label="Status" name="status" value="DRAFT" options={["DRAFT", "REVIEW", "APPROVED", "SCHEDULED"].map((item) => ({ value: item, label: item }))} />
+            <TextField label="Audience" name="audience" type="text" value="Subscribers" />
+            <TextField label="Language" name="language" type="text" value="en" />
+            <TextField label="Country" name="country" type="text" />
+            <TextField label="Platforms" name="platforms" type="text" value={mediaPlatforms.slice(0, 2).join(",")} />
+            <TextField label="Schedule date/time" name="scheduledAt" type="datetime-local" />
+            <TextField label="Timezone" name="timezone" type="text" value="UTC" />
+            <label className="flex items-center gap-2 text-sm text-zinc-300">
+              <input className="h-4 w-4 accent-emerald-300" name="aiGenerated" type="checkbox" />
+              AI placeholder assisted
+            </label>
+            <TextField label="Content body" name="body" type="text" />
+            <SubmitButton>Create draft</SubmitButton>
+          </form>
+        </Panel>
+      </div>
+
+      <Panel title="Approval & Publishing Queue">
+        <div className="space-y-3">
+          {queue.map((post) => (
+            <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={post.id}>
+              <div className="grid gap-3 lg:grid-cols-[1fr_340px]">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{post.contentType} - {post.status}</p>
+                  <h3 className="mt-2 font-semibold">{post.title}</h3>
+                  <p className="mt-2 text-sm text-zinc-400">{post.body}</p>
+                  <p className="mt-3 text-xs text-zinc-500">Platforms: {post.platforms.join(", ") || "None selected"} | Language: {post.language}</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/media/posts/${post.id}`, { action: "APPROVE" })}>Approve</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/media/posts/${post.id}`, { action: "SCHEDULE", scheduledAt: post.scheduledAt ?? new Date().toISOString() })}>Schedule</button>
+                  <button className="rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/media/posts/${post.id}`, { action: "PUBLISH" })}>Publish placeholder</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => void onAction(`/admin/media/posts/${post.id}`, { action: "ARCHIVE" })}>Archive</button>
+                </div>
+              </div>
+            </article>
+          ))}
+          {!queue.length ? <EmptyState message="Drafts, reviews, approved, and scheduled media posts will appear here." /> : null}
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Content Calendar">
+          <div className="space-y-3">
+            {scheduled.map((post) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={post.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{post.status}</p>
+                <h3 className="mt-2 font-semibold">{post.title}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{post.scheduledAt ? new Date(post.scheduledAt).toLocaleString() : "Immediate placeholder publish"}</p>
+              </div>
+            ))}
+            {!scheduled.length ? <EmptyState message="Scheduled and published posts will appear on the calendar." /> : null}
+          </div>
+        </Panel>
+        <Panel title="Brand Assets & Media Library">
+          <form
+            className="grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/media/assets", {
+                name: form.get("name"),
+                assetType: form.get("assetType"),
+                url: form.get("url") || null,
+                metadata: { notes: form.get("notes") || "Placeholder media asset" },
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Asset name" name="name" type="text" />
+            <SelectField label="Asset type" name="assetType" value="TEMPLATE" options={["LOGO", "IMAGE", "VIDEO", "DOCUMENT", "TEMPLATE"].map((item) => ({ value: item, label: item }))} />
+            <TextField label="URL placeholder" name="url" type="url" />
+            <TextField label="Notes" name="notes" type="text" />
+            <div className="md:col-span-2"><SubmitButton>Add asset</SubmitButton></div>
+          </form>
+          <div className="mt-4 space-y-3">
+            {assets.map((asset) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={asset.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{asset.assetType}</p>
+                <h3 className="mt-2 font-semibold">{asset.name}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{asset.url ?? "Stored as internal placeholder asset"}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Analytics & Attribution">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Views" value={String(dashboard.performance.views)} />
+          <MiniStat label="Clicks" value={String(dashboard.performance.clicks)} />
+          <MiniStat label="CTR" value={`${dashboard.performance.ctr}%`} />
+          <MiniStat label="Subscriptions" value={String(dashboard.performance.subscriptions)} />
+          <MiniStat label="Investor signups" value={String(dashboard.performance.investorSignups)} />
+          <MiniStat label="Revenue attribution" value={money(dashboard.performance.revenueAttributionCents)} />
+          <MiniStat label="Campaign ROI" value={`${dashboard.performance.campaignRoi}%`} />
+          <MiniStat label="Growth trends" value={String(dashboard.performance.growthTrends.length)} />
         </div>
       </Panel>
     </div>

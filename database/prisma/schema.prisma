@@ -970,6 +970,144 @@ model AnnouncementTarget {
   @@map("announcement_targets")
 }
 
+model Campaign {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  status      String   @default("DRAFT")
+  objective   String
+  startDate   DateTime?
+  endDate     DateTime?
+  budgetCents Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@map("campaigns")
+}
+
+model Post {
+  id               String   @id @default(uuid())
+  campaignId       String?
+  title            String
+  contentType      String
+  status           String   @default("DRAFT")
+  body             String
+  language         String   @default("en")
+  country          String?
+  audience         String   @default("General")
+  platforms        Json
+  scheduledAt      DateTime?
+  timezone         String   @default("UTC")
+  createdByUserId  String
+  approvedByUserId String?
+  publishedAt      DateTime?
+  aiGenerated      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("posts")
+}
+
+model PostPlatform {
+  id             String   @id @default(uuid())
+  postId         String
+  platform       String
+  providerStatus String   @default("PLACEHOLDER")
+  externalPostId String?
+  publishPayload Json
+  createdAt      DateTime @default(now())
+
+  @@index([postId])
+  @@index([platform])
+  @@map("post_platforms")
+}
+
+model ScheduledPost {
+  id          String   @id @default(uuid())
+  postId      String
+  scheduledAt DateTime
+  timezone    String   @default("UTC")
+  status      String   @default("SCHEDULED")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([postId])
+  @@index([scheduledAt])
+  @@map("scheduled_posts")
+}
+
+model ContentAsset {
+  id        String   @id @default(uuid())
+  name      String
+  assetType String
+  url       String?
+  metadata  Json
+  createdAt DateTime @default(now())
+
+  @@index([assetType])
+  @@map("content_assets")
+}
+
+model ContentTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  contentType String
+  body        String
+  variables   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contentType])
+  @@map("content_templates")
+}
+
+model Hashtag {
+  id        String   @id @default(uuid())
+  tag       String   @unique
+  category  String?
+  createdAt DateTime @default(now())
+
+  @@map("hashtags")
+}
+
+model SeoKeyword {
+  id        String   @id @default(uuid())
+  keyword   String
+  category  String?
+  createdAt DateTime @default(now())
+
+  @@index([keyword])
+  @@map("seo_keywords")
+}
+
+model MediaLibraryItem {
+  id        String   @id @default(uuid())
+  name      String
+  itemType  String
+  url       String?
+  metadata  Json
+  createdAt DateTime @default(now())
+
+  @@index([itemType])
+  @@map("media_library")
+}
+
+model CampaignReport {
+  id         String   @id @default(uuid())
+  campaignId String?
+  title      String
+  analytics  Json
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId])
+  @@map("campaign_reports")
+}
+
 model MonitoringEvent {
   id        String   @id @default(uuid())
   component String

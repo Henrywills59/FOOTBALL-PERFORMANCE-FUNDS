@@ -295,6 +295,100 @@ export type AdminAnnouncement = {
   updatedAt: string;
 };
 
+export type MediaContentStatus = "DRAFT" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED" | "ARCHIVED";
+export type MediaContentType =
+  | "ARTICLE"
+  | "MATCH_PREVIEW"
+  | "MATCH_REVIEW"
+  | "PREDICTION_EXPLANATION"
+  | "INVESTOR_UPDATE"
+  | "COMPANY_ANNOUNCEMENT"
+  | "EDUCATIONAL_POST"
+  | "PROMOTIONAL_CAMPAIGN"
+  | "SUBSCRIBER_NEWSLETTER";
+export type MediaCampaignType = "LAUNCH" | "EDUCATION" | "PREDICTIONS" | "INVESTOR" | "REFERRAL" | "SUBSCRIPTION" | "HOLIDAY" | "BRAND_AWARENESS";
+export type MediaCampaignStatus = "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "COMPLETED" | "ARCHIVED";
+export type MediaPlatform = "FACEBOOK" | "INSTAGRAM" | "TIKTOK" | "X" | "LINKEDIN" | "TELEGRAM" | "WHATSAPP_CHANNELS" | "YOUTUBE_COMMUNITY" | "DISCORD";
+
+export type MediaCampaign = {
+  id: string;
+  name: string;
+  type: MediaCampaignType;
+  status: MediaCampaignStatus;
+  objective: string;
+  startDate: string | null;
+  endDate: string | null;
+  budgetCents: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MediaPost = {
+  id: string;
+  campaignId: string | null;
+  title: string;
+  contentType: MediaContentType;
+  status: MediaContentStatus;
+  body: string;
+  language: string;
+  country: string | null;
+  audience: string;
+  platforms: MediaPlatform[];
+  scheduledAt: string | null;
+  timezone: string;
+  createdByUserId: string;
+  approvedByUserId: string | null;
+  publishedAt: string | null;
+  aiGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MediaAsset = {
+  id: string;
+  name: string;
+  assetType: "LOGO" | "FONT" | "COLOR" | "IMAGE" | "VIDEO" | "BACKGROUND" | "SPONSOR_ASSET" | "MEDIA_KIT" | "DOCUMENT" | "TEMPLATE";
+  url: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type MediaAnalytics = {
+  views: number;
+  clicks: number;
+  ctr: number;
+  conversions: number;
+  subscriptions: number;
+  investorSignups: number;
+  revenueAttributionCents: number;
+  campaignRoi: number;
+  growthTrends: Array<{ label: string; value: number }>;
+};
+
+export type MediaProviderStatus = {
+  name: string;
+  configured: boolean;
+  mode: "PLACEHOLDER";
+};
+
+export type MediaDashboard = {
+  campaignOverview: { total: number; running: number; scheduled: number };
+  scheduledPosts: number;
+  publishedPosts: number;
+  drafts: number;
+  aiGeneratedContent: number;
+  approvalQueue: number;
+  performance: MediaAnalytics;
+  engagementSummary: string;
+  audienceGrowth: number;
+  clickTracking: number;
+  conversionTracking: number;
+  platformHealth: MediaProviderStatus[];
+  campaigns: MediaCampaign[];
+  posts: MediaPost[];
+  assets: MediaAsset[];
+};
+
 export type SupportedLanguageCode = "en" | "fr" | "es" | "pt" | "de" | "it" | "ar" | "zh";
 export type SupportedCurrencyCode = "USD" | "EUR" | "GBP" | "UGX" | "KES" | "TZS" | "NGN" | "ZAR" | "CAD" | "AUD";
 

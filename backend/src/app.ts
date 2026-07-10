@@ -43,6 +43,10 @@ import { InMemoryOperationsRepository, PrismaOperationsRepository } from "./oper
 import { createOperationsRouter } from "./operations/routes.js";
 import { OperationsService } from "./operations/service.js";
 import type { OperationsRepository } from "./operations/types.js";
+import { InMemoryMediaRepository, PrismaMediaRepository } from "./media/repository.js";
+import { createMediaRouter } from "./media/routes.js";
+import { MediaService } from "./media/service.js";
+import type { MediaRepository } from "./media/types.js";
 import { PrismaPredictionRepository } from "./predictions/predictionRepository.js";
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
@@ -172,6 +176,7 @@ export function createApp(options?: {
   walletRepository?: WalletRepository;
   analystRepository?: AnalystRepository;
   operationsRepository?: OperationsRepository;
+  mediaRepository?: MediaRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -231,6 +236,12 @@ export function createApp(options?: {
       : new PrismaOperationsRepository()
   );
   const operationsService = new OperationsService(operationsRepository);
+  const mediaRepository = options?.mediaRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryMediaRepository()
+      : new PrismaMediaRepository()
+  );
+  const mediaService = new MediaService(mediaRepository);
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -343,6 +354,14 @@ export function createApp(options?: {
     createOperationsRouter({
       authService,
       operationsService,
+      adminService,
+    }),
+  );
+  app.use(
+    "/api",
+    createMediaRouter({
+      authService,
+      mediaService,
       adminService,
     }),
   );

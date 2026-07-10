@@ -493,6 +493,128 @@ async function ensureOperationsSchema(prisma: PrismaClient) {
   `);
 }
 
+async function ensureMediaSchema(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "campaigns" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "name" TEXT NOT NULL,
+      "type" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'DRAFT',
+      "objective" TEXT NOT NULL,
+      "startDate" TIMESTAMP(3),
+      "endDate" TIMESTAMP(3),
+      "budgetCents" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "campaigns_status_idx" ON "campaigns"("status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "campaigns_type_idx" ON "campaigns"("type")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "posts" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "campaignId" TEXT,
+      "title" TEXT NOT NULL,
+      "contentType" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'DRAFT',
+      "body" TEXT NOT NULL,
+      "language" TEXT NOT NULL DEFAULT 'en',
+      "country" TEXT,
+      "audience" TEXT NOT NULL DEFAULT 'General',
+      "platforms" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "scheduledAt" TIMESTAMP(3),
+      "timezone" TEXT NOT NULL DEFAULT 'UTC',
+      "createdByUserId" TEXT NOT NULL,
+      "approvedByUserId" TEXT,
+      "publishedAt" TIMESTAMP(3),
+      "aiGenerated" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "posts_campaignId_idx" ON "posts"("campaignId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "posts_status_idx" ON "posts"("status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "posts_scheduledAt_idx" ON "posts"("scheduledAt")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "post_platforms" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "postId" TEXT NOT NULL,
+      "platform" TEXT NOT NULL,
+      "providerStatus" TEXT NOT NULL DEFAULT 'PLACEHOLDER',
+      "externalPostId" TEXT,
+      "publishPayload" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "scheduled_posts" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "postId" TEXT NOT NULL,
+      "scheduledAt" TIMESTAMP(3) NOT NULL,
+      "timezone" TEXT NOT NULL DEFAULT 'UTC',
+      "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "content_assets" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "name" TEXT NOT NULL,
+      "assetType" TEXT NOT NULL,
+      "url" TEXT,
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "content_templates" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "name" TEXT NOT NULL,
+      "contentType" TEXT NOT NULL,
+      "body" TEXT NOT NULL,
+      "variables" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "hashtags" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "tag" TEXT NOT NULL UNIQUE,
+      "category" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "seo_keywords" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "keyword" TEXT NOT NULL,
+      "category" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "media_library" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "name" TEXT NOT NULL,
+      "itemType" TEXT NOT NULL,
+      "url" TEXT,
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "campaign_reports" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "campaignId" TEXT,
+      "title" TEXT NOT NULL,
+      "analytics" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   response.setHeader?.("access-control-allow-methods", "POST,OPTIONS");
   response.setHeader?.("access-control-allow-headers", "content-type,x-admin-seed-token");
@@ -531,6 +653,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     await ensureGlobalizationSchema(prisma);
     await ensureCommercialSchema(prisma);
     await ensureOperationsSchema(prisma);
+    await ensureMediaSchema(prisma);
 
     const body = parseBody(request.body);
     const email =
@@ -575,6 +698,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       globalizationSchemaEnsured: true,
       commercialSchemaEnsured: true,
       operationsSchemaEnsured: true,
+      mediaSchemaEnsured: true,
       user,
     });
   } catch (error) {
