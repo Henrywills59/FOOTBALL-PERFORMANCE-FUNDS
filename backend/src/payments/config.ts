@@ -1,9 +1,6 @@
 const requiredNowPaymentsVariables = [
   "NOWPAYMENTS_API_KEY",
   "NOWPAYMENTS_IPN_SECRET",
-  "NOWPAYMENTS_BASE_URL",
-  "NOWPAYMENTS_PAY_CURRENCY",
-  "NOWPAYMENTS_PRICE_CURRENCY",
 ] as const;
 
 export type NowPaymentsRuntimeConfig = {

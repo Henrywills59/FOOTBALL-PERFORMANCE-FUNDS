@@ -20,10 +20,7 @@ const daysFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).t
 function nowPaymentsConfigured() {
   return Boolean(
     process.env.NOWPAYMENTS_API_KEY?.trim() &&
-    process.env.NOWPAYMENTS_IPN_SECRET?.trim() &&
-    process.env.NOWPAYMENTS_BASE_URL?.trim() &&
-    process.env.NOWPAYMENTS_PAY_CURRENCY?.trim() &&
-    process.env.NOWPAYMENTS_PRICE_CURRENCY?.trim(),
+    process.env.NOWPAYMENTS_IPN_SECRET?.trim(),
   );
 }
 
