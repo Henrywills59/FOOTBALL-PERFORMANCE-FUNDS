@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+﻿import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   AdminOverview,
@@ -64,8 +64,11 @@ import type {
   MediaPlatform,
   CurrencySetting,
   TimezoneSetting,
+  PublicExperience,
+  ThemePreference,
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
+import { Mission21PublicExperience, ThemeSwitcher } from "./PublicExperience";
 
 function normalizeApiBaseUrl(value?: string) {
   const trimmed = value?.trim().replace(/\/+$/, "");
@@ -153,16 +156,16 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Pricing", path: "/pricing", id: "pricing", description: "Subscriber pricing and commercial structure." },
   { label: "Investor Packages", path: "/investor-packages", id: "investor-packages", description: "Placeholder investor packages and lock-period education." },
   { label: "Security", path: "/security", id: "security", description: "Authentication, authorization, privacy, and risk controls." },
-  { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and media placeholders." },
+  { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and launch-stage insights." },
   { label: "Media", path: "/media", id: "media", description: "Media center, announcements, and press resources." },
-  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal analyst pathway, and partner placeholders." },
+  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal analyst pathway, and partner programmes." },
   { label: "Contact", path: "/contact", id: "contact", description: "Contact and support entry points." },
   { label: "FAQ", path: "/faq", id: "faq", description: "Frequently asked questions." },
   { label: "Privacy Policy", path: "/privacy-policy", id: "privacy-policy", description: "Privacy and data preference information." },
-  { label: "Terms and Conditions", path: "/terms-and-conditions", id: "terms-and-conditions", description: "Terms and conditions placeholder." },
+  { label: "Terms and Conditions", path: "/terms-and-conditions", id: "terms-and-conditions", description: "Football Performance Fund terms and conditions." },
   { label: "Risk Disclosure", path: "/risk-disclosure", id: "risk-disclosure", description: "Financial and football intelligence risk disclosures." },
   { label: "Responsible Participation", path: "/responsible-participation", id: "responsible-participation", description: "Responsible participation guidance." },
-  { label: "Cookie Policy", path: "/cookie-policy", id: "cookie-policy", description: "Cookie and tracking placeholder policy." },
+  { label: "Cookie Policy", path: "/cookie-policy", id: "cookie-policy", description: "Cookie and tracking policy." },
 ];
 
 const publicPathAliases: Record<string, string> = {
@@ -245,7 +248,7 @@ const defaultCommercialStructure: CommercialStructure = {
   minimumInvestmentCents: 10000,
   simulatorDefaults: { weeklyReturnPercent: 1.25, platformFeePercent: 10 },
   notices: {
-    paymentPlaceholder: "Payment processing is not connected yet.",
+    paymentPlaceholder: "Secure checkout is being activated.",
     investmentRisk: "Capital is at risk. Returns are not guaranteed.",
     simulationOnly: "Simulation only.",
   },
@@ -259,6 +262,18 @@ function getStoredPreferences() {
   } catch {
     return defaultGlobalPreferences;
   }
+}
+
+function getStoredThemePreference(): ThemePreference {
+  const stored = localStorage.getItem("fpf_theme_preference");
+  return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+}
+
+function resolveThemePreference(theme: ThemePreference) {
+  if (theme === "system") {
+    return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  return theme;
 }
 
 export default function App() {
@@ -349,6 +364,29 @@ export default function App() {
   const [infrastructureControl, setInfrastructureControl] = useState<InfrastructureControlCenter | null>(null);
   const [paymentCenter, setPaymentCenter] = useState<PaymentCenter | null>(null);
   const [adminPaymentCenter, setAdminPaymentCenter] = useState<PaymentCenter | null>(null);
+  const [publicExperience, setPublicExperience] = useState<PublicExperience | null>(null);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => getStoredThemePreference());
+
+  useEffect(() => {
+    const applyTheme = () => {
+      const resolved = resolveThemePreference(themePreference);
+      document.documentElement.dataset.theme = resolved;
+      document.documentElement.dataset.themePreference = themePreference;
+      document.documentElement.style.colorScheme = resolved;
+    };
+    applyTheme();
+    localStorage.setItem("fpf_theme_preference", themePreference);
+    const media = window.matchMedia?.("(prefers-color-scheme: light)");
+    media?.addEventListener("change", applyTheme);
+    return () => media?.removeEventListener("change", applyTheme);
+  }, [themePreference]);
+
+  useEffect(() => {
+    if (session) return;
+    void fetchJson<PublicExperience>(apiEndpoint("/public/experience"), undefined, sameOriginApiEndpoint("/public/experience"))
+      .then(setPublicExperience)
+      .catch(() => setPublicExperience(null));
+  }, [session]);
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(normalizedPathname());
@@ -1148,6 +1186,7 @@ export default function App() {
         commercialStructure={commercialStructure}
         currencies={currencies}
         error={error}
+        experience={publicExperience}
         languages={languages}
         message={message}
         mode={mode}
@@ -1162,8 +1201,10 @@ export default function App() {
         }}
         onLogin={safelySubmit(handleLogin)}
         onRegister={safelySubmit(handleRegister)}
+        onThemeChange={setThemePreference}
         preferences={globalPreferences}
         setMode={setMode}
+        theme={themePreference}
       />
     );
   }
@@ -1186,6 +1227,9 @@ export default function App() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
             <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
+          </div>
+          <div className="mt-4">
+            <ThemeSwitcher theme={themePreference} onChange={setThemePreference} />
           </div>
           <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Unified FPF navigation">
             {navigationItems.map((item) => (
@@ -1707,7 +1751,7 @@ function AdminPortal({
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={submission.id}>
               <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{submission.status}</p>
               <h3 className="mt-2 text-lg font-semibold">{submission.match}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{submission.market} · {submission.prediction}</p>
+              <p className="mt-1 text-sm text-zinc-400">{submission.market} Â· {submission.prediction}</p>
               <p className="mt-2 text-sm text-zinc-300">{submission.detailedReasoning}</p>
               <p className="mt-2 text-sm text-zinc-500">Sources: {submission.sourceNotes}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -1782,7 +1826,7 @@ function AdminPortal({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="font-semibold">{user.name}</p>
-                  <p className="text-sm text-zinc-400">{user.email} · {user.role} · {user.status}</p>
+                  <p className="text-sm text-zinc-400">{user.email} Â· {user.role} Â· {user.status}</p>
                   <p className="text-sm text-zinc-500">Subscription: {user.subscriptionPlan}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1910,7 +1954,7 @@ function AnalystPortal({
             {assignments.map((assignment) => (
               <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={assignment.id}>
                 <p className="font-semibold">{assignment.match}</p>
-                <p className="mt-1 text-sm text-zinc-400">{assignment.leagueName} · {assignment.status}</p>
+                <p className="mt-1 text-sm text-zinc-400">{assignment.leagueName} Â· {assignment.status}</p>
                 {assignment.adminNotes ? <p className="mt-1 text-sm text-zinc-500">{assignment.adminNotes}</p> : null}
               </div>
             ))}
@@ -2457,9 +2501,9 @@ function TreasuryCenterView({ dashboard, onAction }: { dashboard: TreasuryDashbo
           <div className="space-y-3">
             {dashboard.capitalAllocations.map((allocation) => (
               <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={allocation.id}>
-                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{allocation.approvalStatus} · {allocation.riskGrade}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{allocation.approvalStatus} Â· {allocation.riskGrade}</p>
                 <h3 className="mt-2 font-semibold">{allocation.fixture}</h3>
-                <p className="mt-1 text-sm text-zinc-400">{allocation.market} · {allocation.selection}</p>
+                <p className="mt-1 text-sm text-zinc-400">{allocation.market} Â· {allocation.selection}</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-4">
                   <MiniStat label="Recommended stake" value={money(allocation.recommendedStakeCents)} />
                   <MiniStat label="Max stake" value={money(allocation.maximumAllowedStakeCents)} />
@@ -2572,7 +2616,7 @@ function TreasuryCenterView({ dashboard, onAction }: { dashboard: TreasuryDashbo
       </div>
 
       <Panel title="Treasury Ledger">
-        <CompactTreasuryList items={dashboard.ledger.map((entry) => `${entry.direction} ${money(entry.amountCents)} · ${entry.account} · ${entry.classification}`)} />
+        <CompactTreasuryList items={dashboard.ledger.map((entry) => `${entry.direction} ${money(entry.amountCents)} Â· ${entry.account} Â· ${entry.classification}`)} />
       </Panel>
     </div>
   );
@@ -2595,7 +2639,7 @@ function ExecutiveBiView({ dashboard }: { dashboard: ExecutiveAnalyticsDashboard
           <div className="space-y-3">
             {dashboard.aiInsights.map((insight) => (
               <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={insight.id}>
-                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{insight.category} · {insight.severity} · {insight.confidence}%</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{insight.category} Â· {insight.severity} Â· {insight.confidence}%</p>
                 <h3 className="mt-2 font-semibold">{insight.title}</h3>
                 <p className="mt-2 text-sm text-zinc-400">{insight.recommendation}</p>
               </div>
@@ -2607,13 +2651,13 @@ function ExecutiveBiView({ dashboard }: { dashboard: ExecutiveAnalyticsDashboard
             {dashboard.forecasts.map((forecast) => (
               <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={forecast.metric}>
                 <p className="font-semibold">{forecast.metric}: {money(forecast.expectedValueCents)}</p>
-                <p className="mt-1 text-sm text-zinc-400">{forecast.trend} · {forecast.confidence}% confidence · {forecast.explanation}</p>
+                <p className="mt-1 text-sm text-zinc-400">{forecast.trend} Â· {forecast.confidence}% confidence Â· {forecast.explanation}</p>
               </div>
             ))}
           </div>
         </Panel>
         <Panel title="Export Center">
-          <CompactTreasuryList items={dashboard.exportCenter.map((item) => `${item.reportType} · ${item.title} · ${item.cadence} · ${item.providerStatus}`)} />
+          <CompactTreasuryList items={dashboard.exportCenter.map((item) => `${item.reportType} Â· ${item.title} Â· ${item.cadence} Â· ${item.providerStatus}`)} />
         </Panel>
       </div>
 
@@ -2625,7 +2669,7 @@ function ExecutiveBiView({ dashboard }: { dashboard: ExecutiveAnalyticsDashboard
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold">{analyst.currentRank} {analyst.analystName}</p>
-                    <p className="text-sm text-zinc-400">{analyst.totalPicks} picks · {analyst.winRate}% win rate · {analyst.roi}% ROI</p>
+                    <p className="text-sm text-zinc-400">{analyst.totalPicks} picks Â· {analyst.winRate}% win rate Â· {analyst.roi}% ROI</p>
                   </div>
                   <span className="rounded-full border border-emerald-700 px-3 py-1 text-xs text-emerald-200">ARI {analyst.reliabilityIndex}</span>
                 </div>
@@ -2691,7 +2735,7 @@ function AnalystPrivateAnalyticsView({ analytics }: { analytics: AnalystPrivateA
         <CompactTreasuryList items={analytics.aiRecommendations.map((item) => `${item.severity}: ${item.recommendation}`)} />
       </Panel>
       <Panel title="Private Export Placeholders">
-        <CompactTreasuryList items={analytics.exportCenter.map((item) => `${item.reportType} · ${item.title} · ${item.providerStatus}`)} />
+        <CompactTreasuryList items={analytics.exportCenter.map((item) => `${item.reportType} Â· ${item.title} Â· ${item.providerStatus}`)} />
       </Panel>
     </div>
   );
@@ -2775,10 +2819,10 @@ function AnalystTreasuryViewPanel({ treasury }: { treasury: AnalystTreasuryView 
         <p className="text-sm text-zinc-400">{treasury.notice}</p>
       </Panel>
       <Panel title="My Approved Allocations">
-        <CompactTreasuryList items={treasury.allocations.map((allocation) => `${allocation.fixture} · ${allocation.market} · ${money(allocation.recommendedStakeCents)} · ${allocation.riskGrade}`)} />
+        <CompactTreasuryList items={treasury.allocations.map((allocation) => `${allocation.fixture} Â· ${allocation.market} Â· ${money(allocation.recommendedStakeCents)} Â· ${allocation.riskGrade}`)} />
       </Panel>
       <Panel title="My Reward Calculations">
-        <CompactTreasuryList items={treasury.rewards.map((reward) => `${reward.analystName}: ${money(reward.rewardCents)} · ${reward.status}`)} />
+        <CompactTreasuryList items={treasury.rewards.map((reward) => `${reward.analystName}: ${money(reward.rewardCents)} Â· ${reward.status}`)} />
       </Panel>
     </div>
   );
@@ -2885,10 +2929,10 @@ function InfrastructureControlCenterView({
               <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={provider.id}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{provider.category} · {provider.healthStatus}</p>
+                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{provider.category} Â· {provider.healthStatus}</p>
                     <h3 className="mt-2 font-semibold">{provider.name}</h3>
                     <p className="mt-1 text-sm text-zinc-400">{provider.servicePurpose}</p>
-                    <p className="mt-2 text-xs text-zinc-500">Owner: {provider.internalOwner} · Plan: {provider.currentPlan}</p>
+                    <p className="mt-2 text-xs text-zinc-500">Owner: {provider.internalOwner} Â· Plan: {provider.currentPlan}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <a className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:border-emerald-300" href={provider.dashboardUrl} rel="noreferrer" target="_blank">Dashboard</a>
@@ -2913,7 +2957,7 @@ function InfrastructureControlCenterView({
             {control.credentialMetadata.map((credential) => (
               <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={credential.id}>
                 <p className="font-semibold">{credential.credentialName}</p>
-                <p className="text-zinc-400">{credential.maskedIdentifier} · {credential.rotationStatus}</p>
+                <p className="text-zinc-400">{credential.maskedIdentifier} Â· {credential.rotationStatus}</p>
                 <p className="mt-1 text-xs text-zinc-500">{credential.notes}</p>
               </div>
             ))}
@@ -2932,7 +2976,7 @@ function InfrastructureControlCenterView({
           <div className="space-y-2">
             {control.alerts.map((alert) => (
               <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={alert.id}>
-                <p className="font-semibold">{alert.severity} · {alert.providerName}</p>
+                <p className="font-semibold">{alert.severity} Â· {alert.providerName}</p>
                 <p className="mt-1 text-zinc-400">{alert.message}</p>
                 <button className="mt-2 rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/infrastructure/alerts/${alert.id}`, {})}>Acknowledge</button>
               </div>
@@ -2957,10 +3001,10 @@ function InfrastructureControlCenterView({
           <div className="space-y-3">
             {control.comparisons.map((item) => (
               <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
-                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.category} · {item.status}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.category} Â· {item.status}</p>
                 <h3 className="mt-2 font-semibold">{item.providerName}</h3>
-                <p className="mt-1 text-sm text-zinc-400">{item.features.join(", ")} · Complexity {item.integrationComplexity}</p>
-                <p className="mt-2 text-sm text-zinc-500">{item.coverage} · {item.contractCommitment}</p>
+                <p className="mt-1 text-sm text-zinc-400">{item.features.join(", ")} Â· Complexity {item.integrationComplexity}</p>
+                <p className="mt-2 text-sm text-zinc-500">{item.coverage} Â· {item.contractCommitment}</p>
               </article>
             ))}
           </div>
@@ -2991,7 +3035,7 @@ function InfrastructureControlCenterView({
             <div className="md:col-span-2"><TextField label="Notes" name="notes" type="text" /></div>
             <div className="md:col-span-2"><SubmitButton>Create procurement request</SubmitButton></div>
           </form>
-          <CompactTreasuryList items={control.procurement.map((item) => `${item.requestedProvider}: ${item.status} · ${money(item.estimatedMonthlyCostCents)}/month`)} />
+          <CompactTreasuryList items={control.procurement.map((item) => `${item.requestedProvider}: ${item.status} Â· ${money(item.estimatedMonthlyCostCents)}/month`)} />
         </Panel>
 
         <Panel title="Procurement Report">
@@ -3001,12 +3045,12 @@ function InfrastructureControlCenterView({
             <MiniStat label="Monthly total" value={money(control.procurementReport.totals.monthlyTotalCents)} />
             <MiniStat label="First year" value={money(control.procurementReport.totals.estimatedFirstYearTotalCents)} />
           </div>
-          <CompactTreasuryList items={control.procurementReport.providers.map((item) => `${item.provider}: ${item.required ? "Required" : "Optional"} · ${item.purchaseStatus}`)} />
+          <CompactTreasuryList items={control.procurementReport.providers.map((item) => `${item.provider}: ${item.required ? "Required" : "Optional"} Â· ${item.purchaseStatus}`)} />
         </Panel>
       </div>
 
       <Panel title="Infrastructure Tasks">
-        <CompactTreasuryList items={control.tasks.map((task) => `${task.priority}: ${task.title} · due ${new Date(task.dueDate).toLocaleDateString()}`)} />
+        <CompactTreasuryList items={control.tasks.map((task) => `${task.priority}: ${task.title} Â· due ${new Date(task.dueDate).toLocaleDateString()}`)} />
       </Panel>
     </div>
   );
@@ -3241,7 +3285,7 @@ function MediaCommandCenterView({
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={provider.name}>
               <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{provider.mode}</p>
               <h3 className="mt-2 font-semibold">{provider.name}</h3>
-              <p className="mt-2 text-sm text-zinc-400">{provider.configured ? "Configured" : "Provider-ready placeholder. No external API connected."}</p>
+              <p className="mt-2 text-sm text-zinc-400">{provider.configured ? "Configured" : "Connection preparing. External publishing remains under Admin control."}</p>
             </div>
           ))}
         </div>
@@ -3493,7 +3537,7 @@ function AdminReportsView({
         <Metric label="Subscribers" value={`${reports.subscribers.active}/${reports.subscribers.total}`} />
         <Metric label="Investors" value={`${reports.investors.active}/${reports.investors.total}`} />
         <Metric label="Tracked deposits" value={money(reports.revenue.trackedWalletDepositsCents)} />
-        <Metric label="Pending withdrawals" value={`${reports.withdrawals.pendingCount} · ${money(reports.withdrawals.pendingAmountCents)}`} />
+        <Metric label="Pending withdrawals" value={`${reports.withdrawals.pendingCount} Â· ${money(reports.withdrawals.pendingAmountCents)}`} />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Analyst Performance">
@@ -3515,7 +3559,7 @@ function AdminReportsView({
           {reports.dailyPlatformActivity.map((day) => (
             <div className="flex justify-between rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={day.date}>
               <span>{day.date}</span>
-              <span className="text-zinc-400">{day.auditEvents} audit events · {day.logins} logins</span>
+              <span className="text-zinc-400">{day.auditEvents} audit events Â· {day.logins} logins</span>
             </div>
           ))}
           {!reports.dailyPlatformActivity.length ? <EmptyState message="Daily activity appears after production usage begins." /> : null}
@@ -4025,7 +4069,7 @@ function InvestorPortal({
           <div className="space-y-2">
             {(wallet?.transactions ?? []).map((transaction) => (
               <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={transaction.id}>
-                <p className="font-semibold">{transaction.type} · {transaction.status} · {money(transaction.amountCents)}</p>
+                <p className="font-semibold">{transaction.type} Â· {transaction.status} Â· {money(transaction.amountCents)}</p>
                 <p className="mt-1 text-sm text-zinc-400">{new Date(transaction.createdAt).toLocaleString()}</p>
                 {transaction.invoiceUrl ? <a className="text-sm text-emerald-300" href={transaction.invoiceUrl}>Open invoice</a> : null}
               </div>
@@ -4131,7 +4175,7 @@ function InvestorPortal({
         <div className="space-y-2">
           {withdrawals.map((request) => (
             <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={request.id}>
-              <p className="font-semibold">{money(request.amountCents)} · {request.status}</p>
+              <p className="font-semibold">{money(request.amountCents)} Â· {request.status}</p>
               <p className="mt-1 text-sm text-zinc-400">Requested {new Date(request.requestedAt).toLocaleString()}</p>
             </div>
           ))}
@@ -4171,7 +4215,7 @@ function PaymentOrderList({ orders, admin, onAction }: { orders: PaymentOrder[];
             <div>
               <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{order.purpose}</p>
               <h3 className="mt-1 font-semibold">{order.providerPaymentId ?? order.id}</h3>
-              <p className="mt-1 text-sm text-zinc-400">Expected {money(order.expectedAmountCents)} Â· Received {money(order.receivedAmountCents)} Â· {order.priceCurrency}/{order.payCurrency}</p>
+              <p className="mt-1 text-sm text-zinc-400">Expected {money(order.expectedAmountCents)} Ã‚Â· Received {money(order.receivedAmountCents)} Ã‚Â· {order.priceCurrency}/{order.payCurrency}</p>
               <p className="mt-1 text-sm text-zinc-400">Reconciliation: {order.reconciliationStatus}</p>
             </div>
             <StatusPill status={order.status} />
@@ -4316,6 +4360,7 @@ function PublicLaunchExperience({
   currencies,
   currentPath,
   error,
+  experience,
   languages,
   message,
   mode,
@@ -4325,8 +4370,10 @@ function PublicLaunchExperience({
   onLogin,
   onNavigate,
   onRegister,
+  onThemeChange,
   preferences,
   setMode,
+  theme,
 }: {
   apiCheck: string;
   apiUrl: string;
@@ -4334,6 +4381,7 @@ function PublicLaunchExperience({
   currencies: CurrencySetting[];
   currentPath: string;
   error: string;
+  experience: PublicExperience | null;
   languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
@@ -4343,144 +4391,44 @@ function PublicLaunchExperience({
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onNavigate: (path: string, id?: string) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
+  onThemeChange: (theme: ThemePreference) => void;
   preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
+  theme: ThemePreference;
 }) {
-  const slides = [
-    "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?auto=format&fit=crop&w=1600&q=80",
-    "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1600&q=80",
-    "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1600&q=80",
-  ];
   const currentPage = getCanonicalPublicPage(currentPath);
   const isUnknownPublicRoute = !currentPage && !isLegacyPrivatePath(currentPath) && !["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst", "/forgot-password", "/reset-password"].includes(currentPath);
   if (isUnknownPublicRoute) {
     return <PublicNotFoundPage onNavigate={onNavigate} />;
   }
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <nav className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/85 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Football Performance Fund</p>
-            <h1 className="text-lg font-semibold">FPF Global Intelligence Platform</h1>
-          </div>
-          <div className="flex flex-wrap gap-2 text-sm">
-            {publicPageDefinitions.slice(0, 11).map((item) => (
-              <button
-                className={`rounded-md px-3 py-2 text-left transition ${currentPage?.path === item.path ? "bg-emerald-300 text-zinc-950" : "text-zinc-300 hover:bg-zinc-900 hover:text-white"}`}
-                key={item.path}
-                type="button"
-                onClick={() => onNavigate(item.path, item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-            <button className="rounded-md border border-emerald-800 px-3 py-2 text-emerald-100 hover:border-emerald-300" type="button" onClick={() => { setMode("login"); onNavigate("/login", "auth"); }}>Sign In</button>
-          </div>
-        </div>
-      </nav>
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          {slides.map((slide, index) => (
-            <div className="hero-slide absolute inset-0 bg-cover bg-center" key={slide} style={{ animationDelay: `${index * 6}s`, backgroundImage: `linear-gradient(90deg, rgba(9,9,11,0.96), rgba(9,9,11,0.74), rgba(9,9,11,0.35)), url(${slide})` }} />
-          ))}
-        </div>
-        <div className="relative mx-auto grid min-h-[92vh] max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1fr_430px] lg:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">Institutional football AI</p>
-            <h2 className="mt-5 max-w-4xl text-5xl font-black tracking-normal sm:text-7xl">
-              We Don't Chase Luck.<br />We Build Performance.
-            </h2>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-200">
-              One premium platform for football intelligence, subscriber opportunities, investor transparency, media operations, commercial controls, and global settings.
-            </p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-4">
-              <MiniStat label="AI mode" value="Safe" />
-              <MiniStat label="Markets" value="Global" />
-              <MiniStat label="Accuracy" value="Tracked" />
-              <MiniStat label="Status" value="Ready" />
-            </div>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button className="rounded-md bg-emerald-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200" type="button" onClick={() => { setMode("register"); onNavigate("/get-started", "auth"); }}>Get Started</button>
-              <button className="rounded-md border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:border-emerald-300" type="button" onClick={() => onNavigate("/platform", "platform")}>Explore Platform</button>
-              <button className="rounded-md border border-emerald-700 bg-emerald-950/30 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300" type="button" onClick={() => { setMode("register"); onNavigate("/become-an-investor", "auth"); }}>Become an Investor</button>
-              <button className="rounded-md border border-zinc-700 px-5 py-3 text-sm font-semibold text-zinc-100 transition hover:border-emerald-300" type="button" onClick={() => onNavigate("/analyst-applications", "analyst-applications")}>Apply as Analyst</button>
-            </div>
-          </div>
-          <div id="auth">
-            <AuthPanel
-              apiCheck={apiCheck}
-              apiUrl={apiUrl}
-              currencies={currencies}
-              error={error}
-              languages={languages}
-              message={message}
-              mode={mode}
-              onApiTest={onApiTest}
-              onForgot={onForgot}
-              onLocalPreferenceChange={onLocalPreferenceChange}
-              onLogin={onLogin}
-              onRegister={onRegister}
-              preferences={preferences}
-              setMode={setMode}
-            />
-          </div>
-        </div>
-      </section>
-      <section className="mx-auto max-w-7xl space-y-10 px-6 py-12">
-        <div id="home" className="grid gap-4 md:grid-cols-3">
-          <LaunchCard title="AI Statistics" body="Confidence, risk, value, opportunity, and decision scores are centralized through the FPF Intelligence Core." />
-          <LaunchCard title="Live Performance" body="Performance cards, reports, and alerts are ready for live data expansion without changing the user experience." />
-          <LaunchCard title="Prediction Accuracy" body="Approved predictions and analyst-reviewed intelligence are tracked without guaranteeing outcomes." />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <LaunchPanel id="about" title="About" items={["FPF is a global football intelligence operating system.", "Subscribers, investors, analysts, and administrators use one secure platform.", "Every module shares the same authentication, settings, search, notifications, and brand system."]} />
-          <LaunchPanel id="platform" title="Platform" items={["One frontend application and one backend API.", "Public pages and secure workspaces share the same design system.", "Private modules are protected by backend authorization."]} />
-          <LaunchPanel id="technology" title="Technology" items={["Node, Express, PostgreSQL/Supabase, Prisma, React, Vite, Tailwind, Vercel.", "Provider-ready interfaces for football data, AI, payments, exchange rates, and exports.", "No API keys or secrets are exposed in the frontend."]} />
-          <LaunchPanel id="how-fpf-works" title="How FPF Works" items={["Data enters the Intelligence Core.", "AI and analyst workflows prepare intelligence.", "Admin approval controls publication, treasury, and executive reporting."]} />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <LaunchPanel id="subscribers" title="Subscribers" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
-          <LaunchPanel id="investors" title="Investors" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
-        </div>
-        <AnalystApplicationPortal />
-        <LaunchPanel id="ai-intelligence" title="AI Intelligence" items={["Explainable confidence, risk, value, momentum, volatility, and opportunity scores.", "Missing live data produces safe fallback results instead of invented claims.", "Final publication remains admin controlled."]} />
-        <PricingCards plans={commercialStructure.subscriberPlans} />
-        <div className="grid gap-4 lg:grid-cols-3">
-          <LaunchPanel id="investor-packages" title="Investor Packages" items={["Minimum investment placeholder starts at $100.", "6-month and 12-month lock-period placeholders are supported.", "All projected performance remains simulation-only."]} />
-          <LaunchPanel id="performance" title="Performance" items={["Win rate, ROI, confidence, risk, and treasury metrics are tracked internally.", "Historical results never guarantee future outcomes.", "Executive BI consolidates operational performance."]} />
-          <LaunchPanel id="security" title="Security" items={["JWT sessions and role guards protect private modules.", "Analysts never see investor financial data.", "Subscribers never see treasury, admin, or analyst workspaces."]} />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {["FPF feels like a professional command room, not a tips feed.", "The risk language is clear and disciplined.", "The investor portal gives the transparency a serious platform needs."].map((quote) => (
-            <blockquote className="rounded-lg border border-zinc-800 bg-zinc-900 p-5 text-sm leading-6 text-zinc-300" key={quote}>{quote}</blockquote>
-          ))}
-        </div>
-        <LaunchPanel id="faq" title="FAQ" items={["Payments are placeholder-only until approved providers are connected.", "Returns are never guaranteed.", "AI output is explainable and admin-review ready.", "Language, currency, and timezone settings are built into the platform."]} />
-        <div className="grid gap-4 lg:grid-cols-4">
-          <LaunchPanel id="contact" title="Contact" items={["Contact form placeholder ready.", "Support routes are centralized inside the unified app.", "Enterprise inquiries route to admin operations."]} />
-          <LaunchPanel id="legal" title="Legal" items={["Legal center placeholder.", "Risk disclaimers remain visible across finance modules.", "No real payment processing is active."]} />
-          <LaunchPanel id="privacy-policy" title="Privacy Policy" items={["Privacy policy placeholder.", "Preferences and notification controls are user-owned.", "Security alerts remain mandatory."]} />
-          <LaunchPanel id="terms-and-conditions" title="Terms and Conditions" items={["Terms placeholder.", "Simulation outputs are not guaranteed returns.", "FPF intelligence requires admin approval before publication."]} />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <LaunchPanel id="risk-disclosure" title="Risk Disclosure" items={["Football intelligence can be wrong.", "Investment simulations are not promised returns.", "Final payout logic remains disconnected until approved providers are integrated."]} />
-          <LaunchPanel id="responsible-participation" title="Responsible Participation" items={["Use intelligence responsibly.", "Avoid chasing losses.", "FPF never guarantees fixed outcomes or fixed returns."]} />
-          <LaunchPanel id="cookie-policy" title="Cookie Policy" items={["Cookie policy placeholder.", "Future analytics and marketing pixels must be approved through the Infrastructure Center.", "Private dashboard routes are not intended for indexing."]} />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <LaunchPanel id="blog" title="Blog" items={["Market trends placeholder.", "Technology updates placeholder.", "Education articles placeholder."]} />
-          <LaunchPanel id="media" title="Media" items={["Media command center powers future public media.", "Press kit placeholder.", "Announcement workflow is admin controlled."]} />
-          <LaunchPanel id="careers" title="Careers & Affiliate Partners" items={["Analyst applications require approval.", "Affiliate partner program placeholder.", "Internal roles remain protected by admin controls."]} />
-        </div>
-      </section>
-      <footer className="border-t border-zinc-800 px-6 py-8 text-sm text-zinc-500">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span>Football Performance Fund</span>
-          <span>Global football intelligence, built for performance.</span>
-        </div>
-      </footer>
-    </main>
+    <Mission21PublicExperience
+      authPanel={
+        <AuthPanel
+          apiCheck={apiCheck}
+          apiUrl={apiUrl}
+          currencies={currencies}
+          error={error}
+          languages={languages}
+          message={message}
+          mode={mode}
+          onApiTest={onApiTest}
+          onForgot={onForgot}
+          onLocalPreferenceChange={onLocalPreferenceChange}
+          onLogin={onLogin}
+          onRegister={onRegister}
+          preferences={preferences}
+          setMode={setMode}
+        />
+      }
+      commercialStructure={commercialStructure}
+      currentPath={currentPath}
+      experience={experience}
+      onNavigate={onNavigate}
+      onThemeChange={onThemeChange}
+      publicPageDefinitions={publicPageDefinitions}
+      theme={theme}
+    />
   );
 }
 
@@ -4772,7 +4720,7 @@ function DashboardView({
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
               <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">FPF Intelligence</p>
               <h3 className="mt-2 font-semibold">{item.match}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{item.market} · {item.prediction}</p>
+              <p className="mt-1 text-sm text-zinc-400">{item.market} Â· {item.prediction}</p>
               <p className="mt-3 text-sm leading-6 text-zinc-300">{item.briefExplanation}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
                 <MiniStat label="Conf" value={`${item.confidence}%`} />
@@ -4886,9 +4834,9 @@ function PredictionWorkflowPanel({
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{item.status} · Priority {item.priority}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{item.status} Â· Priority {item.priority}</p>
                 <h3 className="mt-2 font-semibold">{item.match}</h3>
-                <p className="mt-1 text-sm text-zinc-400">{item.league} · {item.recommendedMarket} · {item.predictedOutcome}</p>
+                <p className="mt-1 text-sm text-zinc-400">{item.league} Â· {item.recommendedMarket} Â· {item.predictedOutcome}</p>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">{item.explanation || item.reasoning[0] || "Pending analyst review."}</p>
                 {item.warnings[0] ? <p className="mt-2 text-xs text-amber-200">{item.warnings[0]}</p> : null}
               </div>
@@ -5411,8 +5359,8 @@ function InternalSubmissionList({ submissions }: { submissions: AnalystIntellige
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={submission.id}>
           <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{submission.status}</p>
           <p className="mt-1 font-semibold">{submission.match}</p>
-          <p className="mt-1 text-sm text-zinc-400">{submission.market} · {submission.prediction}</p>
-          <p className="mt-1 text-sm text-zinc-500">Confidence {submission.confidence}% · Risk {submission.riskLevel}</p>
+          <p className="mt-1 text-sm text-zinc-400">{submission.market} Â· {submission.prediction}</p>
+          <p className="mt-1 text-sm text-zinc-500">Confidence {submission.confidence}% Â· Risk {submission.riskLevel}</p>
           {submission.adminNotes ? <p className="mt-1 text-sm text-zinc-500">{submission.adminNotes}</p> : null}
         </div>
       ))}
@@ -5474,9 +5422,9 @@ function MatchCenterView({
         <div className="mt-4 space-y-2">
           {fixtures.map((fixture) => (
             <button className="w-full rounded-md border border-zinc-800 bg-zinc-950 p-3 text-left hover:border-emerald-300" key={fixture.id} type="button" onClick={() => onSelectFixture(fixture.id)}>
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">{fixture.leagueName}{fixture.leagueCountry ? ` · ${fixture.leagueCountry}` : ""}</span>
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">{fixture.leagueName}{fixture.leagueCountry ? ` Â· ${fixture.leagueCountry}` : ""}</span>
               <span className="mt-1 block font-semibold">{fixture.homeTeamName} vs {fixture.awayTeamName}</span>
-              <span className="mt-1 block text-sm text-zinc-400">{fixture.status} · {new Date(fixture.kickoffAt).toLocaleDateString()}</span>
+              <span className="mt-1 block text-sm text-zinc-400">{fixture.status} Â· {new Date(fixture.kickoffAt).toLocaleDateString()}</span>
             </button>
           ))}
           {!fixtures.length ? <p className="text-sm text-zinc-400">No fixtures match those filters.</p> : null}
@@ -5567,7 +5515,7 @@ function OpportunityList({
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
               <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{item.leagueName}</p>
               <h3 className="mt-2 font-semibold">{item.match}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{item.market} · {item.prediction}</p>
+              <p className="mt-1 text-sm text-zinc-400">{item.market} Â· {item.prediction}</p>
               <p className="mt-1 text-sm text-zinc-500">Published {item.publishedAt ? new Date(item.publishedAt).toLocaleString() : "after review"}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
                 <MiniStat label="Conf" value={`${item.confidence}%`} />
@@ -5668,7 +5616,7 @@ function PredictionDetail({
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
           <p className="font-semibold text-white">Match context</p>
-          <p className="mt-2">Team form: {fixture?.standings.length ? fixture.standings.slice(0, 2).map((standing) => `${standing.teamName} ${standing.points} pts`).join(" · ") : "Pending"}</p>
+          <p className="mt-2">Team form: {fixture?.standings.length ? fixture.standings.slice(0, 2).map((standing) => `${standing.teamName} ${standing.points} pts`).join(" Â· ") : "Pending"}</p>
           <p>Head-to-head: {fixture?.headToHeadRecords.length ?? 0} records</p>
           <p>League position: {fixture?.standings[0]?.rank ? "Available" : "Pending"}</p>
           <p>Injuries: {fixture?.injuries.length ?? 0} listed</p>
@@ -5822,7 +5770,7 @@ function CompactPredictionList({ predictions }: { predictions: PredictionWithFix
       {predictions.map((prediction) => (
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={prediction.id}>
           <p className="font-semibold">{prediction.predictedOutcome}</p>
-          <p className="mt-1 text-sm text-zinc-400">Confidence {prediction.confidenceScore}% · Risk {prediction.riskScore}</p>
+          <p className="mt-1 text-sm text-zinc-400">Confidence {prediction.confidenceScore}% Â· Risk {prediction.riskScore}</p>
         </div>
       ))}
       {!predictions.length ? <EmptyState message="Approved predictions will appear here after review." /> : null}
@@ -5842,7 +5790,7 @@ function CompactFixtureList({ fixtures, onSelect }: { fixtures: FootballFixtureS
           onClick={() => onSelect?.(fixture.id)}
         >
           <p className="font-semibold">{fixture.homeTeamName} vs {fixture.awayTeamName}</p>
-          <p className="mt-1 text-sm text-zinc-400">{fixture.leagueName} · {fixture.status} · {new Date(fixture.kickoffAt).toLocaleString()}</p>
+          <p className="mt-1 text-sm text-zinc-400">{fixture.leagueName} Â· {fixture.status} Â· {new Date(fixture.kickoffAt).toLocaleString()}</p>
         </button>
       ))}
       {!fixtures.length ? <EmptyState message="No synchronized fixtures available." /> : null}
@@ -5856,7 +5804,7 @@ function CompactAuditList({ emptyLabel, logs }: { emptyLabel: string; logs: Audi
       {logs.map((log) => (
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={log.id}>
           <p className="font-semibold">{log.action}</p>
-          <p className="mt-1 text-sm text-zinc-400">{log.entityType} · {log.entityId ?? "System"} · {new Date(log.createdAt).toLocaleString()}</p>
+          <p className="mt-1 text-sm text-zinc-400">{log.entityType} Â· {log.entityId ?? "System"} Â· {new Date(log.createdAt).toLocaleString()}</p>
         </div>
       ))}
       {!logs.length ? <p className="text-sm text-zinc-400">{emptyLabel}</p> : null}
@@ -5877,10 +5825,10 @@ function InvestmentList({ investments }: { investments: InvestorInvestment[] }) 
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={investment.id}>
           <p className="font-semibold">{investment.planName}</p>
           <p className="mt-1 text-sm text-zinc-400">
-            {money(investment.amountCents)} invested · {money(investment.currentValueCents)} current
+            {money(investment.amountCents)} invested Â· {money(investment.currentValueCents)} current
           </p>
           <p className="text-sm text-zinc-500">
-            Weekly ROI {investment.weeklyRoiPercent.toFixed(2)}% · Lifetime ROI {investment.lifetimeRoiPercent.toFixed(2)}%
+            Weekly ROI {investment.weeklyRoiPercent.toFixed(2)}% Â· Lifetime ROI {investment.lifetimeRoiPercent.toFixed(2)}%
           </p>
           <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2 lg:grid-cols-4">
             <p>Lock period: 6 Months placeholder</p>
@@ -6482,3 +6430,4 @@ function SubmitButton({ children }: { children: string }) {
     </button>
   );
 }
+

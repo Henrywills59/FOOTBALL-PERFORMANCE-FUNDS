@@ -575,6 +575,102 @@ export type GlobalizationBootstrap = {
   preferences: UserGlobalPreferences;
 };
 
+export type ThemePreference = "dark" | "light" | "system";
+
+export type PublicPlatformStatus = "OPERATIONAL" | "PREPARING" | "DEGRADED" | "MAINTENANCE" | "PROVIDER_PENDING";
+
+export type PublicExperience = {
+  generatedAt: string;
+  activity: {
+    fixturesMonitored: number;
+    liveMatches: number;
+    analysisJobsCompletedToday: number;
+    analystReviewsCompleted: number;
+    pendingApproval: number;
+    reportsPending: number;
+    leaguesCovered: number;
+    approvedOpportunities: number;
+    lastSuccessfulDataRefresh: string | null;
+    platformStatus: PublicPlatformStatus;
+    safeState: string;
+  };
+  intelligencePreview: {
+    providerConnected: boolean;
+    status: "DATA_COLLECTION" | "AI_ANALYSIS" | "ANALYST_REVIEW" | "ADMIN_REVIEW" | "APPROVED" | "PUBLISHED_TO_MEMBERS" | "ARCHIVED" | "PROVIDER_PENDING";
+    message: string;
+    fixtures: Array<{
+      match: string;
+      league: string;
+      country: string;
+      kickoffTime: string;
+      intelligenceStatus: string;
+      analystReviewStatus: string;
+      riskClassification: string;
+      confidenceBand: string;
+      dataFreshness: string;
+      publicationStatus: string;
+    }>;
+  };
+  performance: {
+    liveVerifiedResults: Array<{
+      date: string;
+      market: string;
+      publishedOdds: number;
+      result: string;
+      stakeUnit: number;
+      returnUnit: number;
+      netResultUnit: number;
+      verificationStatus: string;
+    }>;
+    preLaunchModelTesting: {
+      label: string;
+      status: string;
+      methodology: string;
+      notice: string;
+    };
+    currentReportingPeriod: {
+      status: string;
+      positionsSettled: number;
+      positionsPending: number;
+      reportingCompletion: number;
+      reconciliationStatus: string;
+    };
+  };
+  trust: {
+    websiteStatus: PublicPlatformStatus;
+    backendStatus: PublicPlatformStatus;
+    paymentProviderStatus: PublicPlatformStatus;
+    footballDataStatus: PublicPlatformStatus;
+    notificationProviderStatus: PublicPlatformStatus;
+    monitoringStatus: PublicPlatformStatus;
+    treasuryReconciliationStatus: PublicPlatformStatus;
+    lastPlatformUpdate: string;
+    latestCompletedReportingPeriod: string | null;
+    riskManagementPolicy: string;
+    responsibleParticipationPolicy: string;
+    privacySummary: string;
+  };
+  milestones: Array<{ title: string; status: "VERIFIED" | "PREPARING"; date: string | null }>;
+  foundingMembers: {
+    enabled: boolean;
+    labels: string[];
+    benefits: string[];
+    seatLimit: number | null;
+    message: string;
+  };
+  commercial: {
+    subscriberPlans: SubscriberPlan[];
+    investorPackages: InvestorPackage[];
+    lockPeriods: InvestmentLockPeriod[];
+    minimumInvestmentCents: number;
+    paymentConfigured: boolean;
+  };
+  contentControls: {
+    adminManaged: boolean;
+    editableAreas: string[];
+  };
+};
+
 export type AdminReports = {
   subscribers: {
     total: number;

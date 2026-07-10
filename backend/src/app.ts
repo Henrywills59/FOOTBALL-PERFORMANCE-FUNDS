@@ -66,6 +66,8 @@ import { PrismaPredictionWorkflowRepository } from "./predictionWorkflow/predict
 import { createPredictionWorkflowRouter } from "./predictionWorkflow/predictionWorkflowRoutes.js";
 import { PredictionWorkflowService } from "./predictionWorkflow/predictionWorkflowService.js";
 import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js";
+import { createPublicExperienceRouter } from "./public/publicExperienceRoutes.js";
+import { PublicExperienceService } from "./public/publicExperienceService.js";
 import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
 import { createTreasuryRouter } from "./treasury/treasuryRoutes.js";
@@ -265,6 +267,7 @@ export function createApp(options?: {
   const treasuryService = new TreasuryService();
   const analyticsService = new AnalyticsService();
   const infrastructureService = new InfrastructureService();
+  const publicExperienceService = new PublicExperienceService();
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -369,6 +372,12 @@ export function createApp(options?: {
     response.status(200).json(getSafeConfigStatus());
   });
 
+  app.use(
+    "/api",
+    createPublicExperienceRouter({
+      publicExperienceService,
+    }),
+  );
   app.use("/api", createAuthRouter(authService));
   app.use(
     "/api",
