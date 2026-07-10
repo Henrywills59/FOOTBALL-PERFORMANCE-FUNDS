@@ -360,7 +360,7 @@ export class FootballSyncService {
       this.apiFootball.fixtures({ league: leagueId, season, next: 30 }),
       ...dates.map((date) => this.apiFootball.fixtures({ league: leagueId, season, date })),
     ]);
-    return responses.flatMap((result) => result.status === "fulfilled" ? result.value.response : []);
+    return collectFixtureResponses(responses, `Configured league ${leagueId} season ${season}`);
   }
 
   private async fetchGlobalUpcomingFixtures() {
@@ -369,8 +369,23 @@ export class FootballSyncService {
       this.apiFootball.fixtures({ next: 30 }),
       ...dates.map((date) => this.apiFootball.fixtures({ date })),
     ]);
-    return responses.flatMap((result) => result.status === "fulfilled" ? result.value.response : []);
+    return collectFixtureResponses(responses, "Global upcoming fixture fallback");
   }
+}
+
+function collectFixtureResponses(
+  responses: PromiseSettledResult<{ response: unknown[] }>[],
+  label: string,
+) {
+  const fulfilled = responses.filter((result): result is PromiseFulfilledResult<{ response: unknown[] }> => result.status === "fulfilled");
+  if (fulfilled.length) {
+    return fulfilled.flatMap((result) => result.value.response);
+  }
+
+  const errors = responses
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason));
+  throw new Error(`${label} failed: ${errors.join("; ")}`);
 }
 
 function nextDateWindow(days: number) {

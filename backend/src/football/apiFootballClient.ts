@@ -166,6 +166,16 @@ export class ApiFootballClient {
       this.remainingDailyQuota = toNumberOrNull(result.quota?.remaining);
       this.requestsUsed = toNumberOrNull(result.quota?.used);
       this.dailyLimit = toNumberOrNull(result.quota?.limit) ?? this.config.apiFootballDailyLimit;
+      const providerError = summarizeEnvelopeErrors(result.data.errors);
+      if (providerError) {
+        this.lastFailedRequest = new Date();
+        this.lastErrorStatus = "ERROR";
+        console.warn("API_FOOTBALL_PROVIDER_ENVELOPE_ERROR", {
+          path,
+          message: providerError,
+        });
+        throw new Error(providerError);
+      }
       const value = {
         response: result.data.response,
         quota: result.quota,
@@ -199,6 +209,25 @@ function sanitizeProviderError(error: unknown) {
     if (error.rateLimited) return "API-Football rate limit reached";
     return error.statusCode ? `API-Football request failed with HTTP ${error.statusCode}` : "API-Football request failed";
   }
+  if (error instanceof Error && error.message.startsWith("API-Football returned provider")) return error.message;
   if (error instanceof Error && error.name === "AbortError") return "API-Football request timed out";
   return "API-Football provider unavailable";
+}
+
+function summarizeEnvelopeErrors(errors: unknown) {
+  if (!errors) return null;
+  if (Array.isArray(errors)) {
+    return errors.length ? `API-Football returned provider errors: ${errors.map(String).join("; ")}` : null;
+  }
+  if (typeof errors === "string") {
+    return errors.trim() ? `API-Football returned provider error: ${errors}` : null;
+  }
+  if (typeof errors === "object") {
+    const entries = Object.entries(errors as Record<string, unknown>);
+    if (!entries.length) return null;
+    return `API-Football returned provider errors: ${entries
+      .map(([key, value]) => `${key}: ${String(value)}`)
+      .join("; ")}`;
+  }
+  return `API-Football returned provider error: ${String(errors)}`;
 }

@@ -85,6 +85,18 @@ describe("ApiFootballClient", () => {
     expect(client.getStatus().cacheHitRate).toBe(50);
   });
 
+  it("reports API-Football envelope errors instead of treating them as empty data", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({ response: [], errors: { plan: "Fixtures unavailable for this key" } }), {
+        status: 200,
+      }),
+    ));
+    const client = new ApiFootballClient(baseConfig);
+
+    await expect(client.fixtures({ next: 30 })).rejects.toThrow("API-Football returned provider errors: plan: Fixtures unavailable for this key");
+    expect(client.getStatus().connectionStatus).toBe("ERROR");
+  });
+
   it("maps rate-limit responses to safe provider status", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 429 })));
     const client = new ApiFootballClient(baseConfig);
