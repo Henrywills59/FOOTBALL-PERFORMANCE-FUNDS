@@ -1117,14 +1117,82 @@ export default function App() {
     };
   }
 
+  function clearPrivateClientState() {
+    setAdminMode(false);
+    setActiveView("Subscriber Home");
+    setActiveAdminView("Admin Dashboard");
+    setActiveInvestorView("Investor Dashboard");
+    setActiveAnalystView("Analyst Dashboard");
+    setGlobalSearch("");
+    setFavoriteModules([]);
+    setRecentPages([]);
+    setFixtures([]);
+    setLiveFixtures([]);
+    setSelectedFixture(null);
+    setPredictions([]);
+    setSelectedPrediction(null);
+    setSlip([]);
+    setFilters({ search: "", league: "", country: "", date: "" });
+    setAdminOverview(null);
+    setAdminPredictions([]);
+    setAdminDecisionOutputs([]);
+    setPredictionWorkflowQueue(null);
+    setPublishedWorkflowPredictions([]);
+    setAdminUsers([]);
+    setAuditLogs([]);
+    setSyncLogs([]);
+    setAdminSettings(null);
+    setAdminReports(null);
+    setPlatformHealth(null);
+    setAdminInvestorManagement(null);
+    setInvestorDashboard(null);
+    setInvestorProfile(null);
+    setInvestmentPlans([]);
+    setPortfolio({ active: [], completed: [] });
+    setInvestorReports([]);
+    setInvestorDistributions([]);
+    setWithdrawals([]);
+    setWallet(null);
+    setPublishedIntelligence([]);
+    setAnalystDashboard(null);
+    setAnalystPerformance(null);
+    setAnalystAssignments([]);
+    setAnalystSubmissions([]);
+    setAnalystAssistance(null);
+    setAdminIntelligence([]);
+    setAdminAnalystControl(null);
+    setWarRoom(null);
+    setTreasuryDashboard(null);
+    setExecutiveSituation(null);
+    setAnalystTreasury(null);
+    setExecutiveAnalytics(null);
+    setAnalystAnalytics(null);
+    setSubscriberCommandCenter(null);
+    setDecisionOutputs([]);
+    setOperationalReports([]);
+    setMonitoringOverview(null);
+    setSystemIncidents([]);
+    setOperationalNotifications([]);
+    setNotificationPreferences(null);
+    setAdminAnnouncements([]);
+    setMediaDashboard(null);
+    setCommercialControl(null);
+    setInfrastructureControl(null);
+    setPaymentCenter(null);
+    setAdminPaymentCenter(null);
+    localStorage.removeItem("fpf_favorite_modules");
+    localStorage.removeItem("fpf_recent_pages");
+  }
+
   function signOut() {
     localStorage.removeItem("fpf_session");
     sessionStorage.removeItem("fpf_session");
+    clearPrivateClientState();
     setSession(null);
-    setMessage("");
+    setMessage("You have been signed out securely.");
     setError("");
-    setSlip([]);
-    window.history.pushState(null, "", "/");
+    setMode("login");
+    window.history.replaceState(null, "", "/");
     setCurrentPath("/");
   }
 
@@ -1221,17 +1289,17 @@ export default function App() {
       : navItems;
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col lg:flex-row">
-        <aside className="border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r lg:p-6">
-          <div>
+    <main className="min-h-dvh bg-zinc-950 text-white">
+      <div className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
+        <aside className="flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
+          <div className="shrink-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
             <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 shrink-0">
             <ThemeSwitcher theme={themePreference} onChange={setThemePreference} />
           </div>
-          <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Unified FPF navigation">
+          <nav className="mt-4 grid min-h-0 max-h-[48vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-5 lg:max-h-none lg:flex-1 lg:grid-cols-1 lg:pr-2" aria-label="Unified FPF navigation">
             {navigationItems.map((item) => (
               <button
                 className={`rounded-md px-3 py-3 text-left text-sm font-medium transition ${
@@ -1253,32 +1321,50 @@ export default function App() {
               </button>
             ))}
           </nav>
-          {session.user.role === "ADMIN" ? (
+          <div className="mt-4 shrink-0 border-t border-zinc-800 pt-4">
+            <div className="rounded-md border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
+              <p className="font-semibold text-white">{session.user.name}</p>
+              <p className="mt-1 truncate text-xs text-zinc-400">{session.user.email}</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.12em] text-emerald-300">{roleLabels[session.user.role]}</p>
+            </div>
+            {session.user.role === "ADMIN" ? (
+              <button
+                className="mt-3 w-full rounded-md border border-emerald-800 px-3 py-3 text-sm text-emerald-200 transition hover:border-emerald-300"
+                type="button"
+                onClick={() => setAdminMode((current) => !current)}
+              >
+                {adminMode ? "Subscriber View" : "Admin Command"}
+              </button>
+            ) : null}
             <button
-              className="mt-4 w-full rounded-md border border-emerald-800 px-3 py-3 text-sm text-emerald-200 transition hover:border-emerald-300"
+              aria-label="Sign out securely"
+              className="mt-3 w-full rounded-md border border-zinc-800 px-3 py-3 text-sm font-semibold text-zinc-300 transition hover:border-emerald-300 hover:text-white"
               type="button"
-              onClick={() => setAdminMode((current) => !current)}
+              onClick={signOut}
             >
-              {adminMode ? "Subscriber View" : "Admin Command"}
+              Sign out
             </button>
-          ) : null}
-          <button
-            className="mt-4 w-full rounded-md border border-zinc-800 px-3 py-3 text-sm text-zinc-300 transition hover:border-emerald-300"
-            type="button"
-            onClick={signOut}
-          >
-            Sign out
-          </button>
+          </div>
         </aside>
 
-        <section className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:h-dvh lg:px-8">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-sm text-emerald-300">{loadingLabel} | {roleLabels[session.user.role]} workspace</p>
               <h2 className="mt-1 text-3xl font-bold tracking-normal">Welcome, {session.user.name}</h2>
             </div>
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
-              Unified FPF Platform | Ready
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
+                Unified FPF Platform | Ready
+              </div>
+              <button
+                aria-label="Sign out securely from the user menu"
+                className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:border-emerald-300 hover:text-white"
+                type="button"
+                onClick={signOut}
+              >
+                Sign out
+              </button>
             </div>
             <GlobalPreferenceBar
               currencies={currencies}
@@ -1379,6 +1465,7 @@ export default function App() {
             <ProfileView
               currencies={currencies}
               languages={languages}
+              onSignOut={signOut}
               onPasswordChange={safelySubmit(handlePasswordChange)}
               onPreferences={saveGlobalPreferences}
               preferences={globalPreferences}
@@ -1393,6 +1480,7 @@ export default function App() {
               languages={languages}
               notificationPreferences={notificationPreferences}
               notifications={operationalNotifications}
+              onSignOut={signOut}
               onPasswordChange={safelySubmit(handlePasswordChange)}
               onPreferences={saveGlobalPreferences}
               onSaveNotificationPreferences={saveNotificationPreferences}
@@ -1426,6 +1514,7 @@ export default function App() {
               languages={languages}
               notificationPreferences={notificationPreferences}
               notifications={operationalNotifications}
+              onSignOut={signOut}
               onPasswordChange={safelySubmit(handlePasswordChange)}
               onPreferences={saveGlobalPreferences}
               onSaveNotificationPreferences={saveNotificationPreferences}
@@ -1509,6 +1598,7 @@ export default function App() {
             <ProfileView
               currencies={currencies}
               languages={languages}
+              onSignOut={signOut}
               onPasswordChange={safelySubmit(handlePasswordChange)}
               onPreferences={saveGlobalPreferences}
               preferences={globalPreferences}
@@ -1522,6 +1612,7 @@ export default function App() {
               languages={languages}
               notificationPreferences={notificationPreferences}
               notifications={operationalNotifications}
+              onSignOut={signOut}
               onPasswordChange={safelySubmit(handlePasswordChange)}
               onPreferences={saveGlobalPreferences}
               onSaveNotificationPreferences={saveNotificationPreferences}
@@ -5268,6 +5359,7 @@ function SettingsCenterView({
   languages,
   notificationPreferences,
   notifications,
+  onSignOut,
   onPasswordChange,
   onPreferences,
   onSaveNotificationPreferences,
@@ -5279,6 +5371,7 @@ function SettingsCenterView({
   languages: LanguageSetting[];
   notificationPreferences: NotificationPreferences | null;
   notifications: OperationalNotification[];
+  onSignOut: () => void;
   onPasswordChange: (event: FormEvent<HTMLFormElement>) => void;
   onPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onSaveNotificationPreferences: (preferences: Partial<NotificationPreferences>) => Promise<void>;
@@ -5310,6 +5403,13 @@ function SettingsCenterView({
             <TextField label="New password" name="newPassword" type="password" />
             <SubmitButton>Update security</SubmitButton>
           </form>
+          <button
+            className="mt-3 w-full rounded-md border border-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:border-emerald-300 hover:text-white"
+            type="button"
+            onClick={onSignOut}
+          >
+            Sign out securely
+          </button>
         </Panel>
       </div>
       <NotificationCenterView
@@ -5684,6 +5784,7 @@ function PerformanceView({
 function ProfileView({
   currencies,
   languages,
+  onSignOut,
   onPasswordChange,
   onPreferences,
   preferences,
@@ -5692,6 +5793,7 @@ function ProfileView({
 }: {
   currencies: CurrencySetting[];
   languages: LanguageSetting[];
+  onSignOut: () => void;
   onPasswordChange: (event: FormEvent<HTMLFormElement>) => void;
   onPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   preferences: UserGlobalPreferences;
@@ -5717,6 +5819,13 @@ function ProfileView({
           <TextField label="New password" name="newPassword" type="password" />
           <SubmitButton>Update password</SubmitButton>
         </form>
+        <button
+          className="mt-3 w-full rounded-md border border-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:border-emerald-300 hover:text-white"
+          type="button"
+          onClick={onSignOut}
+        >
+          Sign out securely
+        </button>
       </Panel>
       <div className="lg:col-span-2">
         <GlobalPreferencesForm
