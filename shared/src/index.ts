@@ -1177,6 +1177,130 @@ export type AdminAnalystControlCenter = {
   academyDurationDays: number;
 };
 
+export type WarRoomAssignment = {
+  id: string;
+  analystId: string;
+  analystName: string;
+  scopeType: "LEAGUE" | "COUNTRY" | "COMPETITION" | "MATCH";
+  scopeValue: string;
+  fixtureId: string | null;
+  match: string | null;
+  leagueName: string | null;
+  country: string | null;
+  status: "ASSIGNED" | "IN_PROGRESS" | "SUBMITTED" | "MISSING" | "COMPLETED";
+  deadline: string;
+  adminNotes: string | null;
+};
+
+export type WarRoomFixture = FootballFixtureSummary & {
+  competition: string;
+  predictionDeadline: string;
+  assignedAnalysts: string[];
+  assignmentStatus: "UNASSIGNED" | "ASSIGNED" | "PENDING_SUBMISSION" | "READY_FOR_REVIEW";
+};
+
+export type WarRoomDiscussion = {
+  id: string;
+  fixtureId: string | null;
+  category:
+    | "TACTICAL_ANALYSIS"
+    | "TEAM_NEWS"
+    | "INJURY_UPDATES"
+    | "SUSPENSIONS"
+    | "MARKET_MOVEMENT"
+    | "WEATHER_DISCUSSION"
+    | "AI_OBSERVATIONS"
+    | "RISK_ALERTS";
+  title: string;
+  messages: Array<{
+    id: string;
+    authorLabel: string;
+    body: string;
+    mentions: string[];
+    createdAt: string;
+    replies: Array<{ id: string; authorLabel: string; body: string; createdAt: string }>;
+  }>;
+  pinnedNotes: string[];
+  attachmentsPlaceholder: string;
+  authorizedAnalystIds: string[];
+};
+
+export type WarRoomAiPanel = {
+  fixtureId: string | null;
+  historicalMatchSummary: string;
+  teamForm: string;
+  headToHeadSummary: string;
+  confidenceIndicators: string[];
+  riskIndicators: string[];
+  recommendedResearchTopics: string[];
+  providerStatus: "PLACEHOLDER_READY";
+};
+
+export type WarRoomMatchBoardItem = {
+  fixtureId: string;
+  match: string;
+  leagueName: string;
+  country: string | null;
+  assignedAnalysts: string[];
+  predictionsSubmitted: number;
+  predictionsPending: number;
+  averageConfidence: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  submissionDeadline: string;
+  aiReviewStatus: "PENDING_DATA" | "READY_FOR_AI_REVIEW" | "NEEDS_ADMIN_REVIEW";
+};
+
+export type WarRoomDecisionRoomItem = {
+  fixtureId: string;
+  match: string;
+  aiCombinedScore: number;
+  analystAgreementLevel: "LOW" | "MEDIUM" | "HIGH";
+  confidenceDistribution: Array<{ label: string; count: number }>;
+  riskDistribution: Array<{ label: string; count: number }>;
+  recommendationStatus: "PENDING_SUBMISSIONS" | "NEEDS_REVIEW" | "READY_FOR_ADMIN_APPROVAL";
+  adminApprovalRequired: true;
+};
+
+export type WarRoomAlert = {
+  id: string;
+  type:
+    | "PREDICTION_DEADLINE"
+    | "MISSING_SUBMISSION"
+    | "SUSPICIOUS_ACTIVITY"
+    | "RULE_VIOLATION"
+    | "URGENT_TEAM_NEWS"
+    | "SYSTEM_ALERT";
+  severity: "INFO" | "WATCH" | "URGENT";
+  title: string;
+  message: string;
+  fixtureId: string | null;
+  createdAt: string;
+};
+
+export type WarRoomRulebook = {
+  currentOddsPolicy: string;
+  minimumOdds: number;
+  maximumOdds: number;
+  predictionRules: string[];
+  submissionRules: string[];
+  disciplineRules: string[];
+  confidentialityReminder: string;
+};
+
+export type WarRoomDashboard = {
+  todayFixtures: WarRoomFixture[];
+  tomorrowFixtures: WarRoomFixture[];
+  assignments: WarRoomAssignment[];
+  discussions: WarRoomDiscussion[];
+  aiAssistantPanel: WarRoomAiPanel;
+  matchIntelligenceBoard: WarRoomMatchBoardItem[];
+  decisionRoom: WarRoomDecisionRoomItem[];
+  alerts: WarRoomAlert[];
+  leaderboard: AnalystProfile[];
+  rulebook: WarRoomRulebook;
+  searchIndex: Array<{ category: string; title: string; description: string }>;
+};
+
 export type PublishedIntelligence = {
   id: string;
   fixtureId: string;

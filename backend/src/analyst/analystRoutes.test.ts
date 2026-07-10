@@ -238,4 +238,30 @@ describe("analyst intelligence routes", () => {
       .set("Authorization", `Bearer ${subscriberToken}`)
       .expect(403);
   });
+
+  it("keeps the Intelligence War Room private to admins and analysts", async () => {
+    const { app, users } = await testApp();
+    const adminToken = seedUser(users, "ADMIN");
+    const analystToken = seedUser(users, "ANALYST");
+    const subscriberToken = seedUser(users, "SUBSCRIBER");
+
+    const adminWarRoom = await request(app)
+      .get("/api/war-room")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(adminWarRoom.body.rulebook.minimumOdds).toBe(1.6);
+    expect(adminWarRoom.body.rulebook.maximumOdds).toBe(2);
+    expect(adminWarRoom.body.alerts.length).toBeGreaterThan(0);
+
+    await request(app)
+      .get("/api/war-room")
+      .set("Authorization", `Bearer ${analystToken}`)
+      .expect(200);
+
+    await request(app)
+      .get("/api/war-room")
+      .set("Authorization", `Bearer ${subscriberToken}`)
+      .expect(403);
+  });
 });

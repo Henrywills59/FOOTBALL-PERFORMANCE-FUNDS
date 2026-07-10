@@ -83,6 +83,7 @@ export function createAnalystRouter(input: {
   const signedIn = requireAuth(input.authService);
   const analystOnly = [signedIn, requireRole(["ANALYST"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
+  const warRoomAccess = [signedIn, requireRole(["ANALYST", "ADMIN"])];
 
   router.post("/analyst-applications", async (request, response, next) => {
     try {
@@ -100,6 +101,25 @@ export function createAnalystRouter(input: {
   router.get("/analysts", ...adminOnly, async (_request, response, next) => {
     try {
       response.status(200).json(await input.analystService.adminControlCenter());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/war-room", ...warRoomAccess, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.analystService.warRoom(request.user!));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/war-room/assignments", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = assignmentSchema.parse(request.body) as CreateAssignmentInput;
+      response.status(201).json({
+        assignment: await input.analystService.createAssignment(request.user!.id, body),
+      });
     } catch (error) {
       next(error);
     }

@@ -49,6 +49,7 @@ import type {
   SubscriberReport,
   SystemIncident,
   UserGlobalPreferences,
+  WarRoomDashboard,
   WithdrawalRequest,
   LanguageSetting,
   MediaDashboard,
@@ -111,9 +112,9 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Analyst Command", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
-const analystNavItems = ["Analyst Dashboard", "Academy", "Prediction Workspace", "Performance", "Rewards"] as const;
+const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "Rewards"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
@@ -225,6 +226,7 @@ export default function App() {
   const [analystAssistance, setAnalystAssistance] = useState<AnalystAssistance | null>(null);
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
   const [adminAnalystControl, setAdminAnalystControl] = useState<AdminAnalystControlCenter | null>(null);
+  const [warRoom, setWarRoom] = useState<WarRoomDashboard | null>(null);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
   const [commercialStructure, setCommercialStructure] = useState<CommercialStructure>(defaultCommercialStructure);
@@ -568,6 +570,7 @@ export default function App() {
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
       const analystControlData = await apiGet<AdminAnalystControlCenter>("/analysts", token);
+      const warRoomData = await apiGet<WarRoomDashboard>("/war-room", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
@@ -586,6 +589,7 @@ export default function App() {
       setCommercialControl(commercialControlData);
       setAdminInvestorManagement(investorManagementData);
       setAdminAnalystControl(analystControlData);
+      setWarRoom(warRoomData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
@@ -653,13 +657,14 @@ export default function App() {
 
   async function loadAnalystData(token: string) {
     try {
-      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData] = await Promise.all([
+      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<AnalystPerformanceDashboard>("/analyst/performance", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
         apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/analyst/intelligence", token),
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
         apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
+        apiGet<WarRoomDashboard>("/war-room", token),
       ]);
       setAnalystDashboard(dashboard);
       setAnalystPerformance(performanceData);
@@ -667,6 +672,7 @@ export default function App() {
       setAnalystSubmissions(submissionsData.submissions);
       setFixtures(fixtureData.fixtures);
       setPredictionWorkflowQueue(workflowData);
+      setWarRoom(warRoomData);
       setLoadingLabel("Analyst workspace ready");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load analyst workspace");
@@ -1009,6 +1015,7 @@ export default function App() {
               fixtures={fixtures}
               decisions={adminDecisionOutputs}
               workflowQueue={predictionWorkflowQueue}
+              warRoom={warRoom}
               overview={adminOverview}
               predictions={adminPredictions}
               intelligence={adminIntelligence}
@@ -1042,6 +1049,7 @@ export default function App() {
               performance={analystPerformance}
               fixtures={fixtures}
               workflowQueue={predictionWorkflowQueue}
+              warRoom={warRoom}
               submissions={analystSubmissions}
               onAction={analystAction}
               onAssistance={loadAnalystAssistance}
@@ -1171,6 +1179,7 @@ function AdminPortal({
   health,
   intelligence,
   investorManagement,
+  warRoom,
   globalization,
   commercialStructure,
   monitoringOverview,
@@ -1198,6 +1207,7 @@ function AdminPortal({
   health: PlatformHealth | null;
   intelligence: AnalystIntelligenceSubmission[];
   investorManagement: AdminInvestorManagement | null;
+  warRoom: WarRoomDashboard | null;
   globalization: {
     languages: LanguageSetting[];
     currencies: CurrencySetting[];
@@ -1377,6 +1387,10 @@ function AdminPortal({
     return <AdminAnalystCommandCenter control={analystControl} onAction={onAction} />;
   }
 
+  if (activeView === "War Room") {
+    return <WarRoomView dashboard={warRoom} isAdmin={true} onAction={onAction} />;
+  }
+
   if (activeView === "Fixture Management") {
     return (
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -1485,6 +1499,7 @@ function AnalystPortal({
   onAssistance,
   submissions,
   workflowQueue,
+  warRoom,
 }: {
   activeView: AnalystNavItem;
   assignments: AnalystAssignment[];
@@ -1496,6 +1511,7 @@ function AnalystPortal({
   onAssistance: (fixtureId: string) => Promise<void>;
   submissions: AnalystIntelligenceSubmission[];
   workflowQueue: PredictionWorkflowQueue | null;
+  warRoom: WarRoomDashboard | null;
 }) {
   if (activeView === "Analyst Dashboard") {
     return (
@@ -1539,6 +1555,10 @@ function AnalystPortal({
 
   if (activeView === "Academy") {
     return <AnalystAcademyView performance={performance} onAction={onAction} />;
+  }
+
+  if (activeView === "War Room") {
+    return <WarRoomView dashboard={warRoom} isAdmin={false} onAction={onAction} />;
   }
 
   if (activeView === "Performance") {
@@ -1835,6 +1855,229 @@ function AdminAnalystCommandCenter({
             {!control.fraudSignals.length ? <p className="text-sm text-zinc-400">No open fraud signals.</p> : null}
           </div>
         </Panel>
+      </div>
+    </div>
+  );
+}
+
+function WarRoomView({
+  dashboard,
+  isAdmin,
+  onAction,
+}: {
+  dashboard: WarRoomDashboard | null;
+  isAdmin: boolean;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  const [search, setSearch] = useState("");
+  if (!dashboard) return <LoadingSkeleton label="Preparing FPF Intelligence War Room" />;
+  const searchable = dashboard.searchIndex.filter((item) =>
+    `${item.category} ${item.title} ${item.description}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="FPF Intelligence War Room">
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div>
+            <p className="text-sm leading-6 text-zinc-300">
+              Private operational workspace for Admin, executives, and approved analysts. Subscribers, investors, and the public never see War Room activity.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <MiniStat label="Today" value={String(dashboard.todayFixtures.length)} />
+              <MiniStat label="Tomorrow" value={String(dashboard.tomorrowFixtures.length)} />
+              <MiniStat label="Assignments" value={String(dashboard.assignments.length)} />
+              <MiniStat label="Discussions" value={String(dashboard.discussions.length)} />
+              <MiniStat label="Alerts" value={String(dashboard.alerts.length)} />
+            </div>
+          </div>
+          <div>
+            <TextField label="Search War Room" name="warRoomSearch" type="text" value={search} onChange={setSearch} />
+            {search ? (
+              <div className="mt-2 max-h-48 overflow-auto rounded-md border border-zinc-800 bg-zinc-950">
+                {searchable.slice(0, 8).map((item) => (
+                  <div className="border-b border-zinc-900 p-3 text-sm" key={`${item.category}:${item.title}`}>
+                    <p className="font-semibold">{item.title}</p>
+                    <p className="text-zinc-400">{item.category} | {item.description}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Live Match Center">
+          <WarRoomFixtureList title="Today's Fixtures" fixtures={dashboard.todayFixtures} />
+          <div className="mt-5">
+            <WarRoomFixtureList title="Tomorrow's Fixtures" fixtures={dashboard.tomorrowFixtures} />
+          </div>
+        </Panel>
+        <Panel title="Match Assignments">
+          {isAdmin ? (
+            <form
+              className="mb-4 grid gap-3 md:grid-cols-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                void onAction("/war-room/assignments", {
+                  analystId: form.get("analystId"),
+                  fixtureId: form.get("fixtureId"),
+                  leagueName: form.get("leagueName"),
+                  adminNotes: form.get("adminNotes"),
+                });
+              }}
+            >
+              <TextField label="Analyst user ID" name="analystId" type="text" />
+              <TextField label="Fixture ID" name="fixtureId" type="text" value={dashboard.todayFixtures[0]?.id ?? dashboard.tomorrowFixtures[0]?.id ?? ""} />
+              <TextField label="League / competition" name="leagueName" type="text" value={dashboard.todayFixtures[0]?.leagueName ?? dashboard.tomorrowFixtures[0]?.leagueName ?? ""} />
+              <TextField label="Admin notes" name="adminNotes" type="text" />
+              <div className="md:col-span-2"><SubmitButton>Assign match</SubmitButton></div>
+            </form>
+          ) : null}
+          <div className="space-y-2">
+            {dashboard.assignments.map((assignment) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={assignment.id}>
+                <p className="font-semibold">{assignment.scopeValue}</p>
+                <p className="mt-1 text-sm text-zinc-400">{assignment.scopeType} | {assignment.status} | Deadline {new Date(assignment.deadline).toLocaleString()}</p>
+                {isAdmin ? <p className="mt-1 text-xs text-zinc-500">{assignment.analystName}</p> : null}
+              </div>
+            ))}
+            {!dashboard.assignments.length ? <p className="text-sm text-zinc-400">No War Room assignments yet.</p> : null}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Panel title="Intelligence Discussions">
+          <div className="grid gap-3 lg:grid-cols-2">
+            {dashboard.discussions.map((discussion) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={discussion.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{discussion.category.replaceAll("_", " ")}</p>
+                <h3 className="mt-2 font-semibold">{discussion.title}</h3>
+                <p className="mt-2 text-sm text-zinc-300">{discussion.messages[0]?.body}</p>
+                <div className="mt-3 space-y-1">
+                  {discussion.pinnedNotes.map((note) => <p className="rounded-md bg-emerald-500/10 p-2 text-xs text-emerald-100" key={note}>{note}</p>)}
+                </div>
+                <p className="mt-3 text-xs text-zinc-500">{discussion.attachmentsPlaceholder}</p>
+              </article>
+            ))}
+            {!dashboard.discussions.length ? <p className="text-sm text-zinc-400">Discussion rooms appear when fixtures and assignments are available.</p> : null}
+          </div>
+        </Panel>
+        <Panel title="AI Assistant Panel">
+          <div className="space-y-3 text-sm text-zinc-300">
+            <p><span className="font-semibold text-white">Historical:</span> {dashboard.aiAssistantPanel.historicalMatchSummary}</p>
+            <p><span className="font-semibold text-white">Team form:</span> {dashboard.aiAssistantPanel.teamForm}</p>
+            <p><span className="font-semibold text-white">Head-to-head:</span> {dashboard.aiAssistantPanel.headToHeadSummary}</p>
+            <WarRoomTagList title="Confidence indicators" items={dashboard.aiAssistantPanel.confidenceIndicators} />
+            <WarRoomTagList title="Risk indicators" items={dashboard.aiAssistantPanel.riskIndicators} />
+            <WarRoomTagList title="Research topics" items={dashboard.aiAssistantPanel.recommendedResearchTopics} />
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Match Intelligence Board">
+          <div className="space-y-3">
+            {dashboard.matchIntelligenceBoard.map((item) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.fixtureId}>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold">{item.match}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">{item.leagueName} | {item.aiReviewStatus.replaceAll("_", " ")}</p>
+                  </div>
+                  <span className="rounded-md border border-emerald-400/30 px-2 py-1 text-xs text-emerald-200">{item.riskLevel}</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                  <MiniStat label="Submitted" value={String(item.predictionsSubmitted)} />
+                  <MiniStat label="Pending" value={String(item.predictionsPending)} />
+                  <MiniStat label="Avg confidence" value={`${item.averageConfidence}%`} />
+                  <MiniStat label="Deadline" value={new Date(item.submissionDeadline).toLocaleTimeString()} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Decision Room">
+          <div className="space-y-3">
+            {dashboard.decisionRoom.map((item) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.fixtureId}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.recommendationStatus.replaceAll("_", " ")}</p>
+                <h3 className="mt-2 font-semibold">{item.match}</h3>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <MiniStat label="AI score" value={`${item.aiCombinedScore}%`} />
+                  <MiniStat label="Agreement" value={item.analystAgreementLevel} />
+                  <MiniStat label="Admin approval" value={item.adminApprovalRequired ? "Required" : "Optional"} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Alert Center">
+          <div className="space-y-2">
+            {dashboard.alerts.map((alert) => (
+              <div className={`rounded-md border p-3 text-sm ${alert.severity === "URGENT" ? "border-red-700 bg-red-950/30 text-red-100" : "border-zinc-800 bg-zinc-950 text-zinc-300"}`} key={alert.id}>
+                <p className="font-semibold">{alert.title}</p>
+                <p className="mt-1">{alert.message}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Analyst Leaderboard">
+          <div className="space-y-2">
+            {dashboard.leaderboard.map((analyst) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={analyst.id}>
+                <p className="font-semibold">{isAdmin ? analyst.name : "Internal analyst"} | {analyst.rank}</p>
+                <p className="mt-1 text-zinc-400">ARI {analyst.reliabilityIndex}/100 | Discipline {analyst.currentForm}/100 | Allocation {money(analyst.capitalAllocationCents)}</p>
+              </div>
+            ))}
+            {!dashboard.leaderboard.length ? <p className="text-sm text-zinc-400">Leaderboard appears after analyst profiles are promoted.</p> : null}
+          </div>
+        </Panel>
+        <Panel title="Rulebook Quick View">
+          <p className="text-sm text-zinc-300">{dashboard.rulebook.currentOddsPolicy}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <MiniStat label="Minimum odds" value={String(dashboard.rulebook.minimumOdds.toFixed(2))} />
+            <MiniStat label="Maximum odds" value={String(dashboard.rulebook.maximumOdds.toFixed(2))} />
+          </div>
+          <WarRoomTagList title="Prediction rules" items={dashboard.rulebook.predictionRules} />
+          <WarRoomTagList title="Submission rules" items={dashboard.rulebook.submissionRules} />
+          <WarRoomTagList title="Discipline rules" items={dashboard.rulebook.disciplineRules} />
+          <p className="mt-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">{dashboard.rulebook.confidentialityReminder}</p>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function WarRoomFixtureList({ fixtures, title }: { fixtures: WarRoomDashboard["todayFixtures"]; title: string }) {
+  return (
+    <div>
+      <h3 className="font-semibold">{title}</h3>
+      <div className="mt-3 space-y-2">
+        {fixtures.map((fixture) => (
+          <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={fixture.id}>
+            <p className="font-semibold">{fixture.homeTeamName} vs {fixture.awayTeamName}</p>
+            <p className="mt-1 text-sm text-zinc-400">{fixture.leagueName} | {fixture.leagueCountry ?? "Global"} | Kickoff {new Date(fixture.kickoffAt).toLocaleString()}</p>
+            <p className="mt-1 text-xs text-emerald-300">Deadline {new Date(fixture.predictionDeadline).toLocaleString()} | {fixture.assignmentStatus.replaceAll("_", " ")}</p>
+          </div>
+        ))}
+        {!fixtures.length ? <p className="text-sm text-zinc-400">No fixtures available for this window.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function WarRoomTagList({ items, title }: { items: string[]; title: string }) {
+  return (
+    <div className="mt-3">
+      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{title}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {items.map((item) => <span className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300" key={item}>{item}</span>)}
       </div>
     </div>
   );
