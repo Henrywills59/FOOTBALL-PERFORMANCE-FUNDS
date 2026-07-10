@@ -335,6 +335,171 @@ async function ensureCommercialSchema(prisma: PrismaClient) {
   `);
 }
 
+async function ensurePaymentSchema(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_orders" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "userId" TEXT NOT NULL,
+      "purpose" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'CREATED',
+      "provider" TEXT NOT NULL DEFAULT 'NOWPAYMENTS',
+      "providerPaymentId" TEXT UNIQUE,
+      "providerInvoiceId" TEXT,
+      "planCode" TEXT,
+      "billingCycle" TEXT,
+      "investmentPackageId" TEXT,
+      "lockPeriodCode" TEXT,
+      "expectedAmountCents" INTEGER NOT NULL,
+      "receivedAmountCents" INTEGER NOT NULL DEFAULT 0,
+      "priceCurrency" TEXT NOT NULL DEFAULT 'USD',
+      "payCurrency" TEXT NOT NULL DEFAULT 'USDTTRC20',
+      "paymentAddress" TEXT,
+      "checkoutUrl" TEXT,
+      "expiresAt" TIMESTAMP(3),
+      "confirmedAt" TIMESTAMP(3),
+      "reconciliationStatus" TEXT NOT NULL DEFAULT 'NOT_STARTED',
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "payment_orders_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_transactions" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "orderId" TEXT NOT NULL,
+      "providerPaymentId" TEXT,
+      "status" TEXT NOT NULL,
+      "expectedAmountCents" INTEGER NOT NULL,
+      "receivedAmountCents" INTEGER NOT NULL DEFAULT 0,
+      "priceCurrency" TEXT NOT NULL DEFAULT 'USD',
+      "payCurrency" TEXT NOT NULL DEFAULT 'USDTTRC20',
+      "providerFeeCents" INTEGER NOT NULL DEFAULT 0,
+      "providerPayload" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "payment_transactions_orderId_fkey"
+        FOREIGN KEY ("orderId") REFERENCES "payment_orders"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_webhook_receipts" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "provider" TEXT NOT NULL DEFAULT 'NOWPAYMENTS',
+      "providerPaymentId" TEXT,
+      "orderId" TEXT,
+      "eventKey" TEXT NOT NULL UNIQUE,
+      "signatureValid" BOOLEAN NOT NULL DEFAULT false,
+      "processingStatus" TEXT NOT NULL DEFAULT 'RECEIVED',
+      "payloadHash" TEXT NOT NULL,
+      "payload" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "errorMessage" TEXT,
+      "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "processedAt" TIMESTAMP(3),
+      CONSTRAINT "payment_webhook_receipts_orderId_fkey"
+        FOREIGN KEY ("orderId") REFERENCES "payment_orders"("id")
+        ON DELETE SET NULL ON UPDATE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_status_history" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "orderId" TEXT NOT NULL,
+      "previousStatus" TEXT,
+      "newStatus" TEXT NOT NULL,
+      "reason" TEXT,
+      "source" TEXT NOT NULL DEFAULT 'SYSTEM',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "payment_status_history_orderId_fkey"
+        FOREIGN KEY ("orderId") REFERENCES "payment_orders"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_reconciliation" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "orderId" TEXT NOT NULL UNIQUE,
+      "status" TEXT NOT NULL DEFAULT 'NOT_STARTED',
+      "expectedAmountCents" INTEGER NOT NULL,
+      "receivedAmountCents" INTEGER NOT NULL DEFAULT 0,
+      "differenceCents" INTEGER NOT NULL DEFAULT 0,
+      "expectedCurrency" TEXT NOT NULL DEFAULT 'USD',
+      "receivedCurrency" TEXT,
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "payment_reconciliation_orderId_fkey"
+        FOREIGN KEY ("orderId") REFERENCES "payment_orders"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_refunds_placeholder" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "orderId" TEXT NOT NULL,
+      "amountCents" INTEGER NOT NULL DEFAULT 0,
+      "status" TEXT NOT NULL DEFAULT 'PLACEHOLDER_ONLY',
+      "reason" TEXT,
+      "createdByUserId" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "payment_refunds_placeholder_orderId_fkey"
+        FOREIGN KEY ("orderId") REFERENCES "payment_orders"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "payment_manual_reviews" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "orderId" TEXT NOT NULL,
+      "reason" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'OPEN',
+      "notes" TEXT,
+      "createdByUserId" TEXT,
+      "resolvedByUserId" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "resolvedAt" TIMESTAMP(3),
+      CONSTRAINT "payment_manual_reviews_orderId_fkey"
+        FOREIGN KEY ("orderId") REFERENCES "payment_orders"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+
+  const indexes = [
+    `CREATE INDEX IF NOT EXISTS "payment_orders_userId_idx" ON "payment_orders"("userId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_orders_purpose_idx" ON "payment_orders"("purpose")`,
+    `CREATE INDEX IF NOT EXISTS "payment_orders_status_idx" ON "payment_orders"("status")`,
+    `CREATE INDEX IF NOT EXISTS "payment_orders_providerPaymentId_idx" ON "payment_orders"("providerPaymentId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_orders_createdAt_idx" ON "payment_orders"("createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "payment_transactions_orderId_idx" ON "payment_transactions"("orderId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_transactions_providerPaymentId_idx" ON "payment_transactions"("providerPaymentId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_transactions_status_idx" ON "payment_transactions"("status")`,
+    `CREATE INDEX IF NOT EXISTS "payment_webhook_receipts_providerPaymentId_idx" ON "payment_webhook_receipts"("providerPaymentId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_webhook_receipts_orderId_idx" ON "payment_webhook_receipts"("orderId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_webhook_receipts_processingStatus_idx" ON "payment_webhook_receipts"("processingStatus")`,
+    `CREATE INDEX IF NOT EXISTS "payment_status_history_orderId_idx" ON "payment_status_history"("orderId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_status_history_newStatus_idx" ON "payment_status_history"("newStatus")`,
+    `CREATE INDEX IF NOT EXISTS "payment_reconciliation_status_idx" ON "payment_reconciliation"("status")`,
+    `CREATE INDEX IF NOT EXISTS "payment_refunds_placeholder_orderId_idx" ON "payment_refunds_placeholder"("orderId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_refunds_placeholder_status_idx" ON "payment_refunds_placeholder"("status")`,
+    `CREATE INDEX IF NOT EXISTS "payment_manual_reviews_orderId_idx" ON "payment_manual_reviews"("orderId")`,
+    `CREATE INDEX IF NOT EXISTS "payment_manual_reviews_status_idx" ON "payment_manual_reviews"("status")`,
+  ];
+
+  for (const statement of indexes) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+}
+
 async function ensureBusinessCommercialSchema(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "subscriptions" (
@@ -808,6 +973,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     await ensureInvestorSchema(prisma);
     await ensureGlobalizationSchema(prisma);
     await ensureCommercialSchema(prisma);
+    await ensurePaymentSchema(prisma);
     await ensureOperationsSchema(prisma);
     await ensureMediaSchema(prisma);
 
@@ -857,6 +1023,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       investorSchemaEnsured: true,
       globalizationSchemaEnsured: true,
       commercialSchemaEnsured: true,
+      paymentSchemaEnsured: true,
       businessCommercialSchemaEnsured: shouldEnsureBusinessCommercialSchema,
       operationsSchemaEnsured: true,
       mediaSchemaEnsured: true,
