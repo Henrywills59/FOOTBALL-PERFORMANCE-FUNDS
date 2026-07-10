@@ -283,6 +283,58 @@ async function ensureGlobalizationSchema(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "exchange_rate_placeholders_baseCurrency_currency_idx" ON "exchange_rate_placeholders"("baseCurrency", "currency")`);
 }
 
+async function ensureCommercialSchema(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "subscription_plans" (
+      "code" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "monthlyPriceCents" INTEGER NOT NULL,
+      "yearlyPriceCents" INTEGER NOT NULL,
+      "features" JSONB NOT NULL,
+      "highlighted" BOOLEAN NOT NULL DEFAULT false,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "investor_levels" (
+      "name" TEXT PRIMARY KEY,
+      "minimumInvestmentCents" INTEGER NOT NULL,
+      "badgeColor" TEXT NOT NULL,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "investment_lock_periods" (
+      "code" TEXT PRIMARY KEY,
+      "label" TEXT NOT NULL,
+      "months" INTEGER NOT NULL,
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "simulator_settings" (
+      "key" TEXT PRIMARY KEY,
+      "value" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "pricing_settings" (
+      "key" TEXT PRIMARY KEY,
+      "value" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   response.setHeader?.("access-control-allow-methods", "POST,OPTIONS");
   response.setHeader?.("access-control-allow-headers", "content-type,x-admin-seed-token");
@@ -319,6 +371,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     prisma = new PrismaClient({ log: ["error"] });
     await ensureInvestorSchema(prisma);
     await ensureGlobalizationSchema(prisma);
+    await ensureCommercialSchema(prisma);
 
     const body = parseBody(request.body);
     const email =
@@ -361,6 +414,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       seeded: true,
       investorSchemaEnsured: true,
       globalizationSchemaEnsured: true,
+      commercialSchemaEnsured: true,
       user,
     });
   } catch (error) {

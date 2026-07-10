@@ -32,10 +32,10 @@ export class InMemoryInvestorRepository implements InvestorRepository {
   plansData: InvestmentPlan[] = [
     {
       id: "starter",
-      name: "Starter Portfolio",
-      description: "Entry package for cautious exposure.",
-      minimumInvestmentCents: 50000,
-      maximumInvestmentCents: 250000,
+      name: "Flexible Investor Program",
+      description: "Placeholder investor package for any approved capital amount above the minimum.",
+      minimumInvestmentCents: 10000,
+      maximumInvestmentCents: 1000000000,
       historicalPerformanceNote: "Historical weekly performance has varied by market conditions.",
       riskDisclosure: "All investments carry risk. Historical results do not guarantee future performance.",
     },
@@ -158,8 +158,8 @@ export class InMemoryInvestorRepository implements InvestorRepository {
 
   async createInvestment(input: { userId: string; planId: string; amountCents: number }) {
     const plan = this.plansData.find((item) => item.id === input.planId);
-    if (!plan || input.amountCents < plan.minimumInvestmentCents || input.amountCents > plan.maximumInvestmentCents) {
-      throw new Error("Investment amount is outside the selected plan range");
+    if (!plan || input.amountCents < 10000) {
+      throw new Error("Minimum investment is $100");
     }
     const investment: InvestorInvestment = {
       id: String(this.investmentsData.length + 1),

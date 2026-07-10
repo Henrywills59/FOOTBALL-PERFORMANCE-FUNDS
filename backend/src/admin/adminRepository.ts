@@ -15,6 +15,10 @@ const defaultSettings: AdminSettings = {
   enabledCurrencies: ["USD", "EUR", "GBP", "UGX", "KES", "TZS", "NGN", "ZAR", "CAD", "AUD"],
   defaultLanguage: "en",
   defaultCurrency: "USD",
+  minimumInvestmentCents: 10000,
+  enabledLockPeriods: ["SIX_MONTHS", "TWELVE_MONTHS"],
+  defaultSimulationWeeklyReturnPercent: 1.25,
+  defaultPlatformFeePercent: 10,
 };
 
 const emptyReports = {

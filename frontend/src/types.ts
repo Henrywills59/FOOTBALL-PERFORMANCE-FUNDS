@@ -123,6 +123,50 @@ export type AdminSettings = {
   enabledCurrencies?: string[];
   defaultLanguage?: string;
   defaultCurrency?: string;
+  minimumInvestmentCents?: number;
+  enabledLockPeriods?: string[];
+  defaultSimulationWeeklyReturnPercent?: number;
+  defaultPlatformFeePercent?: number;
+};
+
+export type SubscriberPlanCode = "STARTER" | "PRO" | "ELITE";
+
+export type SubscriberPlan = {
+  code: SubscriberPlanCode;
+  name: string;
+  monthlyPriceCents: number;
+  yearlyPriceCents: number;
+  features: string[];
+  highlighted: boolean;
+};
+
+export type InvestorLevel = {
+  name: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond";
+  minimumInvestmentCents: number;
+  badgeColor: string;
+};
+
+export type InvestmentLockPeriod = {
+  code: "SIX_MONTHS" | "TWELVE_MONTHS";
+  label: string;
+  months: number;
+  enabled: boolean;
+};
+
+export type CommercialStructure = {
+  subscriberPlans: SubscriberPlan[];
+  investorLevels: InvestorLevel[];
+  lockPeriods: InvestmentLockPeriod[];
+  minimumInvestmentCents: number;
+  simulatorDefaults: {
+    weeklyReturnPercent: number;
+    platformFeePercent: number;
+  };
+  notices: {
+    paymentPlaceholder: string;
+    investmentRisk: string;
+    simulationOnly: string;
+  };
 };
 
 export type SupportedLanguageCode = "en" | "fr" | "es" | "pt" | "de" | "it" | "ar" | "zh";

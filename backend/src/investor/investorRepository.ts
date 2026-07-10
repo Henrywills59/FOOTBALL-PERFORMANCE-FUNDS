@@ -30,7 +30,11 @@ function planRow(plan: {
   historicalPerformanceNote: string;
   riskDisclosure: string;
 }): InvestmentPlan {
-  return plan;
+  return {
+    ...plan,
+    minimumInvestmentCents: 10000,
+    maximumInvestmentCents: Math.max(plan.maximumInvestmentCents, 1000000000),
+  };
 }
 
 function investmentRow(investment: {
@@ -358,8 +362,8 @@ export class PrismaInvestorRepository implements InvestorRepository {
 
   async createInvestment(input: { userId: string; planId: string; amountCents: number }) {
     const plan = await this.prisma.investmentPlan.findUnique({ where: { id: input.planId } });
-    if (!plan || input.amountCents < plan.minimumInvestmentCents || input.amountCents > plan.maximumInvestmentCents) {
-      throw new Error("Investment amount is outside the selected plan range");
+    if (!plan || input.amountCents < 10000) {
+      throw new Error("Minimum investment is $100");
     }
     const account = await this.ensureAccount(input.userId);
     const investment = await this.prisma.investment.create({

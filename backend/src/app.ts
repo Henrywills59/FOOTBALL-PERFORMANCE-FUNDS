@@ -14,6 +14,8 @@ import { createAnalystRouter } from "./analyst/analystRoutes.js";
 import { AnalystService } from "./analyst/analystService.js";
 import type { AnalystRepository } from "./analyst/types.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
+import { createCommercialRouter } from "./commercial/routes.js";
+import { CommercialService } from "./commercial/service.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
 import { checkPrismaConnection, isDatabaseUrlConfigured } from "./database/prismaClient.js";
@@ -187,6 +189,7 @@ export function createApp(options?: {
   const footballScheduler = new FootballJobScheduler(footballSyncService, footballConfig);
   const predictionService = new PredictionService(predictionRepository);
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
+  const commercialService = new CommercialService(adminService);
   const globalizationService = new GlobalizationService(new GlobalizationRepository(), adminService);
   const investorService = new InvestorService(
     options?.investorRepository ?? new PrismaInvestorRepository(),
@@ -317,6 +320,13 @@ export function createApp(options?: {
   });
 
   app.use("/api", createAuthRouter(authService));
+  app.use(
+    "/api",
+    createCommercialRouter({
+      authService,
+      commercialService,
+    }),
+  );
   app.use(
     "/api",
     createGlobalizationRouter({

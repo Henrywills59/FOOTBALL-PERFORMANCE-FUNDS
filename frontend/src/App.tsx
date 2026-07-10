@@ -13,6 +13,7 @@ import type {
   AuditLogEntry,
   AuthResponse,
   AuthUser,
+  CommercialStructure,
   DecisionEngineOutput,
   FootballFixtureDetail,
   FootballFixtureSummary,
@@ -136,6 +137,19 @@ const defaultGlobalPreferences: UserGlobalPreferences = {
   numberFormat: "en-US",
 };
 
+const defaultCommercialStructure: CommercialStructure = {
+  subscriberPlans: [],
+  investorLevels: [],
+  lockPeriods: [],
+  minimumInvestmentCents: 10000,
+  simulatorDefaults: { weeklyReturnPercent: 1.25, platformFeePercent: 10 },
+  notices: {
+    paymentPlaceholder: "Payment processing is not connected yet.",
+    investmentRisk: "Capital is at risk. Returns are not guaranteed.",
+    simulationOnly: "Simulation only.",
+  },
+};
+
 function getStoredPreferences() {
   const raw = localStorage.getItem("fpf_global_preferences");
   if (!raw) return defaultGlobalPreferences;
@@ -193,6 +207,7 @@ export default function App() {
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
+  const [commercialStructure, setCommercialStructure] = useState<CommercialStructure>(defaultCommercialStructure);
   const [languages, setLanguages] = useState<LanguageSetting[]>([]);
   const [currencies, setCurrencies] = useState<CurrencySetting[]>([]);
   const [timezones, setTimezones] = useState<TimezoneSetting[]>([]);
@@ -209,6 +224,12 @@ export default function App() {
         setLanguages(languageData.languages);
         setCurrencies(currencyData.currencies);
         setTimezones(timezoneData.timezones);
+        const commercial = await fetchJson<CommercialStructure>(
+          apiEndpoint("/commercial/structure"),
+          undefined,
+          sameOriginApiEndpoint("/commercial/structure"),
+        );
+        setCommercialStructure(commercial);
       } catch {
         setLanguages([]);
         setCurrencies([]);
@@ -699,6 +720,7 @@ export default function App() {
             <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-300">
               A fast, focused workspace for approved football opportunities, match context, and smart slip building.
             </p>
+            <PricingCards plans={commercialStructure.subscriberPlans} />
           </div>
           <AuthPanel
             apiCheck={apiCheck}
@@ -833,6 +855,7 @@ export default function App() {
               onSimulate={adminSimulate}
               globalization={{ languages, currencies, timezones, preferences: globalPreferences }}
               onGlobalPreferences={saveGlobalPreferences}
+              commercialStructure={commercialStructure}
             />
           ) : null}
 
@@ -864,6 +887,7 @@ export default function App() {
               notifications={investorNotifications}
               onAction={investorAction}
               onSimulate={investorSimulate}
+              commercialStructure={commercialStructure}
             />
           ) : null}
 
@@ -952,6 +976,7 @@ function AdminPortal({
   intelligence,
   investorManagement,
   globalization,
+  commercialStructure,
   onGlobalPreferences,
   onAction,
   onSimulate,
@@ -976,6 +1001,7 @@ function AdminPortal({
     timezones: TimezoneSetting[];
     preferences: UserGlobalPreferences;
   };
+  commercialStructure: CommercialStructure;
   onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1054,7 +1080,7 @@ function AdminPortal({
   }
 
   if (activeView === "Investor Management") {
-    return <AdminInvestorManagementView management={investorManagement} onAction={onAction} onSimulate={onSimulate} />;
+    return <AdminInvestorManagementView commercialStructure={commercialStructure} management={investorManagement} onAction={onAction} onSimulate={onSimulate} />;
   }
 
   if (activeView === "Monitoring") {
@@ -1214,6 +1240,11 @@ function AdminPortal({
         <AdminGlobalizationControls
           currencies={globalization.currencies}
           languages={globalization.languages}
+          onAction={onAction}
+          settings={settings}
+        />
+        <AdminCommercialControls
+          commercialStructure={commercialStructure}
           onAction={onAction}
           settings={settings}
         />
@@ -1398,10 +1429,12 @@ function AdminReportsView({ reports }: { reports: AdminReports | null }) {
 }
 
 function AdminInvestorManagementView({
+  commercialStructure,
   management,
   onAction,
   onSimulate,
 }: {
+  commercialStructure: CommercialStructure;
   management: AdminInvestorManagement | null;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1464,6 +1497,9 @@ function AdminInvestorManagementView({
         title="Admin Distribution Scenario Simulator"
         description="Model placeholder distribution scenarios across investor capital before creating an approval queue."
         defaultAmountCents={investors.reduce((total, investor) => total + investor.activeInvestmentBalanceCents, 0)}
+        defaultPlatformFeePercent={commercialStructure.simulatorDefaults.platformFeePercent}
+        defaultWeeklyReturnPercent={commercialStructure.simulatorDefaults.weeklyReturnPercent}
+        lockPeriods={commercialStructure.lockPeriods}
         onSimulate={onSimulate}
       />
       <Panel title="Investor Records">
@@ -1519,6 +1555,7 @@ function AdminInvestorManagementView({
 
 function InvestorPortal({
   activeView,
+  commercialStructure,
   dashboard,
   distributions,
   notifications,
@@ -1532,6 +1569,7 @@ function InvestorPortal({
   withdrawals,
 }: {
   activeView: InvestorNavItem;
+  commercialStructure: CommercialStructure;
   dashboard: InvestorDashboard | null;
   distributions: InvestorDistribution[];
   notifications: string[];
@@ -1559,6 +1597,7 @@ function InvestorPortal({
           <Panel title="Executive Overview">
             <div className="grid gap-3 sm:grid-cols-2">
               <MiniStat label="Investor tier" value={dashboard?.investorTier ?? "Founding Investor"} />
+              <MiniStat label="Recognition level" value={investorLevelName(commercialStructure, dashboard?.balance.totalCapitalCents ?? 0)} />
               <MiniStat label="Account status" value={dashboard?.accountStatus ?? "ACTIVE"} />
               <MiniStat label="Distribution status" value={dashboard?.distributionStatus ?? "PENDING_CALCULATION"} />
               <MiniStat label="Performance placeholder" value={`${(dashboard?.weeklyRoiPercent ?? 0).toFixed(2)}% weekly`} />
@@ -1609,6 +1648,9 @@ function InvestorPortal({
           title="Investor Simulator Calculator"
           description="Simulate possible earnings before or after investing using safe placeholder assumptions."
           defaultAmountCents={dashboard?.balance.totalCapitalCents || 100000}
+          defaultPlatformFeePercent={commercialStructure.simulatorDefaults.platformFeePercent}
+          defaultWeeklyReturnPercent={commercialStructure.simulatorDefaults.weeklyReturnPercent}
+          lockPeriods={commercialStructure.lockPeriods}
           onSimulate={onSimulate}
         />
       </div>
@@ -1641,6 +1683,7 @@ function InvestorPortal({
         <Panel title="Capital Summary">
           <div className="grid gap-3 sm:grid-cols-2">
             <MiniStat label="Investment amount" value={money(profile?.account.investmentAmountCents ?? 0)} />
+            <MiniStat label="Investor level" value={investorLevelName(commercialStructure, profile?.balance.totalCapitalCents ?? 0)} />
             <MiniStat label="Active investment balance" value={money(profile?.balance.activeInvestmentBalanceCents ?? 0)} />
             <MiniStat label="Start date" value={profile?.account.startDate ? new Date(profile.account.startDate).toLocaleDateString() : "Pending"} />
             <MiniStat label="Agreement" value={profile?.account.agreementStatus ?? "PENDING_SIGNATURE"} />
@@ -1659,6 +1702,7 @@ function InvestorPortal({
             <p>Name: {profile?.account.name ?? "Investor"}</p>
             <p>Email: {profile?.account.email ?? "Pending"}</p>
             <p>Tier: {profile?.account.tier ?? "Founding Investor"}</p>
+            <p>Recognition level: {investorLevelName(commercialStructure, profile?.balance.totalCapitalCents ?? 0)}</p>
             <p>KYC: {profile?.account.kycStatus ?? "PENDING_REVIEW"}</p>
             <p>Account status: {profile?.account.accountStatus ?? "ACTIVE"}</p>
           </div>
@@ -1768,6 +1812,9 @@ function InvestorPortal({
     return (
       <Panel title="Investment Plans">
         <RiskDisclaimer />
+        <p className="mt-3 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+          Minimum investment is {money(commercialStructure.minimumInvestmentCents)}. Payment APIs are not connected yet; this records placeholder investment interest.
+        </p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {plans.map((plan) => (
             <form
@@ -1789,6 +1836,14 @@ function InvestorPortal({
               <p className="mt-2 text-sm text-zinc-400">{plan.historicalPerformanceNote}</p>
               <p className="mt-2 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">{plan.riskDisclosure}</p>
               <TextField label="Investment amount" name="amount" type="number" />
+              <label className="mt-3 block text-sm font-medium text-zinc-200">
+                Lock period
+                <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" name="lockPeriod" defaultValue={commercialStructure.lockPeriods[0]?.code ?? "SIX_MONTHS"}>
+                  {commercialStructure.lockPeriods.filter((period) => period.enabled).map((period) => (
+                    <option key={period.code} value={period.code}>{period.label}</option>
+                  ))}
+                </select>
+              </label>
               <label className="mt-3 flex items-center gap-3 text-sm text-zinc-300">
                 <input name="riskAccepted" type="checkbox" />
                 I understand historical results are not guaranteed.
@@ -2821,6 +2876,12 @@ function CompactAuditList({ emptyLabel, logs }: { emptyLabel: string; logs: Audi
   );
 }
 
+function placeholderMaturityDate(createdAt: string) {
+  const date = new Date(createdAt);
+  date.setMonth(date.getMonth() + 6);
+  return date;
+}
+
 function InvestmentList({ investments }: { investments: InvestorInvestment[] }) {
   return (
     <div className="space-y-2">
@@ -2833,6 +2894,18 @@ function InvestmentList({ investments }: { investments: InvestorInvestment[] }) 
           <p className="text-sm text-zinc-500">
             Weekly ROI {investment.weeklyRoiPercent.toFixed(2)}% · Lifetime ROI {investment.lifetimeRoiPercent.toFixed(2)}%
           </p>
+          <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2 lg:grid-cols-4">
+            <p>Lock period: 6 Months placeholder</p>
+            <p>Investment date: {new Date(investment.createdAt).toLocaleDateString()}</p>
+            <p>Maturity date: {placeholderMaturityDate(investment.createdAt).toLocaleDateString()}</p>
+            <p>
+              Status: {investment.status} - Projected performance {
+                (investment.amountCents > 0
+                  ? ((investment.currentValueCents - investment.amountCents) / investment.amountCents) * 100
+                  : 0).toFixed(2)
+              }% simulation only
+            </p>
+          </div>
         </div>
       ))}
       {!investments.length ? <p className="text-sm text-zinc-400">No investments in this category.</p> : null}
@@ -2927,6 +3000,101 @@ function GlobalPreferencesForm({
   );
 }
 
+function PricingCards({ plans }: { plans: CommercialStructure["subscriberPlans"] }) {
+  if (!plans.length) return null;
+  return (
+    <div className="mt-8 grid gap-4 md:grid-cols-3">
+      {plans.map((plan) => (
+        <div className={`rounded-lg border p-4 ${plan.highlighted ? "border-emerald-300 bg-emerald-950/20" : "border-zinc-800 bg-zinc-900/70"}`} key={plan.code}>
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{plan.code}</p>
+          <h3 className="mt-2 text-xl font-semibold">{plan.name}</h3>
+          <p className="mt-2 text-2xl font-bold">{money(plan.monthlyPriceCents)}<span className="text-sm font-normal text-zinc-400">/month</span></p>
+          <p className="text-sm text-zinc-400">Yearly billing placeholder: {money(plan.yearlyPriceCents)}/year</p>
+          <ul className="mt-4 space-y-2 text-sm text-zinc-300">
+            {plan.features.map((feature) => <li key={feature}>- {feature}</li>)}
+          </ul>
+          <p className="mt-4 rounded-md bg-amber-500/10 p-2 text-xs text-amber-100">Payment APIs are not connected yet.</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function investorLevelName(commercialStructure: CommercialStructure, capitalCents: number) {
+  const level = [...commercialStructure.investorLevels]
+    .sort((a, b) => b.minimumInvestmentCents - a.minimumInvestmentCents)
+    .find((item) => capitalCents >= item.minimumInvestmentCents);
+  return level?.name ?? "Pending";
+}
+
+function AdminCommercialControls({
+  commercialStructure,
+  onAction,
+  settings,
+}: {
+  commercialStructure: CommercialStructure;
+  onAction: (path: string, body?: object) => Promise<void>;
+  settings: AdminSettings | null;
+}) {
+  return (
+    <Panel title="Commercial Structure">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="text-sm font-semibold text-zinc-200">Subscriber plans</p>
+          <div className="mt-3 space-y-2">
+            {commercialStructure.subscriberPlans.map((plan) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={plan.code}>
+                <p className="font-semibold">{plan.name} - {money(plan.monthlyPriceCents)}/month</p>
+                <p className="text-zinc-400">{plan.features.join(", ")}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-zinc-200">Investor levels</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {commercialStructure.investorLevels.map((level) => (
+              <MiniStat key={level.name} label={level.name} value={`${money(level.minimumInvestmentCents)}+`} />
+            ))}
+          </div>
+        </div>
+      </div>
+      <form
+        className="mt-4 grid gap-4 md:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void onAction("/admin/commercial/settings", {
+            minimumInvestmentCents: Math.round(Number(form.get("minimumInvestment")) * 100),
+            enabledLockPeriods: form.getAll("enabledLockPeriods"),
+            defaultSimulationWeeklyReturnPercent: Number(form.get("defaultSimulationWeeklyReturnPercent")),
+            defaultPlatformFeePercent: Number(form.get("defaultPlatformFeePercent")),
+          });
+        }}
+      >
+        <TextField label="Minimum investment" name="minimumInvestment" type="number" value={String((settings?.minimumInvestmentCents ?? commercialStructure.minimumInvestmentCents) / 100)} />
+        <TextField label="Placeholder weekly return %" name="defaultSimulationWeeklyReturnPercent" type="number" value={String(settings?.defaultSimulationWeeklyReturnPercent ?? commercialStructure.simulatorDefaults.weeklyReturnPercent)} />
+        <TextField label="Platform fee placeholder %" name="defaultPlatformFeePercent" type="number" value={String(settings?.defaultPlatformFeePercent ?? commercialStructure.simulatorDefaults.platformFeePercent)} />
+        <div>
+          <p className="text-sm font-medium text-zinc-200">Lock periods</p>
+          <div className="mt-2 space-y-2">
+            {commercialStructure.lockPeriods.map((period) => (
+              <label className="flex items-center gap-2 text-sm text-zinc-300" key={period.code}>
+                <input defaultChecked={(settings?.enabledLockPeriods ?? commercialStructure.lockPeriods.filter((item) => item.enabled).map((item) => item.code)).includes(period.code)} name="enabledLockPeriods" type="checkbox" value={period.code} />
+                {period.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="md:col-span-2">
+          <p className="mb-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">Placeholder commercial settings only. No real payments or payouts are processed.</p>
+          <SubmitButton>Save commercial settings</SubmitButton>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
 function AdminGlobalizationControls({
   currencies,
   languages,
@@ -2991,12 +3159,18 @@ function AdminGlobalizationControls({
 
 function InvestorSimulatorCalculator({
   defaultAmountCents,
+  defaultPlatformFeePercent,
+  defaultWeeklyReturnPercent,
   description,
+  lockPeriods,
   onSimulate,
   title,
 }: {
   defaultAmountCents: number;
+  defaultPlatformFeePercent: number;
+  defaultWeeklyReturnPercent: number;
   description: string;
+  lockPeriods: CommercialStructure["lockPeriods"];
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
   title: string;
 }) {
@@ -3038,9 +3212,19 @@ function InvestorSimulatorCalculator({
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-medium text-zinc-200">
-              Expected weekly return %
-              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="1.25" min="0" max="25" name="expectedWeeklyReturnPercent" step="0.01" type="number" />
+              Lock period
+              <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue={lockPeriods[0]?.code ?? "SIX_MONTHS"} name="lockPeriod">
+                {(lockPeriods.length ? lockPeriods : [{ code: "SIX_MONTHS", label: "6 Months", months: 6, enabled: true }]).filter((period) => period.enabled).map((period) => (
+                  <option key={period.code} value={period.code}>{period.label}</option>
+                ))}
+              </select>
             </label>
+            <label className="block text-sm font-medium text-zinc-200">
+              Expected weekly return %
+              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue={String(defaultWeeklyReturnPercent)} min="0" max="25" name="expectedWeeklyReturnPercent" step="0.01" type="number" />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-medium text-zinc-200">
               Number of weeks
               <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="12" min="1" max="260" name="numberOfWeeks" type="number" />
@@ -3058,7 +3242,7 @@ function InvestorSimulatorCalculator({
             </label>
             <label className="block text-sm font-medium text-zinc-200">
               Platform fee %
-              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="10" min="0" max="50" name="platformFeePercent" step="0.01" type="number" />
+              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue={String(defaultPlatformFeePercent)} min="0" max="50" name="platformFeePercent" step="0.01" type="number" />
             </label>
           </div>
           <label className="flex items-center gap-3 text-sm text-zinc-300">

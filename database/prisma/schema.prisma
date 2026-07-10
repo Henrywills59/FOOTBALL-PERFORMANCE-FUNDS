@@ -749,6 +749,60 @@ model TimezoneSetting {
   @@map("timezone_settings")
 }
 
+model SubscriptionPlan {
+  code              String   @id
+  name              String
+  monthlyPriceCents Int
+  yearlyPriceCents  Int
+  features          Json
+  highlighted       Boolean  @default(false)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("subscription_plans")
+}
+
+model InvestorLevelSetting {
+  name                   String   @id
+  minimumInvestmentCents Int
+  badgeColor             String
+  active                 Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("investor_levels")
+}
+
+model InvestmentLockPeriod {
+  code      String   @id
+  label     String
+  months    Int
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("investment_lock_periods")
+}
+
+model SimulatorSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("simulator_settings")
+}
+
+model PricingSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pricing_settings")
+}
+
 model WalletTransaction {
   id                 String                  @id @default(uuid())
   walletId           String
