@@ -156,7 +156,6 @@ export class PaymentService {
   async processWebhook(payload: NowPaymentsWebhookPayload, signature: string | undefined | null) {
     const config = getNowPaymentsRuntimeConfig();
     if (!config.ipnSecret) {
-      await this.adminService.audit(null, "NOWPAYMENTS_WEBHOOK_PROVIDER_NOT_CONFIGURED", "PAYMENT_WEBHOOK");
       throw new PaymentError("NOWPayments IPN secret is not configured.", 503);
     }
     const signatureValid = verifyNowPaymentsSignature(payload, signature, config.ipnSecret);
