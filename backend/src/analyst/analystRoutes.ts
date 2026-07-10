@@ -3,7 +3,12 @@ import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { AnalystService } from "./analystService.js";
-import type { CreateAssignmentInput, CreateSubmissionInput } from "./types.js";
+import type {
+  CreateAcademyPredictionInput,
+  CreateAnalystApplicationInput,
+  CreateAssignmentInput,
+  CreateSubmissionInput,
+} from "./types.js";
 
 const submissionSchema = z.object({
   fixtureId: z.string().min(1),
@@ -28,6 +33,47 @@ const assignmentSchema = z.object({
 });
 
 const notesSchema = z.object({ adminNotes: z.string().max(1000).default("") });
+const applicationSchema = z.object({
+  fullName: z.string().min(2).max(120),
+  email: z.string().email(),
+  country: z.string().min(2).max(80),
+  footballExperience: z.string().min(10).max(2000),
+  preferredLeagues: z.array(z.string().min(2)).default([]),
+  yearsOfExperience: z.number().int().min(0).max(80),
+  countriesCovered: z.array(z.string().min(2)).default([]),
+  predictionStyle: z.string().min(2).max(120),
+  motivationStatement: z.string().min(20).max(3000),
+});
+const applicationStatusSchema = z.object({
+  status: z.enum(["SUBMITTED", "UNDER_REVIEW", "APPROVED_FOR_ACADEMY", "REJECTED", "WAITING_LIST"]),
+  adminNotes: z.string().max(1000).optional(),
+});
+const demoPredictionSchema = z.object({
+  matchName: z.string().min(2).max(160),
+  leagueName: z.string().min(2).max(120),
+  market: z.enum([
+    "MATCH_WINNER",
+    "DOUBLE_CHANCE",
+    "BTTS",
+    "OVER_UNDER",
+    "CORRECT_SCORE",
+    "CORNERS",
+    "CARDS",
+    "ANYTIME_SCORER",
+    "FIRST_GOAL_SCORER",
+  ]),
+  prediction: z.string().min(2).max(160),
+  confidence: z.number().int().min(0).max(100),
+  riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
+  explanation: z.string().min(10).max(2000),
+  supportingNotes: z.string().min(2).max(2000),
+  stakeCents: z.number().int().min(0).max(1000000).optional(),
+  odds: z.number().min(1).max(1000).optional(),
+});
+const analystActionSchema = z.object({
+  analystId: z.string().min(1),
+  adminNotes: z.string().max(1000).optional(),
+});
 
 export function createAnalystRouter(input: {
   authService: AuthService;
@@ -38,9 +84,52 @@ export function createAnalystRouter(input: {
   const analystOnly = [signedIn, requireRole(["ANALYST"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
 
+  router.post("/analyst-applications", async (request, response, next) => {
+    try {
+      const body = applicationSchema.parse(request.body) as CreateAnalystApplicationInput;
+      const application = await input.analystService.createApplication(body);
+      response.status(201).json({
+        application,
+        message: "Application submitted. FPF reviews analyst candidates internally before academy access.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/analysts", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json(await input.analystService.adminControlCenter());
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/analyst/dashboard", ...analystOnly, async (request, response, next) => {
     try {
       response.status(200).json(await input.analystService.dashboard(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/analyst/performance", ...analystOnly, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.analystService.performanceDashboard(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/analyst/predictions", ...analystOnly, async (request, response, next) => {
+    try {
+      const body = demoPredictionSchema.parse(request.body) as Omit<CreateAcademyPredictionInput, "analystId">;
+      response.status(201).json({
+        prediction: await input.analystService.createAcademyPrediction({
+          ...body,
+          analystId: request.user!.id,
+        }),
+      });
     } catch (error) {
       next(error);
     }
@@ -118,6 +207,60 @@ export function createAnalystRouter(input: {
   router.get("/admin/intelligence", ...adminOnly, async (_request, response, next) => {
     try {
       response.status(200).json({ submissions: await input.analystService.listAdminSubmissions() });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/analyst-applications", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json({ applications: await input.analystService.listApplications() });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/admin/analyst-applications/:id/status", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = applicationStatusSchema.parse(request.body);
+      response.status(200).json({
+        application: await input.analystService.updateApplicationStatus(
+          request.user!.id,
+          request.params.id,
+          body.status,
+          body.adminNotes,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/analyst/promote", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = analystActionSchema.parse(request.body);
+      response.status(200).json({
+        profile: await input.analystService.promoteAnalyst(request.user!.id, body.analystId, body.adminNotes),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/analyst/suspend", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = analystActionSchema.parse(request.body);
+      response.status(200).json({
+        profile: await input.analystService.suspendAnalyst(request.user!.id, body.analystId, body.adminNotes),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/analyst/reward-calculate", ...adminOnly, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.analystService.calculateRewards(request.user!.id));
     } catch (error) {
       next(error);
     }

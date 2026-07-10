@@ -107,6 +107,7 @@ model User {
   investorNotes InvestorNote[] @relation("InvestorNoteAuthor")
   analystAssignments AnalystAssignment[]
   intelligenceSubmissions AnalystIntelligenceSubmission[]
+  analystProfile AnalystProfile?
   globalPreference UserGlobalPreference?
 }
 
@@ -1360,6 +1361,225 @@ model AnalystIntelligenceSubmission {
   @@index([analystId])
   @@index([fixtureId])
   @@index([status])
+}
+
+model AnalystApplication {
+  id                  String   @id @default(uuid())
+  fullName            String
+  email               String
+  country             String
+  footballExperience  String
+  preferredLeagues    Json
+  yearsOfExperience   Int
+  countriesCovered    Json
+  predictionStyle     String
+  motivationStatement String
+  status              String   @default("SUBMITTED")
+  adminNotes          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@map("analyst_applications")
+}
+
+model AnalystAcademy {
+  id                 String   @id @default(uuid())
+  analystId          String
+  applicationId      String?
+  status             String   @default("ACTIVE")
+  startedAt          DateTime @default(now())
+  endsAt             DateTime
+  durationDays       Int      @default(14)
+  virtualWalletCents Int      @default(100000)
+  virtualCapitalCents Int     @default(100000)
+  demoFixtures       Json     @default("[]")
+  adminNotes         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([analystId])
+  @@index([status])
+  @@map("analyst_academy")
+}
+
+model AcademyPrediction {
+  id              String   @id @default(uuid())
+  analystId       String
+  academyId       String?
+  matchName       String
+  leagueName      String
+  market          String
+  prediction      String
+  confidence      Int
+  riskLevel       String
+  explanation     String
+  supportingNotes String
+  stakeCents      Int      @default(1000)
+  odds            Float    @default(1.9)
+  result          String   @default("PENDING")
+  profitLossCents Int      @default(0)
+  createdAt       DateTime @default(now())
+  settledAt       DateTime?
+
+  @@index([analystId])
+  @@index([academyId])
+  @@index([market])
+  @@index([result])
+  @@map("academy_predictions")
+}
+
+model AnalystProfile {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  rank                    String   @default("ACADEMY")
+  status                  String   @default("ACADEMY")
+  reliabilityIndex        Float    @default(50)
+  capitalAllocationCents  Int      @default(0)
+  rewardBalanceCents      Int      @default(0)
+  currentForm             Float    @default(50)
+  drawdownPercent         Float    @default(0)
+  marketSpecialization    String   @default("General football intelligence")
+  adminNotes              String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([rank])
+  @@index([status])
+  @@map("analyst_profiles")
+}
+
+model AnalystRanking {
+  id               String   @id @default(uuid())
+  analystId        String
+  rank             String
+  reliabilityIndex Float
+  reason           String
+  createdAt        DateTime @default(now())
+
+  @@index([analystId])
+  @@index([rank])
+  @@map("analyst_rankings")
+}
+
+model AnalystReliability {
+  id                       String   @id @default(uuid())
+  analystId                String
+  predictionAccuracy       Float    @default(0)
+  roi                      Float    @default(0)
+  winRate                  Float    @default(0)
+  drawdown                 Float    @default(0)
+  riskManagement           Float    @default(50)
+  confidenceCalibration    Float    @default(50)
+  consistency              Float    @default(50)
+  predictionQuality        Float    @default(50)
+  marketSpecialization     Float    @default(50)
+  discipline               Float    @default(50)
+  analystReliabilityIndex  Float    @default(50)
+  evaluatedAt              DateTime @default(now())
+
+  @@index([analystId])
+  @@index([evaluatedAt])
+  @@map("analyst_reliability")
+}
+
+model CapitalAllocation {
+  id                 String   @id @default(uuid())
+  analystId          String
+  dailyAllocationCents Int    @default(0)
+  weeklyAllocationCents Int   @default(0)
+  monthlyAllocationCents Int  @default(0)
+  reliabilityIndex   Float
+  riskLimitPercent   Float    @default(5)
+  reason             String
+  createdAt          DateTime @default(now())
+
+  @@index([analystId])
+  @@map("capital_allocations")
+}
+
+model AnalystReward {
+  id                  String   @id @default(uuid())
+  analystId           String
+  rewardPoolId        String?
+  profitGeneratedCents Int     @default(0)
+  rewardCents         Int      @default(0)
+  roi                 Float    @default(0)
+  accuracy            Float    @default(0)
+  consistency         Float    @default(0)
+  capitalEfficiency   Float    @default(0)
+  reliabilityIndex    Float    @default(0)
+  riskAdjustedScore   Float    @default(0)
+  status              String   @default("CALCULATED")
+  createdAt           DateTime @default(now())
+
+  @@index([analystId])
+  @@index([status])
+  @@map("analyst_rewards")
+}
+
+model RewardPool {
+  id                   String   @id @default(uuid())
+  periodStart          DateTime
+  periodEnd            DateTime
+  companyNetProfitCents Int     @default(0)
+  rewardPoolPercent    Float    @default(20)
+  rewardPoolCents      Int      @default(0)
+  status               String   @default("CALCULATED")
+  createdAt            DateTime @default(now())
+
+  @@index([status])
+  @@map("reward_pool")
+}
+
+model AnalystReport {
+  id          String   @id @default(uuid())
+  analystId   String
+  periodType  String
+  title       String
+  summary     String
+  metrics     Json
+  generatedAt DateTime @default(now())
+
+  @@index([analystId])
+  @@index([periodType])
+  @@map("analyst_reports")
+}
+
+model AnalystFlag {
+  id          String   @id @default(uuid())
+  analystId   String
+  severity    String
+  category    String
+  message     String
+  status      String   @default("OPEN")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  @@index([analystId])
+  @@index([status])
+  @@index([severity])
+  @@map("analyst_flags")
+}
+
+model FraudDetection {
+  id           String   @id @default(uuid())
+  analystId    String?
+  signal       String
+  severity     String
+  status       String   @default("OPEN")
+  description  String
+  metadata     Json     @default("{}")
+  detectedAt   DateTime @default(now())
+  resolvedAt   DateTime?
+
+  @@index([analystId])
+  @@index([status])
+  @@index([severity])
+  @@map("fraud_detection")
 }
 
 model FootballSyncRun {

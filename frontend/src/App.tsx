@@ -7,9 +7,12 @@ import type {
   AdminInvestorManagement,
   AdminSettings,
   AdminUser,
+  AdminAnalystControlCenter,
+  AnalystApplication,
   AnalystAssignment,
   AnalystAssistance,
   AnalystDashboard,
+  AnalystPerformanceDashboard,
   AnalystIntelligenceSubmission,
   AuditLogEntry,
   AuthResponse,
@@ -108,9 +111,9 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Analyst Command", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
-const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
+const analystNavItems = ["Analyst Dashboard", "Academy", "Prediction Workspace", "Performance", "Rewards"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
@@ -216,10 +219,12 @@ export default function App() {
   const [wallet, setWallet] = useState<InvestorWallet | null>(null);
   const [publishedIntelligence, setPublishedIntelligence] = useState<PublishedIntelligence[]>([]);
   const [analystDashboard, setAnalystDashboard] = useState<AnalystDashboard | null>(null);
+  const [analystPerformance, setAnalystPerformance] = useState<AnalystPerformanceDashboard | null>(null);
   const [analystAssignments, setAnalystAssignments] = useState<AnalystAssignment[]>([]);
   const [analystSubmissions, setAnalystSubmissions] = useState<AnalystIntelligenceSubmission[]>([]);
   const [analystAssistance, setAnalystAssistance] = useState<AnalystAssistance | null>(null);
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
+  const [adminAnalystControl, setAdminAnalystControl] = useState<AdminAnalystControlCenter | null>(null);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
   const [commercialStructure, setCommercialStructure] = useState<CommercialStructure>(defaultCommercialStructure);
@@ -562,6 +567,7 @@ export default function App() {
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
+      const analystControlData = await apiGet<AdminAnalystControlCenter>("/analysts", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
@@ -579,6 +585,7 @@ export default function App() {
       setMediaDashboard(mediaData);
       setCommercialControl(commercialControlData);
       setAdminInvestorManagement(investorManagementData);
+      setAdminAnalystControl(analystControlData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
@@ -646,14 +653,16 @@ export default function App() {
 
   async function loadAnalystData(token: string) {
     try {
-      const [dashboard, assignmentsData, submissionsData, fixtureData, workflowData] = await Promise.all([
+      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
+        apiGet<AnalystPerformanceDashboard>("/analyst/performance", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
         apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/analyst/intelligence", token),
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
         apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
       ]);
       setAnalystDashboard(dashboard);
+      setAnalystPerformance(performanceData);
       setAnalystAssignments(assignmentsData.assignments);
       setAnalystSubmissions(submissionsData.submissions);
       setFixtures(fixtureData.fixtures);
@@ -683,7 +692,8 @@ export default function App() {
       path.includes("/admin/monitoring/incidents/") ||
       path.includes("/admin/announcements/") ||
       path.includes("/admin/media/posts/") ||
-      path.includes("/admin/commercial/investor-packages/")
+      path.includes("/admin/commercial/investor-packages/") ||
+      path.includes("/admin/analyst-applications/")
       ? "PATCH"
       : "POST";
     await fetchJson(
@@ -1017,6 +1027,7 @@ export default function App() {
               operationalReports={operationalReports}
               systemIncidents={systemIncidents}
               adminAnnouncements={adminAnnouncements}
+              analystControl={adminAnalystControl}
               mediaDashboard={mediaDashboard}
               commercialControl={commercialControl}
             />
@@ -1028,6 +1039,7 @@ export default function App() {
               assignments={analystAssignments}
               assistance={analystAssistance}
               dashboard={analystDashboard}
+              performance={analystPerformance}
               fixtures={fixtures}
               workflowQueue={predictionWorkflowQueue}
               submissions={analystSubmissions}
@@ -1152,6 +1164,7 @@ export default function App() {
 
 function AdminPortal({
   activeView,
+  analystControl,
   auditLogs,
   decisions,
   fixtures,
@@ -1178,6 +1191,7 @@ function AdminPortal({
   workflowQueue,
 }: {
   activeView: AdminNavItem;
+  analystControl: AdminAnalystControlCenter | null;
   auditLogs: AuditLogEntry[];
   decisions: DecisionEngineOutput[];
   fixtures: FootballFixtureSummary[];
@@ -1359,6 +1373,10 @@ function AdminPortal({
     );
   }
 
+  if (activeView === "Analyst Command") {
+    return <AdminAnalystCommandCenter control={analystControl} onAction={onAction} />;
+  }
+
   if (activeView === "Fixture Management") {
     return (
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -1461,6 +1479,7 @@ function AnalystPortal({
   assignments,
   assistance,
   dashboard,
+  performance,
   fixtures,
   onAction,
   onAssistance,
@@ -1471,6 +1490,7 @@ function AnalystPortal({
   assignments: AnalystAssignment[];
   assistance: AnalystAssistance | null;
   dashboard: AnalystDashboard | null;
+  performance: AnalystPerformanceDashboard | null;
   fixtures: FootballFixtureSummary[];
   onAction: (path: string, body?: object) => Promise<void>;
   onAssistance: (fixtureId: string) => Promise<void>;
@@ -1486,8 +1506,17 @@ function AnalystPortal({
           <Metric label="Pending tasks" value={String(dashboard?.pendingTasks ?? 0)} />
           <Metric label="Submitted" value={String(dashboard?.submittedIntelligence ?? 0)} />
           <Metric label="Approved" value={String(dashboard?.approvedIntelligence ?? 0)} />
-          <Metric label="Rejected" value={String(dashboard?.rejectedIntelligence ?? 0)} />
+          <Metric label="ARI" value={String(performance?.reliability.analystReliabilityIndex ?? 50)} />
         </div>
+        <Panel title="Professional Analyst Status">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MiniStat label="Internal rank" value={performance?.profile.rank ?? "ACADEMY"} />
+            <MiniStat label="Reliability index" value={`${performance?.reliability.analystReliabilityIndex ?? 50}/100`} />
+            <MiniStat label="Capital allocation" value={money(performance?.profile.capitalAllocationCents ?? 0)} />
+            <MiniStat label="Graduation AI" value={performance?.graduationRecommendation.replace("_", " ") ?? "PENDING"} />
+          </div>
+          <p className="mt-4 text-sm text-zinc-400">Internal analyst data is never exposed to subscribers. Published outputs appear only as FPF Intelligence.</p>
+        </Panel>
         <Panel title="Assigned Matches">
           <div className="space-y-2">
             {assignments.map((assignment) => (
@@ -1506,6 +1535,18 @@ function AnalystPortal({
         </Panel>
       </div>
     );
+  }
+
+  if (activeView === "Academy") {
+    return <AnalystAcademyView performance={performance} onAction={onAction} />;
+  }
+
+  if (activeView === "Performance") {
+    return <AnalystPerformanceView performance={performance} />;
+  }
+
+  if (activeView === "Rewards") {
+    return <AnalystRewardView performance={performance} />;
   }
 
   return (
@@ -1579,6 +1620,222 @@ function AnalystPortal({
           )}
         </div>
       </Panel>
+    </div>
+  );
+}
+
+function AnalystAcademyView({
+  performance,
+  onAction,
+}: {
+  performance: AnalystPerformanceDashboard | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  return (
+    <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_380px]">
+      <Panel title="FPF Analyst Academy">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Status" value={performance?.academy?.status ?? "Pending academy activation"} />
+          <MiniStat label="Duration" value={`${performance?.academy?.durationDays ?? 14} days`} />
+          <MiniStat label="Virtual wallet" value={money(performance?.academy?.virtualWalletCents ?? 0)} />
+          <MiniStat label="Virtual capital" value={money(performance?.academy?.virtualCapitalCents ?? 0)} />
+        </div>
+        <p className="mt-4 text-sm leading-6 text-zinc-400">
+          Academy activity uses demo fixtures, virtual capital, and internal evaluation only. No subscriber visibility and no real company capital.
+        </p>
+        <div className="mt-4 space-y-2">
+          {(performance?.demoPredictions ?? []).map((prediction) => (
+            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={prediction.id}>
+              <p className="font-semibold">{prediction.matchName}</p>
+              <p className="mt-1 text-sm text-zinc-400">{prediction.market} | {prediction.prediction} | {prediction.result}</p>
+            </div>
+          ))}
+          {!performance?.demoPredictions.length ? <p className="text-sm text-zinc-400">No demo predictions submitted yet.</p> : null}
+        </div>
+      </Panel>
+      <Panel title="Demo Prediction Engine">
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void onAction("/analyst/predictions", {
+              matchName: form.get("matchName"),
+              leagueName: form.get("leagueName"),
+              market: form.get("market"),
+              prediction: form.get("prediction"),
+              confidence: Number(form.get("confidence")),
+              riskLevel: form.get("riskLevel"),
+              explanation: form.get("explanation"),
+              supportingNotes: form.get("supportingNotes"),
+              stakeCents: Math.round(Number(form.get("stake")) * 100),
+              odds: Number(form.get("odds")),
+            });
+          }}
+        >
+          <TextField label="Match" name="matchName" type="text" />
+          <TextField label="League" name="leagueName" type="text" />
+          <SelectField label="Market" name="market" value="MATCH_WINNER" options={["MATCH_WINNER", "DOUBLE_CHANCE", "BTTS", "OVER_UNDER", "CORRECT_SCORE", "CORNERS", "CARDS", "ANYTIME_SCORER", "FIRST_GOAL_SCORER"].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))} />
+          <TextField label="Prediction" name="prediction" type="text" />
+          <TextField label="Confidence" name="confidence" type="number" value="60" />
+          <SelectField label="Risk" name="riskLevel" value="MEDIUM" options={["LOW", "MEDIUM", "HIGH"].map((item) => ({ value: item, label: item }))} />
+          <TextField label="Stake" name="stake" type="number" value="10" />
+          <TextField label="Odds" name="odds" type="number" value="1.9" />
+          <TextField label="Explanation" name="explanation" type="text" />
+          <TextField label="Supporting notes" name="supportingNotes" type="text" />
+          <SubmitButton>Submit demo prediction</SubmitButton>
+        </form>
+      </Panel>
+    </div>
+  );
+}
+
+function AnalystPerformanceView({ performance }: { performance: AnalystPerformanceDashboard | null }) {
+  const reliability = performance?.reliability;
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="ARI" value={`${reliability?.analystReliabilityIndex ?? 50}/100`} />
+        <Metric label="Win rate" value={`${(reliability?.winRate ?? 0).toFixed(1)}%`} />
+        <Metric label="ROI" value={`${(reliability?.roi ?? 0).toFixed(1)}%`} />
+        <Metric label="Drawdown" value={`${(reliability?.drawdown ?? 0).toFixed(1)}%`} />
+        <Metric label="Discipline" value={`${reliability?.discipline ?? 50}/100`} />
+      </div>
+      <Panel title="AI Performance Evaluation">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Accuracy" value={`${reliability?.predictionAccuracy ?? 0}%`} />
+          <MiniStat label="Risk management" value={`${reliability?.riskManagement ?? 50}/100`} />
+          <MiniStat label="Calibration" value={`${reliability?.confidenceCalibration ?? 50}/100`} />
+          <MiniStat label="Consistency" value={`${reliability?.consistency ?? 50}/100`} />
+          <MiniStat label="Prediction quality" value={`${reliability?.predictionQuality ?? 50}/100`} />
+          <MiniStat label="Market specialization" value={`${reliability?.marketSpecialization ?? 50}/100`} />
+          <MiniStat label="Current form" value={`${performance?.profile.currentForm ?? 50}/100`} />
+          <MiniStat label="Rank" value={performance?.profile.rank ?? "ACADEMY"} />
+        </div>
+        <div className="mt-4 space-y-2">
+          {(performance?.aiFeedback ?? []).map((item) => <p className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-300" key={item}>{item}</p>)}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AnalystRewardView({ performance }: { performance: AnalystPerformanceDashboard | null }) {
+  return (
+    <div className="mt-6 grid gap-4 xl:grid-cols-2">
+      <Panel title="Capital Allocation">
+        <div className="space-y-3">
+          {(performance?.capitalAllocations ?? []).map((allocation) => (
+            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={allocation.id}>
+              <p className="font-semibold">{money(allocation.weeklyAllocationCents)} weekly allocation</p>
+              <p className="mt-1 text-sm text-zinc-400">{allocation.reason}</p>
+            </div>
+          ))}
+          {!performance?.capitalAllocations.length ? <p className="text-sm text-zinc-400">No company capital allocated yet.</p> : null}
+        </div>
+      </Panel>
+      <Panel title="Reward Dashboard">
+        <p className="text-sm text-zinc-400">Default placeholder reward pool: 20% of company net profits. Final calculations remain admin-audited.</p>
+        <div className="mt-4 space-y-3">
+          {(performance?.rewards ?? []).map((reward) => (
+            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={reward.id}>
+              <p className="font-semibold">{money(reward.rewardCents)} | {reward.status}</p>
+              <p className="mt-1 text-sm text-zinc-400">Risk-adjusted score {reward.riskAdjustedScore}/100</p>
+            </div>
+          ))}
+          {!performance?.rewards.length ? <p className="text-sm text-zinc-400">No rewards calculated yet.</p> : null}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AdminAnalystCommandCenter({
+  control,
+  onAction,
+}: {
+  control: AdminAnalystControlCenter | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  if (!control) return <LoadingSkeleton label="Preparing Analyst Command Center" />;
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <Metric label="Applications" value={String(control.applications.length)} />
+        <Metric label="Analysts" value={String(control.analysts.length)} />
+        <Metric label="Academy" value={String(control.academy.length)} />
+        <Metric label="Demo predictions" value={String(control.predictions.length)} />
+        <Metric label="Fraud signals" value={String(control.fraudSignals.length)} />
+        <Metric label="Reward pool" value={`${control.rewardPoolPercent}%`} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Analyst Applications">
+          <div className="space-y-3">
+            {control.applications.map((application) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={application.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{application.status}</p>
+                <h3 className="mt-2 font-semibold">{application.fullName}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{application.email} | {application.country} | {application.yearsOfExperience} years</p>
+                <p className="mt-2 text-sm text-zinc-300">{application.predictionStyle}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="rounded-md bg-emerald-300 px-3 py-2 text-xs font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/analyst-applications/${application.id}/status`, { status: "APPROVED_FOR_ACADEMY", adminNotes: "Approved for FPF Academy." })}>Approve Academy</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/analyst-applications/${application.id}/status`, { status: "WAITING_LIST", adminNotes: "Placed on waiting list." })}>Waitlist</button>
+                  <button className="rounded-md border border-red-800 px-3 py-2 text-xs text-red-100" type="button" onClick={() => void onAction(`/admin/analyst-applications/${application.id}/status`, { status: "REJECTED", adminNotes: "Rejected by admin review." })}>Reject</button>
+                </div>
+              </div>
+            ))}
+            {!control.applications.length ? <p className="text-sm text-zinc-400">No analyst applications submitted yet.</p> : null}
+          </div>
+        </Panel>
+        <Panel title="Active Analyst Control">
+          <form
+            className="mb-4 grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/analyst/promote", {
+                analystId: form.get("analystId"),
+                adminNotes: form.get("adminNotes"),
+              });
+            }}
+          >
+            <TextField label="Analyst user ID" name="analystId" type="text" />
+            <TextField label="Admin notes" name="adminNotes" type="text" />
+            <div className="md:col-span-2"><SubmitButton>Promote analyst</SubmitButton></div>
+          </form>
+          <button className="mb-4 rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={() => void onAction("/admin/analyst/reward-calculate")}>Calculate reward pool</button>
+          <div className="space-y-3">
+            {control.analysts.map((analyst) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={analyst.id}>
+                <p className="font-semibold">{analyst.name} | {analyst.rank}</p>
+                <p className="mt-1 text-sm text-zinc-400">ARI {analyst.reliabilityIndex}/100 | Allocation {money(analyst.capitalAllocationCents)}</p>
+                <button className="mt-2 rounded-md border border-amber-700 px-3 py-2 text-xs text-amber-100" type="button" onClick={() => void onAction("/admin/analyst/suspend", { analystId: analyst.userId, adminNotes: "Suspended by admin control." })}>Suspend</button>
+              </div>
+            ))}
+            {!control.analysts.length ? <p className="text-sm text-zinc-400">No active analyst profiles yet.</p> : null}
+          </div>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Capital Allocation">
+          <div className="space-y-2">
+            {control.capitalAllocations.map((allocation) => <p className="rounded-md bg-zinc-950 p-3 text-sm text-zinc-300" key={allocation.id}>{allocation.analystId}: {money(allocation.weeklyAllocationCents)} weekly</p>)}
+            {!control.capitalAllocations.length ? <p className="text-sm text-zinc-400">No allocations calculated.</p> : null}
+          </div>
+        </Panel>
+        <Panel title="Rewards">
+          <div className="space-y-2">
+            {control.rewards.map((reward) => <p className="rounded-md bg-zinc-950 p-3 text-sm text-zinc-300" key={reward.id}>{reward.analystId}: {money(reward.rewardCents)} | {reward.status}</p>)}
+            {!control.rewards.length ? <p className="text-sm text-zinc-400">No reward calculations yet.</p> : null}
+          </div>
+        </Panel>
+        <Panel title="Fraud Detection">
+          <div className="space-y-2">
+            {control.fraudSignals.map((signal) => <p className="rounded-md bg-zinc-950 p-3 text-sm text-zinc-300" key={signal.id}>{signal.severity}: {signal.description}</p>)}
+            {!control.fraudSignals.length ? <p className="text-sm text-zinc-400">No open fraud signals.</p> : null}
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -2743,7 +3000,7 @@ function PublicLaunchExperience({
             <h1 className="text-lg font-semibold">FPF Global Intelligence Platform</h1>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            {["AI Intelligence", "Subscribers", "Investors", "Pricing", "FAQ"].map((item) => (
+            {["AI Intelligence", "Subscribers", "Investors", "Analysts", "Pricing", "FAQ"].map((item) => (
               <a className="rounded-md px-3 py-2 text-zinc-300 transition hover:bg-zinc-900 hover:text-white" href={`#${item.toLowerCase().replaceAll(" ", "-")}`} key={item}>{item}</a>
             ))}
           </div>
@@ -2799,6 +3056,7 @@ function PublicLaunchExperience({
           <LaunchPanel id="subscribers" title="Subscriber Benefits" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
           <LaunchPanel id="investors" title="Investor Benefits" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
         </div>
+        <AnalystApplicationPortal />
         <PricingCards plans={commercialStructure.subscriberPlans} />
         <div className="grid gap-4 lg:grid-cols-3">
           {["FPF feels like a professional command room, not a tips feed.", "The risk language is clear and disciplined.", "The investor portal gives the transparency a serious platform needs."].map((quote) => (
@@ -2832,6 +3090,70 @@ function LaunchPanel({ id, items, title }: { id: string; items: string[]; title:
       <h2 className="text-xl font-semibold">{title}</h2>
       <div className="mt-4 grid gap-2">
         {items.map((item) => <div className="rounded-md bg-zinc-950 p-3 text-sm text-zinc-300" key={item}>{item}</div>)}
+      </div>
+    </section>
+  );
+}
+
+function AnalystApplicationPortal() {
+  const [status, setStatus] = useState("");
+  return (
+    <section className="rounded-lg border border-emerald-400/20 bg-zinc-900 p-5" id="analysts">
+      <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
+        <div>
+          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Professional Analyst Portal</p>
+          <h2 className="mt-2 text-2xl font-semibold">Apply to work inside the FPF intelligence desk.</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">
+            Analysts are internal professionals. FPF does not publish analyst profiles, rankings, names, followers, likes, or individual public tips.
+            Approved candidates enter a 14-day academy with virtual capital and demo fixtures before any admin promotion decision.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <MiniStat label="Academy" value="14 days" />
+            <MiniStat label="Capital" value="Virtual only" />
+            <MiniStat label="Visibility" value="Internal" />
+          </div>
+        </div>
+        <form
+          className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            setStatus("Submitting application...");
+            try {
+              await fetchJson<{ application: AnalystApplication }>(apiEndpoint("/analyst-applications"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  fullName: form.get("fullName"),
+                  email: form.get("email"),
+                  country: form.get("country"),
+                  footballExperience: form.get("footballExperience"),
+                  preferredLeagues: String(form.get("preferredLeagues") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+                  yearsOfExperience: Number(form.get("yearsOfExperience")),
+                  countriesCovered: String(form.get("countriesCovered") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+                  predictionStyle: form.get("predictionStyle"),
+                  motivationStatement: form.get("motivationStatement"),
+                }),
+              });
+              setStatus("Application submitted. FPF will review it internally.");
+              event.currentTarget.reset();
+            } catch (caughtError) {
+              setStatus(caughtError instanceof Error ? caughtError.message : "Unable to submit application.");
+            }
+          }}
+        >
+          <TextField label="Full name" name="fullName" type="text" />
+          <TextField label="Email" name="email" type="email" />
+          <TextField label="Country" name="country" type="text" />
+          <TextField label="Years of experience" name="yearsOfExperience" type="number" value="3" />
+          <TextField label="Preferred leagues" name="preferredLeagues" type="text" value="Premier League, La Liga" />
+          <TextField label="Countries covered" name="countriesCovered" type="text" value="England, Spain" />
+          <TextField label="Prediction style" name="predictionStyle" type="text" value="Risk-managed market analysis" />
+          <TextField label="Football experience" name="footballExperience" type="text" />
+          <TextField label="Motivation statement" name="motivationStatement" type="text" />
+          <SubmitButton>Submit analyst application</SubmitButton>
+          {status ? <p className="text-sm text-emerald-200">{status}</p> : null}
+        </form>
       </div>
     </section>
   );

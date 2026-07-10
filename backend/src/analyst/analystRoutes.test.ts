@@ -168,4 +168,74 @@ describe("analyst intelligence routes", () => {
     expect(assistance.body.teamFormSummary).toContain("North FC");
     expect(assistance.body.oddsMovement).toContain("Match Winner");
   });
+
+  it("supports internal analyst academy workflow and blocks subscribers from analyst data", async () => {
+    const { app, users } = await testApp();
+    const adminToken = seedUser(users, "ADMIN");
+    const analystToken = seedUser(users, "ANALYST");
+    const subscriberToken = seedUser(users, "SUBSCRIBER");
+
+    const application = await request(app)
+      .post("/api/analyst-applications")
+      .send({
+        fullName: "Internal Candidate",
+        email: "candidate@example.com",
+        country: "Uganda",
+        footballExperience: "Ten years studying European and African football markets.",
+        preferredLeagues: ["Premier League", "La Liga"],
+        yearsOfExperience: 10,
+        countriesCovered: ["Uganda", "England", "Spain"],
+        predictionStyle: "Risk-managed market analysis",
+        motivationStatement: "I want to contribute disciplined internal intelligence to the FPF platform.",
+      })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/admin/analyst-applications/${application.body.application.id}/status`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ status: "APPROVED_FOR_ACADEMY", adminNotes: "Approved for academy." })
+      .expect(200);
+
+    await request(app)
+      .post("/api/analyst/predictions")
+      .set("Authorization", `Bearer ${analystToken}`)
+      .send({
+        matchName: "North FC vs South FC",
+        leagueName: "Premier League",
+        market: "MATCH_WINNER",
+        prediction: "North FC",
+        confidence: 66,
+        riskLevel: "MEDIUM",
+        explanation: "North FC has stronger form and better defensive stability.",
+        supportingNotes: "Demo prediction for academy evaluation only.",
+      })
+      .expect(201);
+
+    const performance = await request(app)
+      .get("/api/analyst/performance")
+      .set("Authorization", `Bearer ${analystToken}`)
+      .expect(200);
+
+    expect(performance.body.reliability.analystReliabilityIndex).toBeGreaterThanOrEqual(0);
+    expect(performance.body.demoPredictions[0].market).toBe("MATCH_WINNER");
+
+    await request(app)
+      .post("/api/admin/analyst/promote")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ analystId: "analyst-intelligence-user", adminNotes: "Promoted from academy test." })
+      .expect(200);
+
+    const rewards = await request(app)
+      .post("/api/admin/analyst/reward-calculate")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(rewards.body.rewardPoolPercent).toBe(20);
+    expect(rewards.body.analysts.length).toBeGreaterThan(0);
+
+    await request(app)
+      .get("/api/analysts")
+      .set("Authorization", `Bearer ${subscriberToken}`)
+      .expect(403);
+  });
 });

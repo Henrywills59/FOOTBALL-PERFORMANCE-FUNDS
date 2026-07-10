@@ -931,6 +931,200 @@ export type AnalystAssistance = {
   valueOpportunityNotes: string;
 };
 
+export type AnalystApplicationStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "APPROVED_FOR_ACADEMY"
+  | "REJECTED"
+  | "WAITING_LIST";
+
+export type AnalystApplication = {
+  id: string;
+  fullName: string;
+  email: string;
+  country: string;
+  footballExperience: string;
+  preferredLeagues: string[];
+  yearsOfExperience: number;
+  countriesCovered: string[];
+  predictionStyle: string;
+  motivationStatement: string;
+  status: AnalystApplicationStatus;
+  adminNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AnalystAcademyStatus = "ACTIVE" | "COMPLETED" | "EXTENDED" | "PROMOTED" | "REJECTED";
+
+export type AnalystAcademy = {
+  id: string;
+  analystId: string;
+  applicationId: string | null;
+  status: AnalystAcademyStatus;
+  startedAt: string;
+  endsAt: string;
+  durationDays: number;
+  virtualWalletCents: number;
+  virtualCapitalCents: number;
+  demoFixtures: string[];
+  adminNotes: string | null;
+};
+
+export type DemoPredictionMarket =
+  | "MATCH_WINNER"
+  | "DOUBLE_CHANCE"
+  | "BTTS"
+  | "OVER_UNDER"
+  | "CORRECT_SCORE"
+  | "CORNERS"
+  | "CARDS"
+  | "ANYTIME_SCORER"
+  | "FIRST_GOAL_SCORER";
+
+export type AcademyPrediction = {
+  id: string;
+  analystId: string;
+  academyId: string | null;
+  matchName: string;
+  leagueName: string;
+  market: DemoPredictionMarket;
+  prediction: string;
+  confidence: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  explanation: string;
+  supportingNotes: string;
+  stakeCents: number;
+  odds: number;
+  result: "PENDING" | "WON" | "LOST" | "VOID";
+  profitLossCents: number;
+  createdAt: string;
+  settledAt: string | null;
+};
+
+export type AnalystRank = "ACADEMY" | "ASSOCIATE" | "PROFESSIONAL" | "SENIOR" | "ELITE" | "MASTER" | "SUSPENDED";
+
+export type AnalystReliability = {
+  analystId: string;
+  predictionAccuracy: number;
+  roi: number;
+  winRate: number;
+  drawdown: number;
+  riskManagement: number;
+  confidenceCalibration: number;
+  consistency: number;
+  predictionQuality: number;
+  marketSpecialization: number;
+  discipline: number;
+  analystReliabilityIndex: number;
+  evaluatedAt: string;
+};
+
+export type AnalystProfile = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  rank: AnalystRank;
+  status: "ACADEMY" | "ACTIVE" | "SUSPENDED" | "TERMINATED";
+  reliabilityIndex: number;
+  capitalAllocationCents: number;
+  rewardBalanceCents: number;
+  currentForm: number;
+  drawdownPercent: number;
+  marketSpecialization: string;
+  adminNotes: string | null;
+};
+
+export type CapitalAllocation = {
+  id: string;
+  analystId: string;
+  dailyAllocationCents: number;
+  weeklyAllocationCents: number;
+  monthlyAllocationCents: number;
+  reliabilityIndex: number;
+  riskLimitPercent: number;
+  reason: string;
+  createdAt: string;
+};
+
+export type AnalystReward = {
+  id: string;
+  analystId: string;
+  rewardPoolId: string | null;
+  profitGeneratedCents: number;
+  rewardCents: number;
+  roi: number;
+  accuracy: number;
+  consistency: number;
+  capitalEfficiency: number;
+  reliabilityIndex: number;
+  riskAdjustedScore: number;
+  status: "CALCULATED" | "PENDING_APPROVAL" | "APPROVED" | "PAID";
+  createdAt: string;
+};
+
+export type AnalystReport = {
+  id: string;
+  analystId: string;
+  periodType: "WEEKLY" | "MONTHLY";
+  title: string;
+  summary: string;
+  metrics: Record<string, unknown>;
+  generatedAt: string;
+};
+
+export type AnalystFlag = {
+  id: string;
+  analystId: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  category: string;
+  message: string;
+  status: "OPEN" | "REVIEWING" | "RESOLVED";
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
+export type FraudDetectionSignal = {
+  id: string;
+  analystId: string | null;
+  signal: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  status: "OPEN" | "REVIEWING" | "RESOLVED";
+  description: string;
+  metadata: Record<string, unknown>;
+  detectedAt: string;
+};
+
+export type AnalystPerformanceDashboard = {
+  profile: AnalystProfile;
+  reliability: AnalystReliability;
+  academy: AnalystAcademy | null;
+  demoPredictions: AcademyPrediction[];
+  capitalAllocations: CapitalAllocation[];
+  rewards: AnalystReward[];
+  reports: AnalystReport[];
+  flags: AnalystFlag[];
+  graduationRecommendation: "PROMOTE" | "EXTEND_ACADEMY" | "REJECT";
+  aiFeedback: string[];
+};
+
+export type AdminAnalystControlCenter = {
+  applications: AnalystApplication[];
+  analysts: AnalystProfile[];
+  academy: AnalystAcademy[];
+  predictions: AcademyPrediction[];
+  reliability: AnalystReliability[];
+  capitalAllocations: CapitalAllocation[];
+  rewards: AnalystReward[];
+  reports: AnalystReport[];
+  flags: AnalystFlag[];
+  fraudSignals: FraudDetectionSignal[];
+  rewardPoolPercent: number;
+  academyDurationDays: number;
+};
+
 export type PublishedIntelligence = {
   id: string;
   fixtureId: string;

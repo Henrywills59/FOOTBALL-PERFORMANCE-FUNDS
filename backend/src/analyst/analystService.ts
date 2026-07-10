@@ -2,7 +2,13 @@ import type { AnalystAssistance } from "@fpf/shared";
 import { AuthError } from "../auth/authService.js";
 import type { FootballRepository } from "../football/types.js";
 import type { AdminService } from "../admin/adminService.js";
-import type { AnalystRepository, CreateAssignmentInput, CreateSubmissionInput } from "./types.js";
+import type {
+  AnalystRepository,
+  CreateAcademyPredictionInput,
+  CreateAnalystApplicationInput,
+  CreateAssignmentInput,
+  CreateSubmissionInput,
+} from "./types.js";
 
 export class AnalystService {
   constructor(
@@ -13,6 +19,47 @@ export class AnalystService {
 
   dashboard(analystId: string) {
     return this.repository.dashboard(analystId);
+  }
+
+  performanceDashboard(analystId: string) {
+    return this.repository.performanceDashboard(analystId);
+  }
+
+  createApplication(input: CreateAnalystApplicationInput) {
+    return this.repository.createApplication(input);
+  }
+
+  listApplications() {
+    return this.repository.listApplications();
+  }
+
+  async updateApplicationStatus(adminUserId: string, id: string, status: Parameters<AnalystRepository["updateApplicationStatus"]>[1], adminNotes?: string | null) {
+    const application = await this.repository.updateApplicationStatus(id, status, adminNotes);
+    if (!application) throw new AuthError("Analyst application not found", 404);
+    await this.adminService?.audit(adminUserId, `ANALYST_APPLICATION_${status}`, "ANALYST_APPLICATION", id);
+    return application;
+  }
+
+  adminControlCenter() {
+    return this.repository.adminControlCenter();
+  }
+
+  async promoteAnalyst(adminUserId: string, analystId: string, adminNotes?: string | null) {
+    const profile = await this.repository.promoteAnalyst(analystId, adminNotes);
+    await this.adminService?.audit(adminUserId, "ANALYST_PROMOTED", "ANALYST_PROFILE", analystId);
+    return profile;
+  }
+
+  async suspendAnalyst(adminUserId: string, analystId: string, adminNotes?: string | null) {
+    const profile = await this.repository.suspendAnalyst(analystId, adminNotes);
+    await this.adminService?.audit(adminUserId, "ANALYST_SUSPENDED", "ANALYST_PROFILE", analystId);
+    return profile;
+  }
+
+  async calculateRewards(adminUserId: string) {
+    const center = await this.repository.calculateRewards(adminUserId);
+    await this.adminService?.audit(adminUserId, "ANALYST_REWARDS_CALCULATED", "ANALYST_REWARD_POOL");
+    return center;
   }
 
   listAssignments(analystId: string) {
@@ -33,6 +80,10 @@ export class AnalystService {
   async createSubmission(input: CreateSubmissionInput) {
     await this.requireAssignedMatch(input.analystId, input.fixtureId);
     return this.repository.createSubmission(input);
+  }
+
+  createAcademyPrediction(input: CreateAcademyPredictionInput) {
+    return this.repository.createAcademyPrediction(input);
   }
 
   async updateSubmission(id: string, analystId: string, input: Partial<Omit<CreateSubmissionInput, "analystId">>) {
