@@ -163,6 +163,9 @@ export class ApiFootballClient {
     });
     const text = await response.text();
     const responseBody = parseJsonOrText(text);
+    const providerError = responseBody && typeof responseBody === "object"
+      ? summarizeEnvelopeErrors((responseBody as { errors?: unknown }).errors)
+      : null;
     const quota = {
       remaining:
         response.headers.get("x-ratelimit-requests-remaining") ??
@@ -175,12 +178,13 @@ export class ApiFootballClient {
         response.headers.get("x-requests-limit"),
     };
     return {
-      ok: response.ok,
+      ok: response.ok && !providerError,
       path,
       url: redactQuery(url),
       statusCode: response.status,
       responseTimeMs: Date.now() - startedAt,
       quota,
+      providerError,
       responseBody,
     };
   }
