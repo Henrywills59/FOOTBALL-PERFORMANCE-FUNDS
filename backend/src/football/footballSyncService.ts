@@ -88,6 +88,26 @@ export class FootballSyncService {
     };
   }
 
+  async probeProvider() {
+    if (!this.apiFootball.isConfigured()) {
+      return {
+        ok: false,
+        provider: "API-Football" as const,
+        message: "API-Football is not configured.",
+        requestsConsumed: 0,
+        status: this.providerStatus(),
+      };
+    }
+    await this.apiFootball.timezones();
+    return {
+      ok: true,
+      provider: "API-Football" as const,
+      message: "API-Football responded to a one-request timezone probe.",
+      requestsConsumed: 1,
+      status: this.providerStatus(),
+    };
+  }
+
   async syncFixtures() {
     const runId = await this.repository.startSyncRun({ provider: "api-football", jobName: "fixtures" });
     let recordsRead = 0;

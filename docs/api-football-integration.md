@@ -65,6 +65,7 @@ All routes are backend-only, authenticated, and rate-limited:
 - `GET /api/football/fixtures/:id/lineups`
 - `GET /api/football/fixtures/:id/injuries`
 - `GET /api/football/head-to-head`
+- `POST /api/football/provider/probe` admin-only one-request live provider verification
 
 ## Data Freshness
 
@@ -92,6 +93,7 @@ States:
 - Noncritical sync pauses at the 95% warning threshold or after rate-limit status.
 - Sync avoids duplicate live fixture requests per league loop.
 - Provider status reports usage and thresholds without exposing secrets.
+- Live verification uses the admin-only probe endpoint to consume exactly one API-Football request.
 
 ## Integration Surface
 

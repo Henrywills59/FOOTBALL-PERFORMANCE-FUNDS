@@ -202,5 +202,19 @@ export function createFootballRouter(input: {
     },
   );
 
+  router.post(
+    "/football/provider/probe",
+    signedIn,
+    requireRole(["ADMIN"]),
+    async (_request, response, next) => {
+      try {
+        const result = await input.syncService.probeProvider();
+        response.status(result.ok ? 200 : 503).json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
   return router;
 }
