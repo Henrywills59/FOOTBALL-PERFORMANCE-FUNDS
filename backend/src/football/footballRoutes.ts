@@ -203,6 +203,23 @@ export function createFootballRouter(input: {
   );
 
   router.post(
+    "/football/sync/fixtures",
+    signedIn,
+    requireRole(["ANALYST", "ADMIN"]),
+    async (_request, response, next) => {
+      try {
+        const result = await input.syncService.syncFixtures();
+        response.status(result.status === "SUCCESS" ? 202 : 503).json({
+          message: result.status === "SUCCESS" ? "Football fixture sync completed." : "Football fixture sync failed.",
+          result,
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
     "/football/provider/probe",
     signedIn,
     requireRole(["ADMIN"]),

@@ -29,10 +29,6 @@ import type {
   TeamProfile,
 } from "./types.js";
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function intelligenceFeed(
   fixtures: FootballFixtureSummary[],
   opportunities: SubscriberOpportunity[],
@@ -189,7 +185,7 @@ export class IntelligenceService {
   ) {}
 
   async getTodayFixtures(input: { limit?: number; search?: string; league?: string; date?: string }) {
-    const date = input.date ?? todayIsoDate();
+    const date = input.date;
     const key = `fixtures:${date}:${input.limit ?? 30}:${input.search ?? ""}:${input.league ?? ""}`;
     const cached = await this.cache.get<FootballFixtureSummary[]>(key);
     if (cached) return cached;

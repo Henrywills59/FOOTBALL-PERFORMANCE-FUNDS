@@ -6,6 +6,14 @@ import type { FootballRepository, FixtureUpsert } from "./types.js";
 
 const asRecord = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, any>) : {});
 
+export type FootballSyncResult = {
+  jobName: string;
+  status: "SUCCESS" | "FAILED";
+  recordsRead: number;
+  recordsSaved: number;
+  message?: string;
+};
+
 function mapFixture(raw: unknown): FixtureUpsert | null {
   const item = asRecord(raw);
   const fixture = asRecord(item.fixture);
@@ -108,44 +116,68 @@ export class FootballSyncService {
     };
   }
 
-  async syncFixtures() {
+  async syncFixtures(): Promise<FootballSyncResult> {
     const runId = await this.repository.startSyncRun({ provider: "api-football", jobName: "fixtures" });
     let recordsRead = 0;
     let recordsSaved = 0;
 
     try {
       if (!this.apiFootball.isConfigured()) {
-        await this.repository.finishSyncRun(runId, { status: "SUCCESS", message: "API-Football key not configured; skipped." });
-        return;
+        const message = "API-Football key not configured; skipped.";
+        await this.repository.finishSyncRun(runId, { status: "SUCCESS", message });
+        return { jobName: "fixtures", status: "SUCCESS", recordsRead, recordsSaved, message };
       }
 
       const live = await this.apiFootball.liveFixtures();
+      const seenFixtureIds = new Set<number>();
       for (const leagueId of this.config.leagueIds) {
-        const result = await this.apiFootball.fixtures({
-          league: leagueId,
-          season: this.config.season,
-          next: 20,
-        });
-        const fixtures = [...result.response, ...live.response];
+        const fixtures = [
+          ...await this.fetchConfiguredLeagueFixtures(leagueId, this.config.season),
+          ...await this.fetchConfiguredLeagueFixtures(leagueId, this.config.season - 1),
+          ...live.response,
+        ];
         recordsRead += fixtures.length;
 
         for (const raw of fixtures) {
           const fixture = mapFixture(raw);
-          if (fixture) {
+          if (fixture && !seenFixtureIds.has(fixture.apiFootballFixtureId)) {
+            seenFixtureIds.add(fixture.apiFootballFixtureId);
             await this.repository.upsertFixture(fixture);
             recordsSaved += 1;
           }
         }
       }
 
-      await this.repository.finishSyncRun(runId, { status: "SUCCESS", recordsRead, recordsSaved });
+      if (recordsSaved === 0) {
+        const fallbackFixtures = [
+          ...await this.fetchGlobalUpcomingFixtures(),
+          ...live.response,
+        ];
+        recordsRead += fallbackFixtures.length;
+        for (const raw of fallbackFixtures) {
+          const fixture = mapFixture(raw);
+          if (fixture && !seenFixtureIds.has(fixture.apiFootballFixtureId)) {
+            seenFixtureIds.add(fixture.apiFootballFixtureId);
+            await this.repository.upsertFixture(fixture);
+            recordsSaved += 1;
+          }
+        }
+      }
+
+      const message = recordsSaved === 0
+        ? "API-Football returned no fixtures for configured leagues or the fallback upcoming window."
+        : undefined;
+      await this.repository.finishSyncRun(runId, { status: "SUCCESS", recordsRead, recordsSaved, message });
+      return { jobName: "fixtures", status: "SUCCESS", recordsRead, recordsSaved, message };
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Fixture sync failed";
       await this.repository.finishSyncRun(runId, {
         status: "FAILED",
-        message: error instanceof Error ? error.message : "Fixture sync failed",
+        message,
         recordsRead,
         recordsSaved,
       });
+      return { jobName: "fixtures", status: "FAILED", recordsRead, recordsSaved, message };
     }
   }
 
@@ -321,4 +353,33 @@ export class FootballSyncService {
     const status = this.providerStatus();
     return !(status.nonCriticalSyncPaused || status.connectionStatus === "RATE_LIMITED");
   }
+
+  private async fetchConfiguredLeagueFixtures(leagueId: number, season: number) {
+    const dates = nextDateWindow(7);
+    const responses = await Promise.allSettled([
+      this.apiFootball.fixtures({ league: leagueId, season, next: 30 }),
+      ...dates.map((date) => this.apiFootball.fixtures({ league: leagueId, season, date })),
+    ]);
+    return responses.flatMap((result) => result.status === "fulfilled" ? result.value.response : []);
+  }
+
+  private async fetchGlobalUpcomingFixtures() {
+    const dates = nextDateWindow(7);
+    const responses = await Promise.allSettled([
+      this.apiFootball.fixtures({ next: 30 }),
+      ...dates.map((date) => this.apiFootball.fixtures({ date })),
+    ]);
+    return responses.flatMap((result) => result.status === "fulfilled" ? result.value.response : []);
+  }
+}
+
+function nextDateWindow(days: number) {
+  const dates: string[] = [];
+  const start = new Date();
+  for (let offset = 0; offset <= days; offset += 1) {
+    const date = new Date(start);
+    date.setUTCDate(start.getUTCDate() + offset);
+    dates.push(date.toISOString().slice(0, 10));
+  }
+  return dates;
 }

@@ -161,6 +161,14 @@ describe("football routes", () => {
       .post("/api/football/sync")
       .set("Authorization", `Bearer ${analyst.token}`)
       .expect(202);
+
+    await request(analyst.app)
+      .post("/api/football/sync/fixtures")
+      .set("Authorization", `Bearer ${analyst.token}`)
+      .expect(202)
+      .expect((response) => {
+        expect(response.body.result.jobName).toBe("fixtures");
+      });
   });
 
   it("starts scheduled football jobs when enabled", async () => {

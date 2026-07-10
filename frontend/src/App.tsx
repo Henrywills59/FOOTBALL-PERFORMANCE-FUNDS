@@ -1561,6 +1561,7 @@ export default function App() {
               recent={recent}
               upcomingFixtures={upcomingFixtures}
               onAdd={addToSlip}
+              onRefreshFixtures={() => void loadSubscriberData(session.token)}
             />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Opportunity Center" ? (
@@ -1592,6 +1593,7 @@ export default function App() {
               predictions={predictions}
               selectedFixture={selectedFixture}
               onSelectFixture={(id) => void loadFixtureDetail(id)}
+              onRefresh={() => void loadLiveFixtures(session.token)}
             />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Intelligence Reports" ? (
@@ -4796,6 +4798,7 @@ function DashboardView({
   liveFixtures,
   notifications,
   onAdd,
+  onRefreshFixtures,
   predictions,
   recent,
   upcomingFixtures,
@@ -4808,6 +4811,7 @@ function DashboardView({
   liveFixtures: FootballFixtureSummary[];
   notifications: string[];
   onAdd: (prediction: PredictionWithFixture) => void;
+  onRefreshFixtures: () => void;
   predictions: PredictionWithFixture[];
   recent: PredictionWithFixture[];
   upcomingFixtures: FootballFixtureSummary[];
@@ -4856,8 +4860,8 @@ function DashboardView({
         </Panel>
         <Panel title="Live Match Center">
           <div className="grid gap-4 sm:grid-cols-2">
-            <CompactFixtureList fixtures={liveFixtures} />
-            <CompactFixtureList fixtures={upcomingFixtures} />
+            <CompactFixtureList fixtures={liveFixtures} emptyMessage="No live matches are available right now. Upcoming fixtures continue to sync in the background." onRetry={onRefreshFixtures} />
+            <CompactFixtureList fixtures={upcomingFixtures} emptyMessage="Upcoming fixtures are syncing. Run Admin Fixture Management refresh if this remains empty." onRetry={onRefreshFixtures} />
           </div>
         </Panel>
       </div>
@@ -5696,11 +5700,13 @@ function OpportunityList({
 
 function LiveMatchCenter({
   fixtures,
+  onRefresh,
   onSelectFixture,
   predictions,
   selectedFixture,
 }: {
   fixtures: FootballFixtureSummary[];
+  onRefresh: () => void;
   onSelectFixture: (id: string) => void;
   predictions: PredictionWithFixture[];
   selectedFixture: FootballFixtureDetail | null;
@@ -5711,7 +5717,7 @@ function LiveMatchCenter({
   return (
     <div className="mt-6 grid gap-4 xl:grid-cols-[360px_1fr]">
       <Panel title="Live Match Center">
-        <CompactFixtureList fixtures={fixtures} onSelect={onSelectFixture} />
+        <CompactFixtureList fixtures={fixtures} onSelect={onSelectFixture} emptyMessage="No live matches are available right now. Live monitoring will populate when synchronized matches are in progress." onRetry={onRefresh} />
         <p className="mt-4 text-xs text-zinc-500">Live matches refresh automatically every 30 seconds.</p>
       </Panel>
       <Panel title="Live Match Details">
@@ -5943,7 +5949,17 @@ function CompactPredictionList({ predictions }: { predictions: PredictionWithFix
   );
 }
 
-function CompactFixtureList({ fixtures, onSelect }: { fixtures: FootballFixtureSummary[]; onSelect?: (id: string) => void }) {
+function CompactFixtureList({
+  emptyMessage = "Football data is syncing. If this stays empty, run a fixture refresh from Admin Fixture Management.",
+  fixtures,
+  onSelect,
+  onRetry,
+}: {
+  emptyMessage?: string;
+  fixtures: FootballFixtureSummary[];
+  onSelect?: (id: string) => void;
+  onRetry?: () => void;
+}) {
   return (
     <div className="space-y-2">
       {fixtures.map((fixture) => (
@@ -5958,7 +5974,7 @@ function CompactFixtureList({ fixtures, onSelect }: { fixtures: FootballFixtureS
           <p className="mt-1 text-sm text-zinc-400">{fixture.leagueName} Â· {fixture.status} Â· {new Date(fixture.kickoffAt).toLocaleString()}</p>
         </button>
       ))}
-      {!fixtures.length ? <EmptyState message="No synchronized fixtures available." /> : null}
+      {!fixtures.length ? <EmptyState message={emptyMessage} actionLabel={onRetry ? "Retry" : undefined} onAction={onRetry} /> : null}
     </div>
   );
 }
@@ -6445,10 +6461,19 @@ function LoadingSkeleton({ label }: { label: string }) {
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+function EmptyState({ actionLabel, message, onAction }: { actionLabel?: string; message: string; onAction?: () => void }) {
   return (
     <div className="rounded-md border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
-      {message}
+      <p>{message}</p>
+      {actionLabel && onAction ? (
+        <button
+          className="mt-3 rounded-md border border-emerald-400/40 px-3 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-300 hover:text-emerald-100"
+          type="button"
+          onClick={onAction}
+        >
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
