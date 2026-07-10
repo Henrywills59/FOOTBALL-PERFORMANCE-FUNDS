@@ -172,4 +172,42 @@ describe("investor routes", () => {
       .set("Authorization", `Bearer ${subscriberToken}`)
       .expect(403);
   });
+
+  it("simulates investor earnings without creating financial records", async () => {
+    const { app, users } = testApp();
+    const investorToken = seedUser(users, "INVESTOR");
+    const adminToken = seedUser(users, "ADMIN");
+    const body = {
+      investmentAmountCents: 100000,
+      expectedWeeklyReturnPercent: 2,
+      numberOfWeeks: 4,
+      reinvest: true,
+      withdrawalFrequency: "END_OF_TERM",
+      platformFeePercent: 10,
+    };
+
+    const investorSimulation = await request(app)
+      .post("/api/investor/simulator")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .send(body)
+      .expect(200);
+
+    expect(investorSimulation.body.simulation.weeks).toHaveLength(4);
+    expect(investorSimulation.body.simulation.netProjectedEarningsCents).toBeGreaterThan(0);
+    expect(investorSimulation.body.simulation.riskWarning).toContain("Returns are not guaranteed");
+
+    const adminSimulation = await request(app)
+      .post("/api/admin/investor-simulator")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ ...body, reinvest: false, withdrawalFrequency: "WEEKLY" })
+      .expect(200);
+
+    expect(adminSimulation.body.simulation.totalDistributionsCents).toBeGreaterThan(0);
+
+    await request(app)
+      .post("/api/admin/investor-simulator")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .send(body)
+      .expect(403);
+  });
 });

@@ -22,6 +22,8 @@ import type {
   InvestorInvestment,
   InvestorProfile,
   InvestorPortalReport,
+  InvestorSimulatorInput,
+  InvestorSimulatorResult,
   InvestorWallet,
   PredictionResult,
   PredictionQueueItem,
@@ -91,7 +93,7 @@ const navItems = [
   "Referral Program",
 ] as const;
 const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
-const investorNavItemsWithWallet = ["Investor Dashboard", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
+const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
@@ -442,6 +444,11 @@ export default function App() {
     await loadInvestorData(session.token);
   }
 
+  async function investorSimulate(body: InvestorSimulatorInput) {
+    if (!session) throw new Error("Login required");
+    return apiPost<{ simulation: InvestorSimulatorResult }>("/investor/simulator", session.token, body);
+  }
+
   async function adminAction(path: string, body?: object) {
     if (!session) return;
     const method = path.includes("/settings") || path.includes("/notes") ? "PATCH" : "POST";
@@ -458,6 +465,11 @@ export default function App() {
     );
     await loadAdminData(session.token);
     if (session.user.role === "ADMIN") await loadSubscriberData(session.token);
+  }
+
+  async function adminSimulate(body: InvestorSimulatorInput) {
+    if (!session) throw new Error("Login required");
+    return apiPost<{ simulation: InvestorSimulatorResult }>("/admin/investor-simulator", session.token, body);
   }
 
   async function analystAction(path: string, body?: object) {
@@ -712,6 +724,7 @@ export default function App() {
               syncLogs={syncLogs}
               users={adminUsers}
               onAction={adminAction}
+              onSimulate={adminSimulate}
             />
           ) : null}
 
@@ -742,6 +755,7 @@ export default function App() {
               withdrawals={withdrawals}
               notifications={investorNotifications}
               onAction={investorAction}
+              onSimulate={investorSimulate}
             />
           ) : null}
 
@@ -822,6 +836,7 @@ function AdminPortal({
   intelligence,
   investorManagement,
   onAction,
+  onSimulate,
   overview,
   predictions,
   reports,
@@ -838,6 +853,7 @@ function AdminPortal({
   intelligence: AnalystIntelligenceSubmission[];
   investorManagement: AdminInvestorManagement | null;
   onAction: (path: string, body?: object) => Promise<void>;
+  onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
   overview: AdminOverview | null;
   predictions: PredictionResult[];
   reports: AdminReports | null;
@@ -913,7 +929,7 @@ function AdminPortal({
   }
 
   if (activeView === "Investor Management") {
-    return <AdminInvestorManagementView management={investorManagement} onAction={onAction} />;
+    return <AdminInvestorManagementView management={investorManagement} onAction={onAction} onSimulate={onSimulate} />;
   }
 
   if (activeView === "Monitoring") {
@@ -1243,9 +1259,11 @@ function AdminReportsView({ reports }: { reports: AdminReports | null }) {
 function AdminInvestorManagementView({
   management,
   onAction,
+  onSimulate,
 }: {
   management: AdminInvestorManagement | null;
   onAction: (path: string, body?: object) => Promise<void>;
+  onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
 }) {
   const investors = management?.investors ?? [];
   const queue = management?.distributionQueue ?? [];
@@ -1301,6 +1319,12 @@ function AdminInvestorManagementView({
           {!queue.length ? <p className="text-sm text-zinc-400">No distribution records yet. Run the placeholder weekly calculation when ready.</p> : null}
         </div>
       </Panel>
+      <InvestorSimulatorCalculator
+        title="Admin Distribution Scenario Simulator"
+        description="Model placeholder distribution scenarios across investor capital before creating an approval queue."
+        defaultAmountCents={investors.reduce((total, investor) => total + investor.activeInvestmentBalanceCents, 0)}
+        onSimulate={onSimulate}
+      />
       <Panel title="Investor Records">
         <div className="space-y-3">
           {investors.map((investor) => (
@@ -1358,6 +1382,7 @@ function InvestorPortal({
   distributions,
   notifications,
   onAction,
+  onSimulate,
   plans,
   portfolio,
   profile,
@@ -1370,6 +1395,7 @@ function InvestorPortal({
   distributions: InvestorDistribution[];
   notifications: string[];
   onAction: (path: string, body: object) => Promise<void>;
+  onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
   plans: InvestmentPlan[];
   profile: InvestorProfile | null;
   portfolio: { active: InvestorInvestment[]; completed: InvestorInvestment[] };
@@ -1430,6 +1456,20 @@ function InvestorPortal({
         <Panel title="Distribution History">
           <DistributionList distributions={distributions} />
         </Panel>
+      </div>
+    );
+  }
+
+  if (activeView === "Simulator") {
+    return (
+      <div className="mt-6 space-y-4">
+        <RiskDisclaimer />
+        <InvestorSimulatorCalculator
+          title="Investor Simulator Calculator"
+          description="Simulate possible earnings before or after investing using safe placeholder assumptions."
+          defaultAmountCents={dashboard?.balance.totalCapitalCents || 100000}
+          onSimulate={onSimulate}
+        />
       </div>
     );
   }
@@ -2610,6 +2650,131 @@ function InvestmentList({ investments }: { investments: InvestorInvestment[] }) 
       ))}
       {!investments.length ? <p className="text-sm text-zinc-400">No investments in this category.</p> : null}
     </div>
+  );
+}
+
+function InvestorSimulatorCalculator({
+  defaultAmountCents,
+  description,
+  onSimulate,
+  title,
+}: {
+  defaultAmountCents: number;
+  description: string;
+  onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
+  title: string;
+}) {
+  const [result, setResult] = useState<InvestorSimulatorResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  return (
+    <Panel title={title}>
+      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setBusy(true);
+            setError("");
+            const form = new FormData(event.currentTarget);
+            const payload: InvestorSimulatorInput = {
+              investmentAmountCents: Math.round(Number(form.get("investmentAmount")) * 100),
+              expectedWeeklyReturnPercent: Number(form.get("expectedWeeklyReturnPercent")),
+              numberOfWeeks: Number(form.get("numberOfWeeks")),
+              reinvest: form.get("reinvest") === "on",
+              withdrawalFrequency: String(form.get("withdrawalFrequency")) as InvestorSimulatorInput["withdrawalFrequency"],
+              platformFeePercent: Number(form.get("platformFeePercent")),
+            };
+            void onSimulate(payload)
+              .then((data) => setResult(data.simulation))
+              .catch((caughtError) => setError(caughtError instanceof Error ? caughtError.message : "Unable to run simulation"))
+              .finally(() => setBusy(false));
+          }}
+        >
+          <p className="text-sm text-zinc-400">{description}</p>
+          <p className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+            This is a simulation only. Returns are not guaranteed. Actual results depend on real platform performance.
+          </p>
+          <label className="block text-sm font-medium text-zinc-200">
+            Investment amount
+            <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue={(defaultAmountCents / 100).toFixed(2)} min="0" name="investmentAmount" step="100" type="number" />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm font-medium text-zinc-200">
+              Expected weekly return %
+              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="1.25" min="0" max="25" name="expectedWeeklyReturnPercent" step="0.01" type="number" />
+            </label>
+            <label className="block text-sm font-medium text-zinc-200">
+              Number of weeks
+              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="12" min="1" max="260" name="numberOfWeeks" type="number" />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm font-medium text-zinc-200">
+              Withdrawal frequency
+              <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="MONTHLY" name="withdrawalFrequency">
+                <option value="NONE">No withdrawals</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="END_OF_TERM">End of term</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-zinc-200">
+              Platform fee %
+              <input className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" defaultValue="10" min="0" max="50" name="platformFeePercent" step="0.01" type="number" />
+            </label>
+          </div>
+          <label className="flex items-center gap-3 text-sm text-zinc-300">
+            <input defaultChecked name="reinvest" type="checkbox" />
+            Reinvest undistributed earnings
+          </label>
+          {error ? <p className="rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
+          <button className="w-full rounded-md bg-emerald-300 px-4 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200" disabled={busy} type="submit">
+            {busy ? "Running simulation..." : "Run simulation"}
+          </button>
+        </form>
+
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MiniStat label="Net projected earnings" value={money(result?.netProjectedEarningsCents ?? 0)} />
+            <MiniStat label="Projected balance" value={money(result?.totalProjectedBalanceCents ?? defaultAmountCents)} />
+            <MiniStat label="Total distributions" value={money(result?.totalDistributionsCents ?? 0)} />
+            <MiniStat label="Platform fees" value={money(result?.platformFeesCents ?? 0)} />
+          </div>
+          <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-300">
+            <p>{result?.simulationNotice ?? "Run a simulation to view placeholder projection results."}</p>
+            <p className="mt-2 text-amber-100">{result?.riskWarning ?? "Returns are not guaranteed."}</p>
+            <p className="mt-2 text-zinc-500">{result?.payoutNotice ?? "Final payout logic will be connected later through approved payment APIs."}</p>
+          </div>
+          <div className="max-h-72 overflow-auto rounded-md border border-zinc-800">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-zinc-950 text-xs uppercase tracking-[0.12em] text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2">Week</th>
+                  <th className="px-3 py-2">Start</th>
+                  <th className="px-3 py-2">Net earnings</th>
+                  <th className="px-3 py-2">Distribution</th>
+                  <th className="px-3 py-2">End balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(result?.weeks ?? []).slice(0, 52).map((week) => (
+                  <tr className="border-t border-zinc-800" key={week.week}>
+                    <td className="px-3 py-2">{week.week}</td>
+                    <td className="px-3 py-2">{money(week.startingBalanceCents)}</td>
+                    <td className="px-3 py-2">{money(week.netEarningsCents)}</td>
+                    <td className="px-3 py-2">{money(week.distributionCents)}</td>
+                    <td className="px-3 py-2">{money(week.endingBalanceCents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!result ? <p className="p-3 text-sm text-zinc-400">Simulation results will appear here.</p> : null}
+          </div>
+        </div>
+      </div>
+    </Panel>
   );
 }
 

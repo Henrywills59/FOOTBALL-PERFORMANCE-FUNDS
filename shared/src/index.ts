@@ -230,6 +230,39 @@ export type InvestorDistributionStatus =
   | "FAILED"
   | "CANCELLED";
 
+export type InvestorSimulatorWithdrawalFrequency = "NONE" | "WEEKLY" | "MONTHLY" | "END_OF_TERM";
+
+export type InvestorSimulatorInput = {
+  investmentAmountCents: number;
+  expectedWeeklyReturnPercent: number;
+  numberOfWeeks: number;
+  reinvest: boolean;
+  withdrawalFrequency: InvestorSimulatorWithdrawalFrequency;
+  platformFeePercent: number;
+};
+
+export type InvestorSimulatorWeek = {
+  week: number;
+  startingBalanceCents: number;
+  grossEarningsCents: number;
+  platformFeeCents: number;
+  netEarningsCents: number;
+  distributionCents: number;
+  endingBalanceCents: number;
+};
+
+export type InvestorSimulatorResult = {
+  input: InvestorSimulatorInput;
+  netProjectedEarningsCents: number;
+  totalProjectedBalanceCents: number;
+  totalDistributionsCents: number;
+  platformFeesCents: number;
+  weeks: InvestorSimulatorWeek[];
+  riskWarning: string;
+  simulationNotice: string;
+  payoutNotice: string;
+};
+
 export type InvestorAccount = {
   id: string;
   userId: string;

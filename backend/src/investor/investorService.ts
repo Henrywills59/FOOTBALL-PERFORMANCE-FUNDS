@@ -1,5 +1,16 @@
 import type { AdminService } from "../admin/adminService.js";
+import type { InvestorSimulatorInput, InvestorSimulatorResult } from "@fpf/shared";
 import type { InvestorRepository } from "./types.js";
+
+const simulatorRiskWarning =
+  "This is a simulation only. Returns are not guaranteed, actual results depend on real platform performance, and final payout logic will be connected later through approved payment APIs.";
+
+function shouldDistribute(week: number, totalWeeks: number, frequency: InvestorSimulatorInput["withdrawalFrequency"]) {
+  if (frequency === "NONE") return false;
+  if (frequency === "WEEKLY") return true;
+  if (frequency === "MONTHLY") return week % 4 === 0 || week === totalWeeks;
+  return week === totalWeeks;
+}
 
 export class InvestorService {
   constructor(
@@ -106,5 +117,62 @@ export class InvestorService {
 
   addInvestorNote(actorUserId: string, investorAccountId: string, note: string) {
     return this.repository.addInvestorNote({ actorUserId, investorAccountId, note });
+  }
+
+  simulate(input: InvestorSimulatorInput): InvestorSimulatorResult {
+    const normalized: InvestorSimulatorInput = {
+      investmentAmountCents: Math.max(0, Math.round(input.investmentAmountCents)),
+      expectedWeeklyReturnPercent: Math.max(0, Math.min(25, input.expectedWeeklyReturnPercent)),
+      numberOfWeeks: Math.max(1, Math.min(260, Math.round(input.numberOfWeeks))),
+      reinvest: Boolean(input.reinvest),
+      withdrawalFrequency: input.withdrawalFrequency,
+      platformFeePercent: Math.max(0, Math.min(50, input.platformFeePercent)),
+    };
+
+    let balanceCents = normalized.investmentAmountCents;
+    let netProjectedEarningsCents = 0;
+    let totalDistributionsCents = 0;
+    let platformFeesCents = 0;
+    const weeks = [];
+
+    for (let week = 1; week <= normalized.numberOfWeeks; week += 1) {
+      const startingBalanceCents = balanceCents;
+      const grossEarningsCents = Math.round(startingBalanceCents * (normalized.expectedWeeklyReturnPercent / 100));
+      const platformFeeCents = Math.round(grossEarningsCents * (normalized.platformFeePercent / 100));
+      const netEarningsCents = Math.max(0, grossEarningsCents - platformFeeCents);
+      const distributionCents = shouldDistribute(week, normalized.numberOfWeeks, normalized.withdrawalFrequency)
+        ? netEarningsCents
+        : 0;
+
+      if (normalized.reinvest && distributionCents === 0) {
+        balanceCents += netEarningsCents;
+      }
+
+      netProjectedEarningsCents += netEarningsCents;
+      totalDistributionsCents += distributionCents;
+      platformFeesCents += platformFeeCents;
+
+      weeks.push({
+        week,
+        startingBalanceCents,
+        grossEarningsCents,
+        platformFeeCents,
+        netEarningsCents,
+        distributionCents,
+        endingBalanceCents: balanceCents,
+      });
+    }
+
+    return {
+      input: normalized,
+      netProjectedEarningsCents,
+      totalProjectedBalanceCents: balanceCents,
+      totalDistributionsCents,
+      platformFeesCents,
+      weeks,
+      riskWarning: simulatorRiskWarning,
+      simulationNotice: "This calculator is for planning scenarios only and does not represent a fixed return offer.",
+      payoutNotice: "Final payout, withdrawal, and settlement logic will be connected later through approved payment APIs.",
+    };
   }
 }

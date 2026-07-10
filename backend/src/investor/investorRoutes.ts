@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
+import type { InvestorSimulatorInput } from "@fpf/shared";
 import type { InvestorService } from "./investorService.js";
 
 const investmentSchema = z.object({
@@ -26,6 +27,27 @@ const noteSchema = z.object({
 const distributionReviewSchema = z.object({
   adminNotes: z.string().max(1000).optional(),
 });
+
+const simulatorSchema = z.object({
+  investmentAmountCents: z.number().int().min(0).max(1_000_000_000),
+  expectedWeeklyReturnPercent: z.number().min(0).max(25),
+  numberOfWeeks: z.number().int().min(1).max(260),
+  reinvest: z.boolean(),
+  withdrawalFrequency: z.enum(["NONE", "WEEKLY", "MONTHLY", "END_OF_TERM"]),
+  platformFeePercent: z.number().min(0).max(50),
+});
+
+function parseSimulatorInput(body: unknown): InvestorSimulatorInput {
+  const parsed = simulatorSchema.parse(body);
+  return {
+    investmentAmountCents: parsed.investmentAmountCents,
+    expectedWeeklyReturnPercent: parsed.expectedWeeklyReturnPercent,
+    numberOfWeeks: parsed.numberOfWeeks,
+    reinvest: parsed.reinvest,
+    withdrawalFrequency: parsed.withdrawalFrequency,
+    platformFeePercent: parsed.platformFeePercent,
+  };
+}
 
 export function createInvestorRouter(input: {
   authService: AuthService;
@@ -93,6 +115,15 @@ export function createInvestorRouter(input: {
   router.get("/investor/distributions", ...investorOnly, async (request, response, next) => {
     try {
       response.status(200).json({ distributions: await input.investorService.distributions(request.user!.id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/investor/simulator", ...investorOnly, async (request, response, next) => {
+    try {
+      const body = parseSimulatorInput(request.body);
+      response.status(200).json({ simulation: input.investorService.simulate(body) });
     } catch (error) {
       next(error);
     }
@@ -174,6 +205,15 @@ export function createInvestorRouter(input: {
   router.post("/admin/investor-distributions/calculate", ...adminOnly, async (request, response, next) => {
     try {
       response.status(201).json(await input.investorService.calculateWeeklyDistributions(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/investor-simulator", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = parseSimulatorInput(request.body);
+      response.status(200).json({ simulation: input.investorService.simulate(body) });
     } catch (error) {
       next(error);
     }
