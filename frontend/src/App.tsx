@@ -118,8 +118,8 @@ const navItems = [
   "Referral Program",
 ] as const;
 const adminNavItems = ["Admin Dashboard", "Executive BI", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
-const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
-const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards"] as const;
+const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
+const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
@@ -128,6 +128,7 @@ type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
 type AnalystNavItem = (typeof analystNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 type SearchResult = { category: string; title: string; description: string; target?: string };
+type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem | AnalystNavItem;
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
   SUBSCRIBER: "Subscriber",
@@ -195,6 +196,20 @@ export default function App() {
   const [error, setError] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
   const [showLaunchCenter, setShowLaunchCenter] = useState(() => localStorage.getItem("fpf_launch_center_seen") !== "true");
+  const [favoriteModules, setFavoriteModules] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("fpf_favorite_modules") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const [recentPages, setRecentPages] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("fpf_recent_pages") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
   const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
   const [liveFixtures, setLiveFixtures] = useState<FootballFixtureSummary[]>([]);
   const [selectedFixture, setSelectedFixture] = useState<FootballFixtureDetail | null>(null);
@@ -383,7 +398,7 @@ export default function App() {
         target: "Live Match Center",
       })),
       ...adminUsers.map((user) => ({
-        category: "Users",
+        category: user.role === "INVESTOR" ? "Investors" : user.role === "ANALYST" ? "Analysts" : user.role === "SUBSCRIBER" ? "Subscribers" : "Users",
         title: user.name,
         description: `${user.email} | ${user.role}`,
         target: "User Management",
@@ -400,6 +415,31 @@ export default function App() {
         description: `${investor.email} | ${money(investor.totalCapitalCents)}`,
         target: "Investor Management",
       })),
+      ...operationalNotifications.map((notification) => ({
+        category: "Notifications",
+        title: notification.title,
+        description: `${notification.category} | ${notification.message}`,
+        target: session?.user.role === "SUBSCRIBER" ? "Notifications" : "Monitoring",
+      })),
+      ...adminAnnouncements.map((announcement) => ({
+        category: "Articles",
+        title: announcement.title,
+        description: announcement.message,
+        target: "Announcements",
+      })),
+      ...(mediaDashboard?.posts ?? []).map((post) => ({
+        category: "Media",
+        title: post.title,
+        description: `${post.platforms.join(", ")} | ${post.status}`,
+        target: "Media Command",
+      })),
+      ...[
+        { category: "Settings", title: "Global settings", description: "Language, currency, timezone, theme, privacy, security, accessibility, and display.", target: "Settings" },
+        { category: "Settings", title: "Profile center", description: "Profile, devices, sessions, 2FA placeholder, activity, subscription, investment, and performance.", target: "Profile" },
+        { category: "Commands", title: "Executive BI", description: "Company KPIs, forecasts, analytics, and export center.", target: "Executive BI" },
+        { category: "Commands", title: "Treasury Center", description: "Treasury, settlement, reconciliation, and weekly closure.", target: "Treasury Center" },
+        { category: "Commands", title: "Opportunity Center", description: "Approved FPF football intelligence opportunities.", target: "Opportunity Center" },
+      ],
       ...fixtures.flatMap((fixture) => [
         { category: "Teams", title: fixture.homeTeamName, description: fixture.leagueName, target: "Live Match Center" },
         { category: "Teams", title: fixture.awayTeamName, description: fixture.leagueName, target: "Live Match Center" },
@@ -409,7 +449,7 @@ export default function App() {
     return pool
       .filter((item) => `${item.category} ${item.title} ${item.description}`.toLowerCase().includes(query))
       .slice(0, 8);
-  }, [adminInvestorManagement, adminUsers, fixtures, globalSearch, operationalReports, predictions, publishedIntelligence]);
+  }, [adminAnnouncements, adminInvestorManagement, adminUsers, fixtures, globalSearch, mediaDashboard?.posts, operationalNotifications, operationalReports, predictions, publishedIntelligence, session?.user.role]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
     const serialized = JSON.stringify(nextSession);
@@ -886,6 +926,48 @@ export default function App() {
     setSlip([]);
   }
 
+  function currentModuleLabel() {
+    if (adminMode) return activeAdminView;
+    if (session?.user.role === "INVESTOR") return activeInvestorView;
+    if (session?.user.role === "ANALYST") return activeAnalystView;
+    return activeView;
+  }
+
+  function rememberPage(label: string) {
+    setRecentPages((current) => {
+      const next = [label, ...current.filter((item) => item !== label)].slice(0, 6);
+      localStorage.setItem("fpf_recent_pages", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function toggleFavorite(label: string) {
+    setFavoriteModules((current) => {
+      const next = current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [label, ...current].slice(0, 8);
+      localStorage.setItem("fpf_favorite_modules", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function activateTarget(target: string) {
+    const label = target as PlatformNavTarget;
+    if (adminMode && (adminNavItems as readonly string[]).includes(label)) {
+      setActiveAdminView(label as AdminNavItem);
+    } else if (session?.user.role === "INVESTOR" && (investorNavItemsWithWallet as readonly string[]).includes(label)) {
+      setActiveInvestorView(label as InvestorNavItem);
+    } else if (session?.user.role === "ANALYST" && (analystNavItems as readonly string[]).includes(label)) {
+      setActiveAnalystView(label as AnalystNavItem);
+    } else if ((navItems as readonly string[]).includes(label)) {
+      setActiveView(label as NavItem);
+    } else if ((adminNavItems as readonly string[]).includes(label) && session?.user.role === "ADMIN") {
+      setAdminMode(true);
+      setActiveAdminView(label as AdminNavItem);
+    }
+    rememberPage(label);
+  }
+
   if (!session) {
     return (
       <PublicLaunchExperience
@@ -931,7 +1013,7 @@ export default function App() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
             <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
           </div>
-          <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1">
+          <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Unified FPF navigation">
             {navigationItems.map((item) => (
               <button
                 className={`rounded-md px-3 py-3 text-left text-sm font-medium transition ${
@@ -947,15 +1029,7 @@ export default function App() {
                 }`}
                 key={item}
                 type="button"
-                onClick={() =>
-                  adminMode
-                    ? setActiveAdminView(item as AdminNavItem)
-                    : session.user.role === "INVESTOR"
-                      ? setActiveInvestorView(item as InvestorNavItem)
-                      : session.user.role === "ANALYST"
-                        ? setActiveAnalystView(item as AnalystNavItem)
-                      : setActiveView(item as NavItem)
-                }
+                onClick={() => activateTarget(item)}
               >
                 {item}
               </button>
@@ -998,21 +1072,39 @@ export default function App() {
           </div>
 
           <UnifiedCommandBar
+            favorites={favoriteModules}
             notifications={operationalNotifications}
             query={globalSearch}
+            recentPages={recentPages}
             results={searchResults}
             role={session.user.role}
+            activeModule={currentModuleLabel()}
+            onFavorite={() => toggleFavorite(currentModuleLabel())}
+            onNotifications={() => {
+              if (session.user.role === "SUBSCRIBER") setActiveView("Notifications");
+              else if (session.user.role === "INVESTOR") setActiveInvestorView("Support");
+              else if (session.user.role === "ANALYST") setActiveAnalystView("Analyst Dashboard");
+              else setActiveAdminView("Monitoring");
+            }}
             onQuery={setGlobalSearch}
             onResult={(result) => {
               if (!result.target) return;
-              if (adminMode) setActiveAdminView(result.target as AdminNavItem);
-              else setActiveView(result.target as NavItem);
+              activateTarget(result.target);
             }}
             onSettings={() => {
               if (adminMode) setActiveAdminView("Settings");
               else if (session.user.role === "SUBSCRIBER") setActiveView("Settings");
-              else if (session.user.role === "INVESTOR") setActiveInvestorView("Profile");
+              else if (session.user.role === "INVESTOR") setActiveInvestorView("Settings");
+              else if (session.user.role === "ANALYST") setActiveAnalystView("Settings");
             }}
+          />
+          <UnifiedOperatingSystemStrip
+            activeModule={currentModuleLabel()}
+            favorites={favoriteModules}
+            recentPages={recentPages}
+            role={session.user.role}
+            onOpen={activateTarget}
+            onToggleFavorite={() => toggleFavorite(currentModuleLabel())}
           />
 
           {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
@@ -1063,7 +1155,34 @@ export default function App() {
             />
           ) : null}
 
-          {!adminMode && session.user.role === "ANALYST" ? (
+          {!adminMode && session.user.role === "ANALYST" && activeAnalystView === "Profile" ? (
+            <ProfileView
+              currencies={currencies}
+              languages={languages}
+              onPasswordChange={safelySubmit(handlePasswordChange)}
+              onPreferences={saveGlobalPreferences}
+              preferences={globalPreferences}
+              session={session}
+              timezones={timezones}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role === "ANALYST" && activeAnalystView === "Settings" ? (
+            <SettingsCenterView
+              currencies={currencies}
+              languages={languages}
+              notificationPreferences={notificationPreferences}
+              notifications={operationalNotifications}
+              onPasswordChange={safelySubmit(handlePasswordChange)}
+              onPreferences={saveGlobalPreferences}
+              onSaveNotificationPreferences={saveNotificationPreferences}
+              preferences={globalPreferences}
+              session={session}
+              timezones={timezones}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role === "ANALYST" && activeAnalystView !== "Profile" && activeAnalystView !== "Settings" ? (
             <AnalystPortal
               activeView={activeAnalystView}
               assignments={analystAssignments}
@@ -1081,7 +1200,22 @@ export default function App() {
             />
           ) : null}
 
-          {!adminMode && session.user.role === "INVESTOR" ? (
+          {!adminMode && session.user.role === "INVESTOR" && activeInvestorView === "Settings" ? (
+            <SettingsCenterView
+              currencies={currencies}
+              languages={languages}
+              notificationPreferences={notificationPreferences}
+              notifications={operationalNotifications}
+              onPasswordChange={safelySubmit(handlePasswordChange)}
+              onPreferences={saveGlobalPreferences}
+              onSaveNotificationPreferences={saveNotificationPreferences}
+              preferences={globalPreferences}
+              session={session}
+              timezones={timezones}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role === "INVESTOR" && activeInvestorView !== "Settings" ? (
             <InvestorPortal
               activeView={activeInvestorView}
               dashboard={investorDashboard}
@@ -3650,6 +3784,28 @@ function PublicLaunchExperience({
     "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1600&q=80",
     "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1600&q=80",
   ];
+  const publicPages = [
+    "Home",
+    "About",
+    "Technology",
+    "How FPF Works",
+    "For Subscribers",
+    "For Investors",
+    "For Analysts",
+    "Pricing",
+    "Investor Packages",
+    "Performance",
+    "Security",
+    "FAQ",
+    "Contact",
+    "Legal",
+    "Privacy",
+    "Terms",
+    "Blog",
+    "Media",
+    "Careers",
+    "Affiliate Partners",
+  ];
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <nav className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/85 px-4 py-3 backdrop-blur">
@@ -3659,7 +3815,7 @@ function PublicLaunchExperience({
             <h1 className="text-lg font-semibold">FPF Global Intelligence Platform</h1>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            {["AI Intelligence", "Subscribers", "Investors", "Analysts", "Pricing", "FAQ"].map((item) => (
+            {publicPages.slice(0, 10).map((item) => (
               <a className="rounded-md px-3 py-2 text-zinc-300 transition hover:bg-zinc-900 hover:text-white" href={`#${item.toLowerCase().replaceAll(" ", "-")}`} key={item}>{item}</a>
             ))}
           </div>
@@ -3706,23 +3862,44 @@ function PublicLaunchExperience({
         </div>
       </section>
       <section className="mx-auto max-w-7xl space-y-10 px-6 py-12">
-        <div id="ai-intelligence" className="grid gap-4 md:grid-cols-3">
+        <div id="home" className="grid gap-4 md:grid-cols-3">
           <LaunchCard title="AI Statistics" body="Confidence, risk, value, opportunity, and decision scores are centralized through the FPF Intelligence Core." />
           <LaunchCard title="Live Performance" body="Performance cards, reports, and alerts are ready for live data expansion without changing the user experience." />
           <LaunchCard title="Prediction Accuracy" body="Approved predictions and analyst-reviewed intelligence are tracked without guaranteeing outcomes." />
         </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <LaunchPanel id="about" title="About" items={["FPF is a global football intelligence operating system.", "Subscribers, investors, analysts, and administrators use one secure platform.", "Every module shares the same authentication, settings, search, notifications, and brand system."]} />
+          <LaunchPanel id="technology" title="Technology" items={["Node, Express, PostgreSQL/Supabase, Prisma, React, Vite, Tailwind, Vercel.", "Provider-ready interfaces for football data, AI, payments, exchange rates, and exports.", "No API keys or secrets are exposed in the frontend."]} />
+          <LaunchPanel id="how-fpf-works" title="How FPF Works" items={["Data enters the Intelligence Core.", "AI and analyst workflows prepare intelligence.", "Admin approval controls publication, treasury, and executive reporting."]} />
+        </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <LaunchPanel id="subscribers" title="Subscriber Benefits" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
-          <LaunchPanel id="investors" title="Investor Benefits" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
+          <LaunchPanel id="for-subscribers" title="For Subscribers" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
+          <LaunchPanel id="for-investors" title="For Investors" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
         </div>
         <AnalystApplicationPortal />
         <PricingCards plans={commercialStructure.subscriberPlans} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <LaunchPanel id="investor-packages" title="Investor Packages" items={["Minimum investment placeholder starts at $100.", "6-month and 12-month lock-period placeholders are supported.", "All projected performance remains simulation-only."]} />
+          <LaunchPanel id="performance" title="Performance" items={["Win rate, ROI, confidence, risk, and treasury metrics are tracked internally.", "Historical results never guarantee future outcomes.", "Executive BI consolidates operational performance."]} />
+          <LaunchPanel id="security" title="Security" items={["JWT sessions and role guards protect private modules.", "Analysts never see investor financial data.", "Subscribers never see treasury, admin, or analyst workspaces."]} />
+        </div>
         <div className="grid gap-4 lg:grid-cols-3">
           {["FPF feels like a professional command room, not a tips feed.", "The risk language is clear and disciplined.", "The investor portal gives the transparency a serious platform needs."].map((quote) => (
             <blockquote className="rounded-lg border border-zinc-800 bg-zinc-900 p-5 text-sm leading-6 text-zinc-300" key={quote}>{quote}</blockquote>
           ))}
         </div>
         <LaunchPanel id="faq" title="FAQ" items={["Payments are placeholder-only until approved providers are connected.", "Returns are never guaranteed.", "AI output is explainable and admin-review ready.", "Language, currency, and timezone settings are built into the platform."]} />
+        <div className="grid gap-4 lg:grid-cols-4">
+          <LaunchPanel id="contact" title="Contact" items={["Contact form placeholder ready.", "Support routes are centralized inside the unified app.", "Enterprise inquiries route to admin operations."]} />
+          <LaunchPanel id="legal" title="Legal" items={["Legal center placeholder.", "Risk disclaimers remain visible across finance modules.", "No real payment processing is active."]} />
+          <LaunchPanel id="privacy" title="Privacy" items={["Privacy policy placeholder.", "Preferences and notification controls are user-owned.", "Security alerts remain mandatory."]} />
+          <LaunchPanel id="terms" title="Terms" items={["Terms placeholder.", "Simulation outputs are not guaranteed returns.", "FPF intelligence requires admin approval before publication."]} />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <LaunchPanel id="blog" title="Blog" items={["Market trends placeholder.", "Technology updates placeholder.", "Education articles placeholder."]} />
+          <LaunchPanel id="media" title="Media" items={["Media command center powers future public media.", "Press kit placeholder.", "Announcement workflow is admin controlled."]} />
+          <LaunchPanel id="careers" title="Careers & Affiliate Partners" items={["Analyst applications require approval.", "Affiliate partner program placeholder.", "Internal roles remain protected by admin controls."]} />
+        </div>
       </section>
       <footer className="border-t border-zinc-800 px-6 py-8 text-sm text-zinc-500">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -3757,7 +3934,7 @@ function LaunchPanel({ id, items, title }: { id: string; items: string[]; title:
 function AnalystApplicationPortal() {
   const [status, setStatus] = useState("");
   return (
-    <section className="rounded-lg border border-emerald-400/20 bg-zinc-900 p-5" id="analysts">
+    <section className="rounded-lg border border-emerald-400/20 bg-zinc-900 p-5" id="for-analysts">
       <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Professional Analyst Portal</p>
@@ -4387,30 +4564,41 @@ function NotificationCenterView({
 }
 
 function UnifiedCommandBar({
+  activeModule,
+  favorites,
   notifications,
+  onFavorite,
+  onNotifications,
   onQuery,
   onResult,
   onSettings,
   query,
+  recentPages,
   results,
   role,
 }: {
+  activeModule: string;
+  favorites: string[];
   notifications: OperationalNotification[];
+  onFavorite: () => void;
+  onNotifications: () => void;
   onQuery: (value: string) => void;
   onResult: (result: SearchResult) => void;
   onSettings: () => void;
   query: string;
+  recentPages: string[];
   results: SearchResult[];
   role: AuthUser["role"];
 }) {
   const unread = notifications.filter((item) => item.status === "UNREAD").length;
   return (
     <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/80 p-3">
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-start">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-start">
         <div className="relative">
           <input
+            aria-label="Global FPF search"
             className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-300"
-            placeholder="Search predictions, users, matches, reports, investors, teams, players"
+            placeholder="Search fixtures, predictions, reports, users, articles, media, settings, commands"
             type="search"
             value={query}
             onChange={(event) => onQuery(event.target.value)}
@@ -4428,12 +4616,83 @@ function UnifiedCommandBar({
             </div>
           ) : null}
         </div>
-        <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-zinc-300">
+        <button className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-zinc-300 transition hover:border-emerald-300" type="button" onClick={onNotifications}>
           {unread} unread alerts | {roleLabels[role]}
-        </div>
+        </button>
+        <button className="rounded-md border border-zinc-800 px-4 py-3 text-sm text-zinc-200 transition hover:border-emerald-300" type="button" onClick={onFavorite}>
+          {favorites.includes(activeModule) ? "Unpin" : "Pin"}
+        </button>
         <button className="rounded-md border border-emerald-700 px-4 py-3 text-sm text-emerald-100 transition hover:border-emerald-300" type="button" onClick={onSettings}>
           Settings
         </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-400">
+        <span className="rounded-full border border-zinc-800 px-3 py-1">Active: {activeModule}</span>
+        <span className="rounded-full border border-zinc-800 px-3 py-1">Pinned: {favorites.slice(0, 3).join(", ") || "None"}</span>
+        <span className="rounded-full border border-zinc-800 px-3 py-1">Recent: {recentPages.slice(0, 3).join(", ") || "None"}</span>
+      </div>
+    </section>
+  );
+}
+
+function UnifiedOperatingSystemStrip({
+  activeModule,
+  favorites,
+  onOpen,
+  onToggleFavorite,
+  recentPages,
+  role,
+}: {
+  activeModule: string;
+  favorites: string[];
+  onOpen: (target: string) => void;
+  onToggleFavorite: () => void;
+  recentPages: string[];
+  role: AuthUser["role"];
+}) {
+  const quickActions = role === "ADMIN"
+    ? ["Executive BI", "Treasury Center", "War Room", "Monitoring", "User Management"]
+    : role === "INVESTOR"
+      ? ["Investor Dashboard", "Simulator", "Reports", "Capital", "Settings"]
+      : role === "ANALYST"
+        ? ["Analyst Dashboard", "War Room", "My Analytics", "Prediction Workspace", "Settings"]
+        : ["Subscriber Home", "Opportunity Center", "Live Match Center", "Profile", "Settings"];
+  return (
+    <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">FPF Operating System</p>
+          <p className="mt-1 text-sm text-zinc-400">Home / {roleLabels[role]} / {activeModule}</p>
+        </div>
+        <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={onToggleFavorite}>
+          {favorites.includes(activeModule) ? "Remove from pinned" : "Pin current module"}
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 xl:grid-cols-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Quick actions</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {quickActions.map((item) => (
+              <button className="rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-200 hover:bg-emerald-300 hover:text-zinc-950" key={item} type="button" onClick={() => onOpen(item)}>{item}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Pinned modules</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(favorites.length ? favorites : ["No pinned modules yet"]).map((item) => (
+              <button className="rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-200" disabled={!favorites.length} key={item} type="button" onClick={() => onOpen(item)}>{item}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Recent pages</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(recentPages.length ? recentPages : ["No recent pages yet"]).map((item) => (
+              <button className="rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-200" disabled={!recentPages.length} key={item} type="button" onClick={() => onOpen(item)}>{item}</button>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -5140,7 +5399,7 @@ function GlobalPreferencesForm({
 function PricingCards({ plans }: { plans: CommercialStructure["subscriberPlans"] }) {
   if (!plans.length) return null;
   return (
-    <div className="mt-8 grid gap-4 md:grid-cols-3">
+    <div className="mt-8 grid gap-4 md:grid-cols-3" id="pricing">
       {plans.map((plan) => (
         <div className={`rounded-lg border p-4 ${plan.highlighted ? "border-emerald-300 bg-emerald-950/20" : "border-zinc-800 bg-zinc-900/70"}`} key={plan.code}>
           <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{plan.code}</p>
