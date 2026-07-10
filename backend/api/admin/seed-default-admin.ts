@@ -202,6 +202,87 @@ async function ensureInvestorSchema(prisma: PrismaClient) {
   }
 }
 
+async function ensureGlobalizationSchema(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "languages" (
+      "code" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "nativeName" TEXT NOT NULL,
+      "direction" TEXT NOT NULL DEFAULT 'ltr',
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "currencies" (
+      "code" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "symbol" TEXT NOT NULL,
+      "placeholderRateFromUsd" DOUBLE PRECISION NOT NULL DEFAULT 1,
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "exchange_rate_placeholders" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "baseCurrency" TEXT NOT NULL DEFAULT 'USD',
+      "currency" TEXT NOT NULL,
+      "rate" DOUBLE PRECISION NOT NULL,
+      "source" TEXT NOT NULL DEFAULT 'PLACEHOLDER',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "user_preferences" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "userId" TEXT NOT NULL UNIQUE,
+      "language" TEXT NOT NULL DEFAULT 'en',
+      "currency" TEXT NOT NULL DEFAULT 'USD',
+      "timezone" TEXT NOT NULL DEFAULT 'UTC',
+      "country" TEXT NOT NULL DEFAULT 'US',
+      "region" TEXT NOT NULL DEFAULT 'North America',
+      "measurementSystem" TEXT NOT NULL DEFAULT 'metric',
+      "dateFormat" TEXT NOT NULL DEFAULT 'MM/DD/YYYY',
+      "numberFormat" TEXT NOT NULL DEFAULT 'en-US',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "user_preferences_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "country_settings" (
+      "countryCode" TEXT PRIMARY KEY,
+      "countryName" TEXT NOT NULL,
+      "region" TEXT NOT NULL,
+      "defaultLanguage" TEXT NOT NULL,
+      "defaultCurrency" TEXT NOT NULL,
+      "defaultTimezone" TEXT NOT NULL,
+      "measurementSystem" TEXT NOT NULL DEFAULT 'metric',
+      "dateFormat" TEXT NOT NULL,
+      "numberFormat" TEXT NOT NULL,
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "timezone_settings" (
+      "id" TEXT PRIMARY KEY,
+      "label" TEXT NOT NULL,
+      "offset" TEXT NOT NULL,
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "exchange_rate_placeholders_baseCurrency_currency_idx" ON "exchange_rate_placeholders"("baseCurrency", "currency")`);
+}
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   response.setHeader?.("access-control-allow-methods", "POST,OPTIONS");
   response.setHeader?.("access-control-allow-headers", "content-type,x-admin-seed-token");
@@ -237,6 +318,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
   try {
     prisma = new PrismaClient({ log: ["error"] });
     await ensureInvestorSchema(prisma);
+    await ensureGlobalizationSchema(prisma);
 
     const body = parseBody(request.body);
     const email =
@@ -278,6 +360,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       ok: true,
       seeded: true,
       investorSchemaEnsured: true,
+      globalizationSchemaEnsured: true,
       user,
     });
   } catch (error) {

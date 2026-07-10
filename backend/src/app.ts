@@ -25,6 +25,9 @@ import { createFootballRouter } from "./football/footballRoutes.js";
 import { FootballSyncService } from "./football/footballSyncService.js";
 import { OddsApiClient } from "./football/oddsApiClient.js";
 import type { FootballRepository } from "./football/types.js";
+import { GlobalizationRepository } from "./globalization/repository.js";
+import { createGlobalizationRouter } from "./globalization/routes.js";
+import { GlobalizationService } from "./globalization/service.js";
 import { MemoryCacheStore } from "./intelligence/cache.js";
 import { DecisionEngineService } from "./intelligence/decision/decisionService.js";
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
@@ -184,6 +187,7 @@ export function createApp(options?: {
   const footballScheduler = new FootballJobScheduler(footballSyncService, footballConfig);
   const predictionService = new PredictionService(predictionRepository);
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
+  const globalizationService = new GlobalizationService(new GlobalizationRepository(), adminService);
   const investorService = new InvestorService(
     options?.investorRepository ?? new PrismaInvestorRepository(),
     adminService,
@@ -313,6 +317,13 @@ export function createApp(options?: {
   });
 
   app.use("/api", createAuthRouter(authService));
+  app.use(
+    "/api",
+    createGlobalizationRouter({
+      authService,
+      globalizationService,
+    }),
+  );
   app.use(
     "/api",
     createFootballRouter({

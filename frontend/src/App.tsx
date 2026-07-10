@@ -16,6 +16,7 @@ import type {
   DecisionEngineOutput,
   FootballFixtureDetail,
   FootballFixtureSummary,
+  GlobalizationBootstrap,
   InvestmentPlan,
   InvestorDashboard,
   InvestorDistribution,
@@ -36,7 +37,11 @@ import type {
   SubscriberNotification,
   SubscriberOpportunity,
   SubscriberReport,
+  UserGlobalPreferences,
   WithdrawalRequest,
+  LanguageSetting,
+  CurrencySetting,
+  TimezoneSetting,
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
 
@@ -120,6 +125,27 @@ function getStoredSession() {
   }
 }
 
+const defaultGlobalPreferences: UserGlobalPreferences = {
+  language: "en",
+  currency: "USD",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  country: "US",
+  region: "North America",
+  measurementSystem: "metric",
+  dateFormat: "MM/DD/YYYY",
+  numberFormat: "en-US",
+};
+
+function getStoredPreferences() {
+  const raw = localStorage.getItem("fpf_global_preferences");
+  if (!raw) return defaultGlobalPreferences;
+  try {
+    return { ...defaultGlobalPreferences, ...JSON.parse(raw) } as UserGlobalPreferences;
+  } catch {
+    return defaultGlobalPreferences;
+  }
+}
+
 export default function App() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [session, setSession] = useState<AuthResponse | null>(() => getStoredSession());
@@ -167,12 +193,37 @@ export default function App() {
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
+  const [languages, setLanguages] = useState<LanguageSetting[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencySetting[]>([]);
+  const [timezones, setTimezones] = useState<TimezoneSetting[]>([]);
+  const [globalPreferences, setGlobalPreferences] = useState<UserGlobalPreferences>(() => getStoredPreferences());
+
+  useEffect(() => {
+    const loadPublicGlobalization = async () => {
+      try {
+        const [languageData, currencyData, timezoneData] = await Promise.all([
+          fetchJson<{ languages: LanguageSetting[] }>(apiEndpoint("/settings/languages"), undefined, sameOriginApiEndpoint("/settings/languages")),
+          fetchJson<{ currencies: CurrencySetting[] }>(apiEndpoint("/settings/currencies"), undefined, sameOriginApiEndpoint("/settings/currencies")),
+          fetchJson<{ timezones: TimezoneSetting[] }>(apiEndpoint("/settings/timezones"), undefined, sameOriginApiEndpoint("/settings/timezones")),
+        ]);
+        setLanguages(languageData.languages);
+        setCurrencies(currencyData.currencies);
+        setTimezones(timezoneData.timezones);
+      } catch {
+        setLanguages([]);
+        setCurrencies([]);
+        setTimezones([]);
+      }
+    };
+    void loadPublicGlobalization();
+  }, []);
 
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
 
     const loadSessionData = async () => {
+      await loadGlobalPreferences(session.token);
       if (session.user.role === "ADMIN") {
         await loadAdminData(session.token);
         if (!cancelled) await loadSubscriberData(session.token);
@@ -314,6 +365,20 @@ export default function App() {
     );
   }
 
+  async function apiPut<T>(path: string, token: string, body?: object) {
+    return fetchJson<T>(
+      apiEndpoint(path),
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      },
+    );
+  }
+
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
@@ -407,6 +472,32 @@ export default function App() {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load investor portal");
     }
+  }
+
+  async function loadGlobalPreferences(token: string) {
+    try {
+      const data = await apiGet<GlobalizationBootstrap>("/settings/preferences", token);
+      setLanguages(data.languages);
+      setCurrencies(data.currencies);
+      setTimezones(data.timezones);
+      setGlobalPreferences(data.preferences);
+      localStorage.setItem("fpf_global_preferences", JSON.stringify(data.preferences));
+    } catch {
+      const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || defaultGlobalPreferences.timezone;
+      setGlobalPreferences((current) => ({ ...current, timezone: current.timezone || browserTimezone }));
+    }
+  }
+
+  async function saveGlobalPreferences(nextPreferences: Partial<UserGlobalPreferences>) {
+    if (!session) return;
+    const data = await apiPut<{ preferences: UserGlobalPreferences }>(
+      "/settings/preferences",
+      session.token,
+      { ...globalPreferences, ...nextPreferences },
+    );
+    setGlobalPreferences(data.preferences);
+    localStorage.setItem("fpf_global_preferences", JSON.stringify(data.preferences));
+    setMessage("Global preferences updated.");
   }
 
   async function loadLiveFixtures(token: string) {
@@ -620,6 +711,14 @@ export default function App() {
             onLogin={safelySubmit(handleLogin)}
             onRegister={safelySubmit(handleRegister)}
             onForgot={safelySubmit(handleForgotPassword)}
+            languages={languages}
+            currencies={currencies}
+            preferences={globalPreferences}
+            onLocalPreferenceChange={(next) => {
+              const updated = { ...globalPreferences, ...next };
+              setGlobalPreferences(updated);
+              localStorage.setItem("fpf_global_preferences", JSON.stringify(updated));
+            }}
           />
         </section>
       </main>
@@ -702,6 +801,13 @@ export default function App() {
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
               Subscriber Preview · Active
             </div>
+            <GlobalPreferenceBar
+              currencies={currencies}
+              languages={languages}
+              preferences={globalPreferences}
+              timezones={timezones}
+              onSave={(next) => void saveGlobalPreferences(next)}
+            />
           </div>
 
           {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
@@ -725,6 +831,8 @@ export default function App() {
               users={adminUsers}
               onAction={adminAction}
               onSimulate={adminSimulate}
+              globalization={{ languages, currencies, timezones, preferences: globalPreferences }}
+              onGlobalPreferences={saveGlobalPreferences}
             />
           ) : null}
 
@@ -809,7 +917,15 @@ export default function App() {
             <ReportsView reports={subscriberCommandCenter?.reports ?? []} />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Profile" ? (
-            <ProfileView session={session} onPasswordChange={safelySubmit(handlePasswordChange)} />
+            <ProfileView
+              currencies={currencies}
+              languages={languages}
+              onPasswordChange={safelySubmit(handlePasswordChange)}
+              onPreferences={saveGlobalPreferences}
+              preferences={globalPreferences}
+              session={session}
+              timezones={timezones}
+            />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Notifications" ? (
             <NotificationCenterView notifications={subscriberCommandCenter?.notifications ?? []} />
@@ -835,6 +951,8 @@ function AdminPortal({
   health,
   intelligence,
   investorManagement,
+  globalization,
+  onGlobalPreferences,
   onAction,
   onSimulate,
   overview,
@@ -852,6 +970,13 @@ function AdminPortal({
   health: PlatformHealth | null;
   intelligence: AnalystIntelligenceSubmission[];
   investorManagement: AdminInvestorManagement | null;
+  globalization: {
+    languages: LanguageSetting[];
+    currencies: CurrencySetting[];
+    timezones: TimezoneSetting[];
+    preferences: UserGlobalPreferences;
+  };
+  onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
   overview: AdminOverview | null;
@@ -1085,6 +1210,22 @@ function AdminPortal({
         <label className="flex items-center gap-3 text-sm text-zinc-300"><input name="maintenanceMode" defaultChecked={settings?.maintenanceMode} type="checkbox" /> Enable maintenance mode</label>
         <div className="md:col-span-2"><SubmitButton>Save settings</SubmitButton></div>
       </form>
+      <div className="mt-6">
+        <AdminGlobalizationControls
+          currencies={globalization.currencies}
+          languages={globalization.languages}
+          onAction={onAction}
+          settings={settings}
+        />
+        <GlobalPreferencesForm
+          currencies={globalization.currencies}
+          languages={globalization.languages}
+          preferences={globalization.preferences}
+          timezones={globalization.timezones}
+          title="Global Defaults Preview"
+          onSave={onGlobalPreferences}
+        />
+      </div>
     </Panel>
   );
 }
@@ -1714,16 +1855,24 @@ function AuthPanel({
   onLogin,
   onRegister,
   setMode,
+  currencies,
+  languages,
+  onLocalPreferenceChange,
+  preferences,
 }: {
   apiCheck: string;
   apiUrl: string;
+  currencies: CurrencySetting[];
   error: string;
+  languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
   onApiTest: () => void;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
+  onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
+  preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
 }) {
   return (
@@ -1743,6 +1892,24 @@ function AuthPanel({
         <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
         <ModeButton active={mode === "register"} onClick={() => setMode("register")}>Register</ModeButton>
         <ModeButton active={mode === "forgot"} onClick={() => setMode("forgot")}>Reset</ModeButton>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm font-medium text-zinc-200">
+          Language
+          <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.language} onChange={(event) => onLocalPreferenceChange({ language: event.target.value as UserGlobalPreferences["language"] })}>
+            {(languages.length ? languages : [{ code: "en", name: "English", nativeName: "English", direction: "ltr", enabled: true } as LanguageSetting]).filter((item) => item.enabled).map((language) => (
+              <option key={language.code} value={language.code}>{language.nativeName}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium text-zinc-200">
+          Currency
+          <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.currency} onChange={(event) => onLocalPreferenceChange({ currency: event.target.value as UserGlobalPreferences["currency"] })}>
+            {(currencies.length ? currencies : [{ code: "USD", name: "US Dollar", symbol: "$", placeholderRateFromUsd: 1, enabled: true } as CurrencySetting]).filter((item) => item.enabled).map((currency) => (
+              <option key={currency.code} value={currency.code}>{currency.code}</option>
+            ))}
+          </select>
+        </label>
       </div>
       {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
       {message ? <p className="mt-4 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
@@ -2524,11 +2691,21 @@ function PerformanceView({
 }
 
 function ProfileView({
+  currencies,
+  languages,
   onPasswordChange,
+  onPreferences,
+  preferences,
   session,
+  timezones,
 }: {
+  currencies: CurrencySetting[];
+  languages: LanguageSetting[];
   onPasswordChange: (event: FormEvent<HTMLFormElement>) => void;
+  onPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
+  preferences: UserGlobalPreferences;
   session: AuthResponse;
+  timezones: TimezoneSetting[];
 }) {
   return (
     <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -2550,6 +2727,16 @@ function ProfileView({
           <SubmitButton>Update password</SubmitButton>
         </form>
       </Panel>
+      <div className="lg:col-span-2">
+        <GlobalPreferencesForm
+          currencies={currencies}
+          languages={languages}
+          onSave={onPreferences}
+          preferences={preferences}
+          timezones={timezones}
+          title="Global Preferences"
+        />
+      </div>
     </div>
   );
 }
@@ -2650,6 +2837,155 @@ function InvestmentList({ investments }: { investments: InvestorInvestment[] }) 
       ))}
       {!investments.length ? <p className="text-sm text-zinc-400">No investments in this category.</p> : null}
     </div>
+  );
+}
+
+function GlobalPreferenceBar({
+  currencies,
+  languages,
+  onSave,
+  preferences,
+  timezones,
+}: {
+  currencies: CurrencySetting[];
+  languages: LanguageSetting[];
+  onSave: (preferences: Partial<UserGlobalPreferences>) => void;
+  preferences: UserGlobalPreferences;
+  timezones: TimezoneSetting[];
+}) {
+  return (
+    <div className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-xs text-zinc-300 sm:grid-cols-3">
+      <select className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2" value={preferences.language} onChange={(event) => onSave({ language: event.target.value as UserGlobalPreferences["language"] })}>
+        {(languages.length ? languages : [{ code: "en", name: "English", nativeName: "English", direction: "ltr", enabled: true } as LanguageSetting]).filter((item) => item.enabled).map((language) => (
+          <option key={language.code} value={language.code}>{language.nativeName}</option>
+        ))}
+      </select>
+      <select className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2" value={preferences.currency} onChange={(event) => onSave({ currency: event.target.value as UserGlobalPreferences["currency"] })}>
+        {(currencies.length ? currencies : [{ code: "USD", name: "US Dollar", symbol: "$", placeholderRateFromUsd: 1, enabled: true } as CurrencySetting]).filter((item) => item.enabled).map((currency) => (
+          <option key={currency.code} value={currency.code}>{currency.code}</option>
+        ))}
+      </select>
+      <select className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2" value={preferences.timezone} onChange={(event) => onSave({ timezone: event.target.value })}>
+        {(timezones.length ? timezones : [{ id: "UTC", label: "UTC", offset: "+00:00", enabled: true } as TimezoneSetting]).filter((item) => item.enabled).map((timezone) => (
+          <option key={timezone.id} value={timezone.id}>{timezone.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function GlobalPreferencesForm({
+  currencies,
+  languages,
+  onSave,
+  preferences,
+  timezones,
+  title,
+}: {
+  currencies: CurrencySetting[];
+  languages: LanguageSetting[];
+  onSave: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
+  preferences: UserGlobalPreferences;
+  timezones: TimezoneSetting[];
+  title: string;
+}) {
+  return (
+    <Panel title={title}>
+      <form
+        className="grid gap-4 md:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void onSave({
+            language: String(form.get("language")) as UserGlobalPreferences["language"],
+            currency: String(form.get("currency")) as UserGlobalPreferences["currency"],
+            timezone: String(form.get("timezone")),
+            country: String(form.get("country")),
+            region: String(form.get("region")),
+            measurementSystem: String(form.get("measurementSystem")) as UserGlobalPreferences["measurementSystem"],
+            dateFormat: String(form.get("dateFormat")),
+            numberFormat: String(form.get("numberFormat")),
+          });
+        }}
+      >
+        <SelectField label="Language" name="language" value={preferences.language} options={(languages.length ? languages : []).filter((item) => item.enabled).map((item) => ({ value: item.code, label: item.nativeName }))} />
+        <SelectField label="Currency" name="currency" value={preferences.currency} options={(currencies.length ? currencies : []).filter((item) => item.enabled).map((item) => ({ value: item.code, label: `${item.code} - ${item.name}` }))} />
+        <SelectField label="Timezone" name="timezone" value={preferences.timezone} options={(timezones.length ? timezones : []).filter((item) => item.enabled).map((item) => ({ value: item.id, label: `${item.label} (${item.offset})` }))} />
+        <SelectField label="Measurement" name="measurementSystem" value={preferences.measurementSystem} options={[{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }]} />
+        <TextField label="Country code" name="country" type="text" value={preferences.country} />
+        <TextField label="Region" name="region" type="text" value={preferences.region} />
+        <TextField label="Date format" name="dateFormat" type="text" value={preferences.dateFormat} />
+        <TextField label="Number format" name="numberFormat" type="text" value={preferences.numberFormat} />
+        <div className="md:col-span-2">
+          <p className="mb-3 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+            All platform accounting remains in USD internally. Display values use placeholder conversion rates until an approved live exchange-rate provider is connected.
+          </p>
+          <SubmitButton>Save global preferences</SubmitButton>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function AdminGlobalizationControls({
+  currencies,
+  languages,
+  onAction,
+  settings,
+}: {
+  currencies: CurrencySetting[];
+  languages: LanguageSetting[];
+  onAction: (path: string, body?: object) => Promise<void>;
+  settings: AdminSettings | null;
+}) {
+  const enabledLanguages = new Set(settings?.enabledLanguages ?? languages.filter((item) => item.enabled).map((item) => item.code));
+  const enabledCurrencies = new Set(settings?.enabledCurrencies ?? currencies.filter((item) => item.enabled).map((item) => item.code));
+  return (
+    <Panel title="Admin Globalization Controls">
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void onAction("/admin/globalization", {
+            enabledLanguages: form.getAll("enabledLanguages"),
+            enabledCurrencies: form.getAll("enabledCurrencies"),
+            defaultLanguage: form.get("defaultLanguage"),
+            defaultCurrency: form.get("defaultCurrency"),
+          });
+        }}
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <p className="text-sm font-semibold text-zinc-200">Enabled languages</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {languages.map((language) => (
+                <label className="flex items-center gap-2 text-sm text-zinc-300" key={language.code}>
+                  <input defaultChecked={enabledLanguages.has(language.code)} name="enabledLanguages" type="checkbox" value={language.code} />
+                  {language.nativeName}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-zinc-200">Enabled currencies</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {currencies.map((currency) => (
+                <label className="flex items-center gap-2 text-sm text-zinc-300" key={currency.code}>
+                  <input defaultChecked={enabledCurrencies.has(currency.code)} name="enabledCurrencies" type="checkbox" value={currency.code} />
+                  {currency.code}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectField label="Default language" name="defaultLanguage" value={settings?.defaultLanguage ?? "en"} options={languages.map((item) => ({ value: item.code, label: item.nativeName }))} />
+          <SelectField label="Default currency" name="defaultCurrency" value={settings?.defaultCurrency ?? "USD"} options={currencies.map((item) => ({ value: item.code, label: `${item.code} - ${item.name}` }))} />
+        </div>
+        <SubmitButton>Save globalization controls</SubmitButton>
+      </form>
+    </Panel>
   );
 }
 
@@ -2833,10 +3169,34 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function money(cents: number) {
+  const preferences = getStoredPreferences();
+  const rates: Record<string, number> = {
+    USD: 1,
+    EUR: 0.92,
+    GBP: 0.79,
+    UGX: 3700,
+    KES: 130,
+    TZS: 2600,
+    NGN: 1500,
+    ZAR: 18.2,
+    CAD: 1.36,
+    AUD: 1.52,
+  };
+  const currency = preferences.currency in rates ? preferences.currency : "USD";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
-  }).format(cents / 100);
+    currency,
+    maximumFractionDigits: ["UGX", "KES", "TZS", "NGN"].includes(currency) ? 0 : 2,
+  }).format((cents / 100) * rates[currency]);
+}
+
+function formatDateTime(value: string | Date) {
+  const preferences = getStoredPreferences();
+  return new Intl.DateTimeFormat(preferences.numberFormat || "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: preferences.timezone || "UTC",
+  }).format(new Date(value));
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
@@ -2916,6 +3276,29 @@ function TextField({
         value={onChange ? value : undefined}
         defaultValue={!onChange ? value : undefined}
       />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  name,
+  options,
+  value,
+}: {
+  label: string;
+  name: string;
+  options: Array<{ value: string; label: string }>;
+  value: string;
+}) {
+  return (
+    <label className="block text-sm font-medium text-zinc-200">
+      {label}
+      <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none transition focus:border-emerald-300" defaultValue={value} name={name}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
     </label>
   );
 }

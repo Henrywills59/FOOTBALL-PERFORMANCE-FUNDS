@@ -11,6 +11,10 @@ const defaultSettings: AdminSettings = {
   maximumSelections: 5,
   scheduledSyncEnabled: false,
   maintenanceMode: false,
+  enabledLanguages: ["en", "fr", "es", "pt", "de", "it", "ar", "zh"],
+  enabledCurrencies: ["USD", "EUR", "GBP", "UGX", "KES", "TZS", "NGN", "ZAR", "CAD", "AUD"],
+  defaultLanguage: "en",
+  defaultCurrency: "USD",
 };
 
 const emptyReports = {
@@ -156,8 +160,16 @@ export class PrismaAdminRepository implements AdminRepository {
     const settings = { ...defaultSettings };
     for (const row of rows) {
       if (row.key in settings) {
-        (settings as Record<string, unknown>)[row.key] =
-          row.value === "true" ? true : row.value === "false" ? false : Number(row.value);
+        const currentValue = (settings as Record<string, unknown>)[row.key];
+        (settings as Record<string, unknown>)[row.key] = Array.isArray(currentValue)
+          ? row.value.split(",").map((item) => item.trim()).filter(Boolean)
+          : typeof currentValue === "string"
+            ? row.value
+            : row.value === "true"
+              ? true
+              : row.value === "false"
+                ? false
+                : Number(row.value);
       }
     }
     return settings;
@@ -261,8 +273,8 @@ export class PrismaAdminRepository implements AdminRepository {
     for (const [key, value] of Object.entries(input)) {
       await this.prisma.platformSetting.upsert({
         where: { key },
-        update: { value: String(value) },
-        create: { key, value: String(value) },
+        update: { value: Array.isArray(value) ? value.join(",") : String(value) },
+        create: { key, value: Array.isArray(value) ? value.join(",") : String(value) },
       });
     }
     return this.settings();

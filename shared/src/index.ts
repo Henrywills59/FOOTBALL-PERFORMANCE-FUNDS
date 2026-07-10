@@ -141,6 +141,67 @@ export type AdminSettings = {
   maximumSelections: number;
   scheduledSyncEnabled: boolean;
   maintenanceMode: boolean;
+  enabledLanguages?: string[];
+  enabledCurrencies?: string[];
+  defaultLanguage?: string;
+  defaultCurrency?: string;
+};
+
+export type SupportedLanguageCode = "en" | "fr" | "es" | "pt" | "de" | "it" | "ar" | "zh";
+export type SupportedCurrencyCode = "USD" | "EUR" | "GBP" | "UGX" | "KES" | "TZS" | "NGN" | "ZAR" | "CAD" | "AUD";
+
+export type LanguageSetting = {
+  code: SupportedLanguageCode;
+  name: string;
+  nativeName: string;
+  direction: "ltr" | "rtl";
+  enabled: boolean;
+};
+
+export type CurrencySetting = {
+  code: SupportedCurrencyCode;
+  name: string;
+  symbol: string;
+  placeholderRateFromUsd: number;
+  enabled: boolean;
+};
+
+export type TimezoneSetting = {
+  id: string;
+  label: string;
+  offset: string;
+  enabled: boolean;
+};
+
+export type CountrySetting = {
+  countryCode: string;
+  countryName: string;
+  region: string;
+  defaultLanguage: SupportedLanguageCode;
+  defaultCurrency: SupportedCurrencyCode;
+  defaultTimezone: string;
+  measurementSystem: "metric" | "imperial";
+  dateFormat: string;
+  numberFormat: string;
+};
+
+export type UserGlobalPreferences = {
+  language: SupportedLanguageCode;
+  currency: SupportedCurrencyCode;
+  timezone: string;
+  country: string;
+  region: string;
+  measurementSystem: "metric" | "imperial";
+  dateFormat: string;
+  numberFormat: string;
+};
+
+export type GlobalizationBootstrap = {
+  languages: LanguageSetting[];
+  currencies: CurrencySetting[];
+  timezones: TimezoneSetting[];
+  countrySettings: CountrySetting[];
+  preferences: UserGlobalPreferences;
 };
 
 export type AdminReports = {

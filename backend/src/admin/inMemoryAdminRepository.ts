@@ -7,6 +7,10 @@ const defaultSettings: AdminSettings = {
   maximumSelections: 5,
   scheduledSyncEnabled: false,
   maintenanceMode: false,
+  enabledLanguages: ["en", "fr", "es", "pt", "de", "it", "ar", "zh"],
+  enabledCurrencies: ["USD", "EUR", "GBP", "UGX", "KES", "TZS", "NGN", "ZAR", "CAD", "AUD"],
+  defaultLanguage: "en",
+  defaultCurrency: "USD",
 };
 
 export class InMemoryAdminRepository implements AdminRepository {

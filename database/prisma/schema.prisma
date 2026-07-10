@@ -107,6 +107,7 @@ model User {
   investorNotes InvestorNote[] @relation("InvestorNoteAuthor")
   analystAssignments AnalystAssignment[]
   intelligenceSubmissions AnalystIntelligenceSubmission[]
+  globalPreference UserGlobalPreference?
 }
 
 model PasswordResetToken {
@@ -664,6 +665,88 @@ model InvestorWallet {
   updatedAt              DateTime            @updatedAt
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions           WalletTransaction[]
+}
+
+model LanguageSetting {
+  code       String   @id
+  name       String
+  nativeName String
+  direction  String   @default("ltr")
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("languages")
+}
+
+model CurrencySetting {
+  code                   String   @id
+  name                   String
+  symbol                 String
+  placeholderRateFromUsd Float    @default(1)
+  enabled                Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("currencies")
+}
+
+model ExchangeRatePlaceholder {
+  id           String   @id @default(uuid())
+  baseCurrency String   @default("USD")
+  currency     String
+  rate         Float
+  source       String   @default("PLACEHOLDER")
+  createdAt    DateTime @default(now())
+
+  @@index([baseCurrency, currency])
+  @@map("exchange_rate_placeholders")
+}
+
+model UserGlobalPreference {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  language          String   @default("en")
+  currency          String   @default("USD")
+  timezone          String   @default("UTC")
+  country           String   @default("US")
+  region            String   @default("North America")
+  measurementSystem String   @default("metric")
+  dateFormat        String   @default("MM/DD/YYYY")
+  numberFormat      String   @default("en-US")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model CountrySetting {
+  countryCode       String   @id
+  countryName       String
+  region            String
+  defaultLanguage   String
+  defaultCurrency   String
+  defaultTimezone   String
+  measurementSystem String   @default("metric")
+  dateFormat        String
+  numberFormat      String
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("country_settings")
+}
+
+model TimezoneSetting {
+  id        String   @id
+  label     String
+  offset    String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("timezone_settings")
 }
 
 model WalletTransaction {

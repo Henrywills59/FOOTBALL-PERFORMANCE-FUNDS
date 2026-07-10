@@ -14,6 +14,10 @@ const settingsSchema = z.object({
   maximumSelections: z.number().min(1).max(10).optional(),
   scheduledSyncEnabled: z.boolean().optional(),
   maintenanceMode: z.boolean().optional(),
+  enabledLanguages: z.array(z.string()).optional(),
+  enabledCurrencies: z.array(z.string()).optional(),
+  defaultLanguage: z.string().optional(),
+  defaultCurrency: z.string().optional(),
 });
 
 export function createAdminRouter(input: {
