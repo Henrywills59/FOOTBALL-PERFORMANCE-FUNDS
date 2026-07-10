@@ -1956,3 +1956,95 @@ model WeeklyClosureReport {
   @@index([weeklyPeriodId])
   @@map("weekly_closure_reports")
 }
+
+model AnalyticsSnapshot {
+  id            String   @id @default(uuid())
+  snapshotType  String
+  periodLabel   String
+  metrics       Json     @default("{}")
+  generatedBy   String
+  generatedAt   DateTime @default(now())
+
+  @@index([snapshotType])
+  @@index([periodLabel])
+  @@map("analytics_snapshots")
+}
+
+model AnalystAnalyticsSnapshot {
+  id           String   @id @default(uuid())
+  analystId    String
+  periodLabel  String
+  metrics      Json     @default("{}")
+  generatedAt  DateTime @default(now())
+
+  @@index([analystId])
+  @@index([periodLabel])
+  @@map("analyst_analytics_snapshots")
+}
+
+model LeagueAnalyticsSnapshot {
+  id           String   @id @default(uuid())
+  league       String
+  periodLabel  String
+  metrics      Json     @default("{}")
+  generatedAt  DateTime @default(now())
+
+  @@index([league])
+  @@index([periodLabel])
+  @@map("league_analytics_snapshots")
+}
+
+model MarketAnalyticsSnapshot {
+  id           String   @id @default(uuid())
+  market       String
+  periodLabel  String
+  metrics      Json     @default("{}")
+  generatedAt  DateTime @default(now())
+
+  @@index([market])
+  @@index([periodLabel])
+  @@map("market_analytics_snapshots")
+}
+
+model AiBusinessInsightSnapshot {
+  id             String   @id @default(uuid())
+  category       String
+  title          String
+  recommendation String
+  confidence     Int      @default(0)
+  severity       String
+  metadata       Json     @default("{}")
+  generatedAt    DateTime @default(now())
+
+  @@index([category])
+  @@index([severity])
+  @@map("ai_business_insight_snapshots")
+}
+
+model PredictiveAnalyticsForecast {
+  id                 String   @id @default(uuid())
+  metric             String
+  expectedValueCents Int      @default(0)
+  confidence         Int      @default(0)
+  trend              String
+  explanation        String
+  generatedAt        DateTime @default(now())
+
+  @@index([metric])
+  @@index([trend])
+  @@map("predictive_analytics_forecasts")
+}
+
+model AnalyticsExportRequest {
+  id             String   @id @default(uuid())
+  reportType     String
+  title          String
+  cadence        String
+  providerStatus String   @default("PLACEHOLDER_READY")
+  requestedBy    String
+  requestedAt    DateTime @default(now())
+
+  @@index([reportType])
+  @@index([providerStatus])
+  @@map("analytics_export_requests")
+}

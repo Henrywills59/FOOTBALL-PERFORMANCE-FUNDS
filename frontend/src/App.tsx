@@ -12,6 +12,7 @@ import type {
   AnalystAssignment,
   AnalystAssistance,
   AnalystDashboard,
+  AnalystPrivateAnalytics,
   AnalystPerformanceDashboard,
   AnalystIntelligenceSubmission,
   AuditLogEntry,
@@ -21,6 +22,7 @@ import type {
   CommercialControlCenter,
   DecisionEngineOutput,
   ExecutiveSituationRoom,
+  ExecutiveAnalyticsDashboard,
   FootballFixtureDetail,
   FootballFixtureSummary,
   GlobalizationBootstrap,
@@ -115,9 +117,9 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Executive BI", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
-const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "Treasury", "Rewards"] as const;
+const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
@@ -233,6 +235,8 @@ export default function App() {
   const [treasuryDashboard, setTreasuryDashboard] = useState<TreasuryDashboard | null>(null);
   const [executiveSituation, setExecutiveSituation] = useState<ExecutiveSituationRoom | null>(null);
   const [analystTreasury, setAnalystTreasury] = useState<AnalystTreasuryView | null>(null);
+  const [executiveAnalytics, setExecutiveAnalytics] = useState<ExecutiveAnalyticsDashboard | null>(null);
+  const [analystAnalytics, setAnalystAnalytics] = useState<AnalystPrivateAnalytics | null>(null);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
   const [commercialStructure, setCommercialStructure] = useState<CommercialStructure>(defaultCommercialStructure);
@@ -579,6 +583,7 @@ export default function App() {
       const warRoomData = await apiGet<WarRoomDashboard>("/war-room", token);
       const treasuryData = await apiGet<TreasuryDashboard>("/treasury", token);
       const executiveSituationData = await apiGet<ExecutiveSituationRoom>("/treasury/executive-situation-room", token);
+      const executiveAnalyticsData = await apiGet<ExecutiveAnalyticsDashboard>("/analytics/executive", token);
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
@@ -600,6 +605,7 @@ export default function App() {
       setWarRoom(warRoomData);
       setTreasuryDashboard(treasuryData);
       setExecutiveSituation(executiveSituationData);
+      setExecutiveAnalytics(executiveAnalyticsData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
     }
@@ -667,7 +673,7 @@ export default function App() {
 
   async function loadAnalystData(token: string) {
     try {
-      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData, treasuryData] = await Promise.all([
+      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData, treasuryData, analyticsData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<AnalystPerformanceDashboard>("/analyst/performance", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
@@ -676,6 +682,7 @@ export default function App() {
         apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
         apiGet<WarRoomDashboard>("/war-room", token),
         apiGet<AnalystTreasuryView>("/treasury/analyst/me", token),
+        apiGet<AnalystPrivateAnalytics>("/analytics/analyst/me", token),
       ]);
       setAnalystDashboard(dashboard);
       setAnalystPerformance(performanceData);
@@ -685,6 +692,7 @@ export default function App() {
       setPredictionWorkflowQueue(workflowData);
       setWarRoom(warRoomData);
       setAnalystTreasury(treasuryData);
+      setAnalystAnalytics(analyticsData);
       setLoadingLabel("Analyst workspace ready");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load analyst workspace");
@@ -1051,6 +1059,7 @@ export default function App() {
               commercialControl={commercialControl}
               treasuryDashboard={treasuryDashboard}
               executiveSituation={executiveSituation}
+              executiveAnalytics={executiveAnalytics}
             />
           ) : null}
 
@@ -1065,6 +1074,7 @@ export default function App() {
               workflowQueue={predictionWorkflowQueue}
               warRoom={warRoom}
               treasury={analystTreasury}
+              analytics={analystAnalytics}
               submissions={analystSubmissions}
               onAction={analystAction}
               onAssistance={loadAnalystAssistance}
@@ -1205,6 +1215,7 @@ function AdminPortal({
   commercialControl,
   treasuryDashboard,
   executiveSituation,
+  executiveAnalytics,
   onGlobalPreferences,
   onAction,
   onSimulate,
@@ -1240,6 +1251,7 @@ function AdminPortal({
   commercialControl: CommercialControlCenter | null;
   treasuryDashboard: TreasuryDashboard | null;
   executiveSituation: ExecutiveSituationRoom | null;
+  executiveAnalytics: ExecutiveAnalyticsDashboard | null;
   onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1265,6 +1277,10 @@ function AdminPortal({
         <Metric label="System health" value={overview?.systemHealth ?? "OK"} />
       </div>
     );
+  }
+
+  if (activeView === "Executive BI") {
+    return <ExecutiveBiView dashboard={executiveAnalytics} />;
   }
 
   if (activeView === "Prediction Review") {
@@ -1528,6 +1544,7 @@ function AnalystPortal({
   workflowQueue,
   warRoom,
   treasury,
+  analytics,
 }: {
   activeView: AnalystNavItem;
   assignments: AnalystAssignment[];
@@ -1541,6 +1558,7 @@ function AnalystPortal({
   workflowQueue: PredictionWorkflowQueue | null;
   warRoom: WarRoomDashboard | null;
   treasury: AnalystTreasuryView | null;
+  analytics: AnalystPrivateAnalytics | null;
 }) {
   if (activeView === "Analyst Dashboard") {
     return (
@@ -1596,6 +1614,10 @@ function AnalystPortal({
 
   if (activeView === "Performance") {
     return <AnalystPerformanceView performance={performance} />;
+  }
+
+  if (activeView === "My Analytics") {
+    return <AnalystPrivateAnalyticsView analytics={analytics} />;
   }
 
   if (activeView === "Rewards") {
@@ -2227,6 +2249,160 @@ function TreasuryCenterView({ dashboard, onAction }: { dashboard: TreasuryDashbo
       <Panel title="Treasury Ledger">
         <CompactTreasuryList items={dashboard.ledger.map((entry) => `${entry.direction} ${money(entry.amountCents)} · ${entry.account} · ${entry.classification}`)} />
       </Panel>
+    </div>
+  );
+}
+
+function ExecutiveBiView({ dashboard }: { dashboard: ExecutiveAnalyticsDashboard | null }) {
+  if (!dashboard) return <LoadingSkeleton label="Preparing Executive Business Intelligence" />;
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Executive Business Intelligence">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+          {dashboard.executiveKpis.slice(0, 28).map((metric) => (
+            <MiniStat key={metric.label} label={metric.label} value={typeof metric.value === "number" && metric.label.toLowerCase().includes("capital") || metric.label.toLowerCase().includes("revenue") || metric.label.toLowerCase().includes("profit") || metric.label.toLowerCase().includes("share") || metric.label.toLowerCase().includes("reward") ? money(Number(metric.value)) : String(metric.value)} />
+          ))}
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="AI Executive Recommendations">
+          <div className="space-y-3">
+            {dashboard.aiInsights.map((insight) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={insight.id}>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{insight.category} · {insight.severity} · {insight.confidence}%</p>
+                <h3 className="mt-2 font-semibold">{insight.title}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{insight.recommendation}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Predictive Analytics">
+          <div className="space-y-3">
+            {dashboard.forecasts.map((forecast) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={forecast.metric}>
+                <p className="font-semibold">{forecast.metric}: {money(forecast.expectedValueCents)}</p>
+                <p className="mt-1 text-sm text-zinc-400">{forecast.trend} · {forecast.confidence}% confidence · {forecast.explanation}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Export Center">
+          <CompactTreasuryList items={dashboard.exportCenter.map((item) => `${item.reportType} · ${item.title} · ${item.cadence} · ${item.providerStatus}`)} />
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Analyst Leaderboard">
+          <div className="space-y-3">
+            {dashboard.analystLeaderboard.map((analyst) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={analyst.analystId}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{analyst.currentRank} {analyst.analystName}</p>
+                    <p className="text-sm text-zinc-400">{analyst.totalPicks} picks · {analyst.winRate}% win rate · {analyst.roi}% ROI</p>
+                  </div>
+                  <span className="rounded-full border border-emerald-700 px-3 py-1 text-xs text-emerald-200">ARI {analyst.reliabilityIndex}</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                  <MiniStat label="Profit" value={money(analyst.profitGeneratedCents)} />
+                  <MiniStat label="Capital used" value={money(analyst.capitalUsedCents)} />
+                  <MiniStat label="Efficiency" value={`${analyst.capitalEfficiency}%`} />
+                  <MiniStat label="Discipline" value={`${analyst.disciplineScore}/100`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="League Intelligence">
+          <AnalyticsTable rows={dashboard.leagueIntelligence.map((league) => [`#${league.rank} ${league.league}`, `${league.matchesPlayed}`, money(league.profitCents), `${league.roi}%`, `${league.accuracy}%`, `${league.risk}/100`])} />
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Market Intelligence">
+          <AnalyticsTable rows={dashboard.marketIntelligence.map((market) => [`#${market.rank} ${market.market}`, money(market.profitGeneratedCents), `${market.roi}%`, `${market.accuracy}%`, `${market.averageRisk}/100`, money(market.capitalAllocationCents)])} />
+        </Panel>
+        <Panel title="Subscriber & Investor Analytics">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <MiniStat label="Active subscribers" value={String(dashboard.subscriberAnalytics.activeSubscribers)} />
+            <MiniStat label="Conversion" value={`${dashboard.subscriberAnalytics.conversionRate}%`} />
+            <MiniStat label="Retention" value={`${dashboard.subscriberAnalytics.retention}%`} />
+            <MiniStat label="Active investors" value={String(dashboard.investorAnalytics.activeInvestors)} />
+            <MiniStat label="Locked capital" value={money(dashboard.investorAnalytics.lockedCapitalCents)} />
+            <MiniStat label="Reinvestment" value={`${dashboard.investorAnalytics.reinvestmentRate}%`} />
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Visual Dashboard Data">
+        <div className="grid gap-4 xl:grid-cols-4">
+          <TrendCard title="Revenue Timeline" points={dashboard.visualizations.revenueTimeline} />
+          <TrendCard title="Profit Timeline" points={dashboard.visualizations.profitTimeline} />
+          <TrendCard title="Capital Allocation" points={dashboard.visualizations.capitalAllocation} />
+          <TrendCard title="Risk Heat Map" points={dashboard.visualizations.riskHeatMap.map((item) => ({ label: item.label, value: item.risk }))} />
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AnalystPrivateAnalyticsView({ analytics }: { analytics: AnalystPrivateAnalytics | null }) {
+  if (!analytics) return <LoadingSkeleton label="Preparing analyst analytics" />;
+  const analyst = analytics.analyst;
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="My Analyst Intelligence">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <MiniStat label="Total picks" value={String(analyst.totalPicks)} />
+          <MiniStat label="Win rate" value={`${analyst.winRate}%`} />
+          <MiniStat label="ROI" value={`${analyst.roi}%`} />
+          <MiniStat label="Profit" value={money(analyst.profitGeneratedCents)} />
+          <MiniStat label="ARI" value={`${analyst.reliabilityIndex}/100`} />
+          <MiniStat label="Discipline" value={`${analyst.disciplineScore}/100`} />
+        </div>
+      </Panel>
+      <Panel title="Private AI Recommendations">
+        <CompactTreasuryList items={analytics.aiRecommendations.map((item) => `${item.severity}: ${item.recommendation}`)} />
+      </Panel>
+      <Panel title="Private Export Placeholders">
+        <CompactTreasuryList items={analytics.exportCenter.map((item) => `${item.reportType} · ${item.title} · ${item.providerStatus}`)} />
+      </Panel>
+    </div>
+  );
+}
+
+function AnalyticsTable({ rows }: { rows: string[][] }) {
+  return (
+    <div className="overflow-auto rounded-lg border border-zinc-800">
+      <table className="w-full min-w-[560px] text-left text-sm">
+        <tbody>
+          {rows.map((row) => (
+            <tr className="border-b border-zinc-900 last:border-0" key={row.join(":")}>
+              {row.map((cell, index) => (
+                <td className={index === 0 ? "px-3 py-3 font-semibold text-zinc-100" : "px-3 py-3 text-zinc-400"} key={cell}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TrendCard({ title, points }: { title: string; points: Array<{ label: string; value: number }> }) {
+  const peak = Math.max(1, ...points.map((point) => point.value));
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+      <p className="font-semibold">{title}</p>
+      <div className="mt-4 flex h-28 items-end gap-2">
+        {points.map((point) => (
+          <div className="flex flex-1 flex-col items-center gap-2" key={point.label}>
+            <div className="w-full rounded-t bg-emerald-300/70" style={{ height: `${Math.max(8, (point.value / peak) * 100)}%` }} />
+            <span className="text-[10px] text-zinc-500">{point.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

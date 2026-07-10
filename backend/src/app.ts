@@ -13,6 +13,8 @@ import { PrismaAnalystRepository } from "./analyst/analystRepository.js";
 import { createAnalystRouter } from "./analyst/analystRoutes.js";
 import { AnalystService } from "./analyst/analystService.js";
 import type { AnalystRepository } from "./analyst/types.js";
+import { createAnalyticsRouter } from "./analytics/analyticsRoutes.js";
+import { AnalyticsService } from "./analytics/analyticsService.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
 import { createCommercialRouter } from "./commercial/routes.js";
 import { CommercialService } from "./commercial/service.js";
@@ -245,6 +247,7 @@ export function createApp(options?: {
   );
   const mediaService = new MediaService(mediaRepository);
   const treasuryService = new TreasuryService();
+  const analyticsService = new AnalyticsService();
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -450,6 +453,13 @@ export function createApp(options?: {
     createTreasuryRouter({
       authService,
       treasuryService,
+    }),
+  );
+  app.use(
+    "/api",
+    createAnalyticsRouter({
+      authService,
+      analyticsService,
     }),
   );
   app.use(errorHandler);
