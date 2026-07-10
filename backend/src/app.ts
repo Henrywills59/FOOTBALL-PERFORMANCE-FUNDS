@@ -51,6 +51,12 @@ import { InMemoryMediaRepository, PrismaMediaRepository } from "./media/reposito
 import { createMediaRouter } from "./media/routes.js";
 import { MediaService } from "./media/service.js";
 import type { MediaRepository } from "./media/types.js";
+import { getNowPaymentsRuntimeConfig, safeNowPaymentsConfigStatus } from "./payments/config.js";
+import { NowPaymentsApiProvider } from "./payments/nowPaymentsProvider.js";
+import { PrismaPaymentRepository } from "./payments/paymentRepository.js";
+import { createPaymentRouter } from "./payments/paymentRoutes.js";
+import { PaymentService } from "./payments/paymentService.js";
+import type { NowPaymentsProvider, PaymentRepository } from "./payments/types.js";
 import { PrismaPredictionRepository } from "./predictions/predictionRepository.js";
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
@@ -141,6 +147,7 @@ function getSafeConfigStatus() {
     jwtSecretConfigured: requiredEnvironment.jwtSecret,
     nowPaymentsApiKeyConfigured: Boolean(process.env.NOWPAYMENTS_API_KEY?.trim()),
     nowPaymentsIpnSecretConfigured: Boolean(process.env.NOWPAYMENTS_IPN_SECRET?.trim()),
+    nowPayments: safeNowPaymentsConfigStatus(),
     frontendUrlConfigured: Boolean(process.env.FRONTEND_URL?.trim()),
     allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim()),
     allowedOrigins: Array.from(getAllowedFrontendOrigins()),
@@ -183,6 +190,8 @@ export function createApp(options?: {
   analystRepository?: AnalystRepository;
   operationsRepository?: OperationsRepository;
   mediaRepository?: MediaRepository;
+  paymentRepository?: PaymentRepository;
+  nowPaymentsProvider?: NowPaymentsProvider;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -207,6 +216,11 @@ export function createApp(options?: {
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
   const commercialService = new CommercialService(adminService);
   const globalizationService = new GlobalizationService(new GlobalizationRepository(), adminService);
+  const paymentService = new PaymentService(
+    options?.paymentRepository ?? new PrismaPaymentRepository(),
+    options?.nowPaymentsProvider ?? new NowPaymentsApiProvider(getNowPaymentsRuntimeConfig()),
+    adminService,
+  );
   const investorService = new InvestorService(
     options?.investorRepository ?? new PrismaInvestorRepository(),
     adminService,
@@ -320,7 +334,12 @@ export function createApp(options?: {
     }
     next();
   });
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({
+    limit: "1mb",
+    verify(request, _response, buffer) {
+      (request as express.Request).rawBody = Buffer.from(buffer);
+    },
+  }));
 
   app.get(["/", "/health", "/api/health"], (_request, response) => {
     const status: HealthStatus = {
@@ -372,6 +391,13 @@ export function createApp(options?: {
     createCommercialRouter({
       authService,
       commercialService,
+    }),
+  );
+  app.use(
+    "/api",
+    createPaymentRouter({
+      authService,
+      paymentService,
     }),
   );
   app.use(

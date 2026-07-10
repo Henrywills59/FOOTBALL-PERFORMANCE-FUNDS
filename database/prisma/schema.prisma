@@ -73,6 +73,38 @@ enum WalletTransactionStatus {
   REJECTED
 }
 
+enum PaymentPurpose {
+  SUBSCRIPTION
+  INVESTOR_FUNDING
+  SUBSCRIPTION_RENEWAL
+  SUBSCRIPTION_UPGRADE
+  OTHER_ADMIN_APPROVED
+}
+
+enum PaymentStatus {
+  CREATED
+  WAITING
+  CONFIRMING
+  PARTIALLY_PAID
+  CONFIRMED
+  FINISHED
+  FAILED
+  EXPIRED
+  REFUNDED
+  DISPUTED
+  MANUAL_REVIEW
+}
+
+enum PaymentReconciliationStatus {
+  NOT_STARTED
+  MATCHED
+  AMOUNT_MISMATCH
+  CURRENCY_MISMATCH
+  PROVIDER_DISCREPANCY
+  MANUAL_REVIEW
+  RECONCILED
+}
+
 enum AnalystAssignmentStatus {
   ASSIGNED
   COMPLETED
@@ -102,6 +134,7 @@ model User {
   investments    Investment[]
   withdrawalRequests WithdrawalRequest[]
   wallet         InvestorWallet?
+  paymentOrders  PaymentOrder[]
   investorAccount InvestorAccount?
   investorAuditLogs InvestorAuditLog[] @relation("InvestorAuditActor")
   investorNotes InvestorNote[] @relation("InvestorNoteAuthor")
@@ -1316,6 +1349,152 @@ model WalletTransaction {
   @@index([walletId])
   @@index([type])
   @@index([status])
+}
+
+model PaymentOrder {
+  id                    String                      @id @default(uuid())
+  userId                String
+  purpose               PaymentPurpose
+  status                PaymentStatus               @default(CREATED)
+  provider              String                      @default("NOWPAYMENTS")
+  providerPaymentId     String?                     @unique
+  providerInvoiceId     String?
+  planCode              String?
+  billingCycle          String?
+  investmentPackageId   String?
+  lockPeriodCode        String?
+  expectedAmountCents   Int
+  receivedAmountCents   Int                         @default(0)
+  priceCurrency         String                      @default("USD")
+  payCurrency           String                      @default("USDTTRC20")
+  paymentAddress        String?
+  checkoutUrl           String?
+  expiresAt             DateTime?
+  confirmedAt           DateTime?
+  reconciliationStatus  PaymentReconciliationStatus @default(NOT_STARTED)
+  metadata              Json                        @default("{}")
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  user                  User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions          PaymentTransaction[]
+  webhookReceipts       PaymentWebhookReceipt[]
+  statusHistory         PaymentStatusHistory[]
+  reconciliation        PaymentReconciliation?
+  refunds               PaymentRefundPlaceholder[]
+  manualReviews         PaymentManualReview[]
+
+  @@index([userId])
+  @@index([purpose])
+  @@index([status])
+  @@index([providerPaymentId])
+  @@index([createdAt])
+  @@map("payment_orders")
+}
+
+model PaymentTransaction {
+  id                  String        @id @default(uuid())
+  orderId             String
+  providerPaymentId   String?
+  status              PaymentStatus
+  expectedAmountCents Int
+  receivedAmountCents Int           @default(0)
+  priceCurrency       String        @default("USD")
+  payCurrency         String        @default("USDTTRC20")
+  providerFeeCents    Int           @default(0)
+  providerPayload     Json          @default("{}")
+  createdAt           DateTime      @default(now())
+  order               PaymentOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([providerPaymentId])
+  @@index([status])
+  @@map("payment_transactions")
+}
+
+model PaymentWebhookReceipt {
+  id                String        @id @default(uuid())
+  provider          String        @default("NOWPAYMENTS")
+  providerPaymentId String?
+  orderId           String?
+  eventKey          String        @unique
+  signatureValid    Boolean       @default(false)
+  processingStatus  String        @default("RECEIVED")
+  payloadHash       String
+  payload           Json          @default("{}")
+  errorMessage      String?
+  receivedAt        DateTime      @default(now())
+  processedAt       DateTime?
+  order             PaymentOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([providerPaymentId])
+  @@index([orderId])
+  @@index([processingStatus])
+  @@map("payment_webhook_receipts")
+}
+
+model PaymentStatusHistory {
+  id             String         @id @default(uuid())
+  orderId        String
+  previousStatus PaymentStatus?
+  newStatus      PaymentStatus
+  reason         String?
+  source         String         @default("SYSTEM")
+  createdAt      DateTime       @default(now())
+  order          PaymentOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([newStatus])
+  @@map("payment_status_history")
+}
+
+model PaymentReconciliation {
+  id                         String                      @id @default(uuid())
+  orderId                    String                      @unique
+  status                     PaymentReconciliationStatus @default(NOT_STARTED)
+  expectedAmountCents        Int
+  receivedAmountCents        Int                         @default(0)
+  differenceCents            Int                         @default(0)
+  expectedCurrency           String                      @default("USD")
+  receivedCurrency           String?
+  notes                      String?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  order                      PaymentOrder                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("payment_reconciliation")
+}
+
+model PaymentRefundPlaceholder {
+  id              String       @id @default(uuid())
+  orderId         String
+  amountCents     Int          @default(0)
+  status          String       @default("PLACEHOLDER_ONLY")
+  reason          String?
+  createdByUserId String?
+  createdAt       DateTime     @default(now())
+  order           PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payment_refunds_placeholder")
+}
+
+model PaymentManualReview {
+  id              String       @id @default(uuid())
+  orderId         String
+  reason          String
+  status          String       @default("OPEN")
+  notes           String?
+  createdByUserId String?
+  resolvedByUserId String?
+  createdAt       DateTime     @default(now())
+  resolvedAt      DateTime?
+  order           PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payment_manual_reviews")
 }
 
 model AnalystAssignment {

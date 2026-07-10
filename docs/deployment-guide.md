@@ -26,6 +26,17 @@ Required variables:
 - `ODDS_API_KEY`
 - `NOWPAYMENTS_API_KEY`
 - `NOWPAYMENTS_IPN_SECRET`
+- `NOWPAYMENTS_BASE_URL`
+- `NOWPAYMENTS_PAY_CURRENCY`
+- `NOWPAYMENTS_PRICE_CURRENCY`
+- `NOWPAYMENTS_PUBLIC_KEY` (optional)
+- `BACKEND_PUBLIC_URL`
+
+NOWPayments production webhook URL:
+
+`https://football-performance-funds-backend.vercel.app/api/payments/nowpayments/webhook`
+
+Configure the webhook URL in the NOWPayments dashboard. Never place API keys, IPN secrets, wallet private keys, or recovery phrases in frontend environment variables, source code, documentation, or screenshots.
 
 Optional Intelligence Core provider variables:
 

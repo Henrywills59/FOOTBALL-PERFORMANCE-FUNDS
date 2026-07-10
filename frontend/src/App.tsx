@@ -40,6 +40,8 @@ import type {
   NotificationPreferences,
   OperationalNotification,
   OperationalReport,
+  PaymentCenter,
+  PaymentOrder,
   PredictionResult,
   PredictionQueueItem,
   PredictionWorkflowQueue,
@@ -118,8 +120,8 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
-const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
+const adminNavItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Payments", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
@@ -345,6 +347,8 @@ export default function App() {
   const [mediaDashboard, setMediaDashboard] = useState<MediaDashboard | null>(null);
   const [commercialControl, setCommercialControl] = useState<CommercialControlCenter | null>(null);
   const [infrastructureControl, setInfrastructureControl] = useState<InfrastructureControlCenter | null>(null);
+  const [paymentCenter, setPaymentCenter] = useState<PaymentCenter | null>(null);
+  const [adminPaymentCenter, setAdminPaymentCenter] = useState<PaymentCenter | null>(null);
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(normalizedPathname());
@@ -737,6 +741,7 @@ export default function App() {
       const mediaData = await apiGet<MediaDashboard>("/admin/media/dashboard", token);
       const commercialControlData = await apiGet<CommercialControlCenter>("/admin/commercial/control", token);
       const infrastructureControlData = await apiGet<InfrastructureControlCenter>("/admin/infrastructure", token);
+      const adminPaymentsData = await apiGet<PaymentCenter>("/admin/payments", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
@@ -762,6 +767,7 @@ export default function App() {
       setMediaDashboard(mediaData);
       setCommercialControl(commercialControlData);
       setInfrastructureControl(infrastructureControlData);
+      setAdminPaymentCenter(adminPaymentsData);
       setAdminInvestorManagement(investorManagementData);
       setAdminAnalystControl(analystControlData);
       setWarRoom(warRoomData);
@@ -775,7 +781,7 @@ export default function App() {
 
   async function loadInvestorData(token: string) {
     try {
-      const [dashboard, profile, plans, portfolioData, reports, distributions, withdrawalData, walletData] = await Promise.all([
+      const [dashboard, profile, plans, portfolioData, reports, distributions, withdrawalData, walletData, paymentsData] = await Promise.all([
         apiGet<InvestorDashboard>("/investor/dashboard", token),
         apiGet<InvestorProfile>("/investor/profile", token),
         apiGet<{ plans: InvestmentPlan[] }>("/investor/plans", token),
@@ -784,6 +790,7 @@ export default function App() {
         apiGet<{ distributions: InvestorDistribution[] }>("/investor/distributions", token),
         apiGet<{ withdrawals: WithdrawalRequest[] }>("/investor/withdrawals", token),
         apiGet<InvestorWallet>("/wallet", token),
+        apiGet<PaymentCenter>("/payments/center", token),
       ]);
       setInvestorDashboard(dashboard);
       setInvestorProfile(profile);
@@ -793,6 +800,7 @@ export default function App() {
       setInvestorDistributions(distributions.distributions);
       setWithdrawals(withdrawalData.withdrawals);
       setWallet(walletData);
+      setPaymentCenter(paymentsData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load investor portal");
     }
@@ -871,6 +879,35 @@ export default function App() {
   async function investorSimulate(body: InvestorSimulatorInput) {
     if (!session) throw new Error("Login required");
     return apiPost<{ simulation: InvestorSimulatorResult }>("/investor/simulator", session.token, body);
+  }
+
+  async function createInvestorFundingCheckout(body: {
+    packageId: string;
+    lockPeriodCode: "SIX_MONTHS" | "TWELVE_MONTHS";
+    amountCents: number;
+  }) {
+    if (!session) return;
+    const data = await apiPost<{ order: PaymentOrder }>("/payments/investor-funding/checkout", session.token, {
+      ...body,
+      acknowledgementsAccepted: true,
+      termsAccepted: true,
+    });
+    setMessage("NOWPayments checkout created. Complete payment only on the official provider page.");
+    await loadInvestorData(session.token);
+    return data.order;
+  }
+
+  async function createSubscriptionCheckout(planCode: string, billingCycle: "MONTHLY" | "ANNUAL") {
+    if (!session) return;
+    const data = await apiPost<{ order: PaymentOrder }>("/payments/subscription/checkout", session.token, {
+      planCode,
+      billingCycle,
+      purpose: "SUBSCRIPTION",
+    });
+    setMessage("Subscription checkout created. Access activates only after confirmed payment.");
+    if (session.user.role === "ADMIN") await loadAdminData(session.token);
+    else await loadOperationsData(session.token);
+    return data.order;
   }
 
   async function adminAction(path: string, body?: object) {
@@ -1287,6 +1324,7 @@ export default function App() {
               mediaDashboard={mediaDashboard}
               commercialControl={commercialControl}
               infrastructureControl={infrastructureControl}
+              paymentCenter={adminPaymentCenter}
               treasuryDashboard={treasuryDashboard}
               executiveSituation={executiveSituation}
               executiveAnalytics={executiveAnalytics}
@@ -1363,9 +1401,12 @@ export default function App() {
               portfolio={portfolio}
               reports={investorReports}
               wallet={wallet}
+              paymentCenter={paymentCenter}
               withdrawals={withdrawals}
               notifications={investorNotifications}
               onAction={investorAction}
+              onInvestorFundingCheckout={createInvestorFundingCheckout}
+              onSubscriptionCheckout={createSubscriptionCheckout}
               onSimulate={investorSimulate}
               commercialStructure={commercialStructure}
             />
@@ -1486,6 +1527,7 @@ function AdminPortal({
   mediaDashboard,
   commercialControl,
   infrastructureControl,
+  paymentCenter,
   treasuryDashboard,
   executiveSituation,
   executiveAnalytics,
@@ -1523,6 +1565,7 @@ function AdminPortal({
   mediaDashboard: MediaDashboard | null;
   commercialControl: CommercialControlCenter | null;
   infrastructureControl: InfrastructureControlCenter | null;
+  paymentCenter: PaymentCenter | null;
   treasuryDashboard: TreasuryDashboard | null;
   executiveSituation: ExecutiveSituationRoom | null;
   executiveAnalytics: ExecutiveAnalyticsDashboard | null;
@@ -1559,6 +1602,10 @@ function AdminPortal({
 
   if (activeView === "Infrastructure Center") {
     return <InfrastructureControlCenterView control={infrastructureControl} onAction={onAction} />;
+  }
+
+  if (activeView === "Payment Center") {
+    return <AdminPaymentCenterView center={paymentCenter} onAction={onAction} />;
   }
 
   if (activeView === "Prediction Review") {
@@ -3739,7 +3786,10 @@ function InvestorPortal({
   distributions,
   notifications,
   onAction,
+  onInvestorFundingCheckout,
   onSimulate,
+  onSubscriptionCheckout,
+  paymentCenter,
   plans,
   portfolio,
   profile,
@@ -3753,7 +3803,10 @@ function InvestorPortal({
   distributions: InvestorDistribution[];
   notifications: string[];
   onAction: (path: string, body: object) => Promise<void>;
+  onInvestorFundingCheckout: (body: { packageId: string; lockPeriodCode: "SIX_MONTHS" | "TWELVE_MONTHS"; amountCents: number }) => Promise<PaymentOrder | undefined>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
+  onSubscriptionCheckout: (planCode: string, billingCycle: "MONTHLY" | "ANNUAL") => Promise<PaymentOrder | undefined>;
+  paymentCenter: PaymentCenter | null;
   plans: InvestmentPlan[];
   profile: InvestorProfile | null;
   portfolio: { active: InvestorInvestment[]; completed: InvestorInvestment[] };
@@ -3987,12 +4040,23 @@ function InvestorPortal({
     );
   }
 
+  if (activeView === "Payments") {
+    return (
+      <InvestorPaymentCenterView
+        center={paymentCenter}
+        commercialStructure={commercialStructure}
+        onInvestorFundingCheckout={onInvestorFundingCheckout}
+        onSubscriptionCheckout={onSubscriptionCheckout}
+      />
+    );
+  }
+
   if (activeView === "Investment Plans") {
     return (
       <Panel title="Investment Plans">
         <RiskDisclaimer />
         <p className="mt-3 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">
-          Minimum investment is {money(commercialStructure.minimumInvestmentCents)}. Payment APIs are not connected yet; this records placeholder investment interest.
+          Minimum investment is {money(commercialStructure.minimumInvestmentCents)}. Use Payments for secure NOWPayments checkout. This section remains available for placeholder investment interest records.
         </p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {plans.map((plan) => (
@@ -4073,6 +4137,173 @@ function InvestorPortal({
           ))}
           {!withdrawals.length ? <p className="text-sm text-zinc-400">No withdrawal requests yet.</p> : null}
         </div>
+      </Panel>
+    </div>
+  );
+}
+
+function ProviderStatusPanel({ center }: { center: PaymentCenter | null }) {
+  const provider = center?.provider;
+  return (
+    <Panel title="NOWPayments Provider Status">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MiniStat label="Connection" value={provider?.status ?? "MISSING_CONFIGURATION"} />
+        <MiniStat label="Price currency" value={provider?.priceCurrency ?? "USD"} />
+        <MiniStat label="Payment asset" value={provider?.payCurrency ?? "USDTTRC20"} />
+        <MiniStat label="Webhook" value={provider?.webhookUrl ? "Ready" : "Pending"} />
+      </div>
+      {provider?.configured ? (
+        <p className="mt-3 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-100">Provider credentials are configured server-side. Secret values are never shown.</p>
+      ) : (
+        <p className="mt-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">Provider not configured: {(provider?.missingVariables ?? []).join(", ") || "environment variables missing"}.</p>
+      )}
+      <p className="mt-3 break-all text-xs text-zinc-500">Production webhook URL: {provider?.webhookUrl ?? "https://football-performance-funds-backend.vercel.app/api/payments/nowpayments/webhook"}</p>
+    </Panel>
+  );
+}
+
+function PaymentOrderList({ orders, admin, onAction }: { orders: PaymentOrder[]; admin?: boolean; onAction?: (path: string, body?: object) => Promise<void> }) {
+  return (
+    <div className="space-y-3">
+      {orders.map((order) => (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={order.id}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{order.purpose}</p>
+              <h3 className="mt-1 font-semibold">{order.providerPaymentId ?? order.id}</h3>
+              <p className="mt-1 text-sm text-zinc-400">Expected {money(order.expectedAmountCents)} Â· Received {money(order.receivedAmountCents)} Â· {order.priceCurrency}/{order.payCurrency}</p>
+              <p className="mt-1 text-sm text-zinc-400">Reconciliation: {order.reconciliationStatus}</p>
+            </div>
+            <StatusPill status={order.status} />
+          </div>
+          {order.paymentAddress ? (
+            <p className="mt-3 break-all rounded-md bg-zinc-900 p-3 text-xs text-zinc-300">Payment address: {order.paymentAddress}</p>
+          ) : null}
+          {order.checkoutUrl ? (
+            <a className="mt-3 inline-flex rounded-md bg-emerald-300 px-3 py-2 text-sm font-semibold text-zinc-950" href={order.checkoutUrl} rel="noreferrer" target="_blank">Open secure checkout</a>
+          ) : null}
+          {admin && onAction ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/payments/${order.id}/refresh`)}>Refresh status</button>
+              <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/payments/${order.id}/notes`, { note: "Reviewed from Admin Payment Center." })}>Add review note</button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+      {!orders.length ? <p className="text-sm text-zinc-400">No payment orders yet.</p> : null}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const tone = ["FINISHED", "CONFIRMED"].includes(status)
+    ? "bg-emerald-500/10 text-emerald-200"
+    : ["FAILED", "EXPIRED", "REFUNDED", "DISPUTED"].includes(status)
+      ? "bg-red-500/10 text-red-200"
+      : ["PARTIALLY_PAID", "MANUAL_REVIEW"].includes(status)
+        ? "bg-amber-500/10 text-amber-100"
+        : "bg-blue-500/10 text-blue-100";
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{status}</span>;
+}
+
+function InvestorPaymentCenterView({
+  center,
+  commercialStructure,
+  onInvestorFundingCheckout,
+  onSubscriptionCheckout,
+}: {
+  center: PaymentCenter | null;
+  commercialStructure: CommercialStructure;
+  onInvestorFundingCheckout: (body: { packageId: string; lockPeriodCode: "SIX_MONTHS" | "TWELVE_MONTHS"; amountCents: number }) => Promise<PaymentOrder | undefined>;
+  onSubscriptionCheckout: (planCode: string, billingCycle: "MONTHLY" | "ANNUAL") => Promise<PaymentOrder | undefined>;
+}) {
+  return (
+    <div className="mt-6 space-y-4">
+      <ProviderStatusPanel center={center} />
+      <Panel title="Secure Checkout">
+        <p className="rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">
+          Send only the displayed asset using the displayed network. Sending another asset or network may result in loss or delay.
+        </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <form
+            className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onSubscriptionCheckout(String(form.get("planCode")), String(form.get("billingCycle")) as "MONTHLY" | "ANNUAL");
+            }}
+          >
+            <h3 className="font-semibold">Subscription checkout</h3>
+            <label className="mt-3 block text-sm text-zinc-300">Plan
+              <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" name="planCode" defaultValue="PROFESSIONAL">
+                {commercialStructure.subscriberPlans.filter((plan) => plan.monthlyPriceCents > 0).map((plan) => (
+                  <option key={plan.code} value={plan.code}>{plan.name} - {money(plan.monthlyPriceCents)}/mo</option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-3 block text-sm text-zinc-300">Billing
+              <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" name="billingCycle" defaultValue="MONTHLY">
+                <option value="MONTHLY">Monthly</option>
+                <option value="ANNUAL">Annual</option>
+              </select>
+            </label>
+            <div className="mt-4"><SubmitButton>Create subscription checkout</SubmitButton></div>
+          </form>
+          <form
+            className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onInvestorFundingCheckout({
+                packageId: String(form.get("packageId")),
+                lockPeriodCode: String(form.get("lockPeriodCode")) as "SIX_MONTHS" | "TWELVE_MONTHS",
+                amountCents: Math.round(Number(form.get("amount")) * 100),
+              });
+            }}
+          >
+            <h3 className="font-semibold">Investor funding checkout</h3>
+            <label className="mt-3 block text-sm text-zinc-300">Package
+              <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" name="packageId" defaultValue={commercialStructure.investorPackages[0]?.id}>
+                {commercialStructure.investorPackages.filter((item) => item.status === "ACTIVE" && item.visible).map((item) => (
+                  <option key={item.id} value={item.id}>{item.name} - minimum {money(item.minimumAmountCents)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-3 block text-sm text-zinc-300">Lock period
+              <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" name="lockPeriodCode" defaultValue="SIX_MONTHS">
+                {commercialStructure.lockPeriods.filter((item) => item.enabled).map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
+              </select>
+            </label>
+            <TextField label="Funding amount" name="amount" type="number" />
+            <p className="mt-3 text-xs text-zinc-500">Simulation only. Returns are not guaranteed. Principal is recorded separately from company profit after confirmed payment.</p>
+            <div className="mt-4"><SubmitButton>Create investor checkout</SubmitButton></div>
+          </form>
+        </div>
+      </Panel>
+      <Panel title="Transaction History">
+        <PaymentOrderList orders={center?.orders ?? []} />
+      </Panel>
+    </div>
+  );
+}
+
+function AdminPaymentCenterView({ center, onAction }: { center: PaymentCenter | null; onAction: (path: string, body?: object) => Promise<void> }) {
+  const orders = center?.orders ?? [];
+  const manualReview = orders.filter((order) => ["MANUAL_REVIEW", "PARTIALLY_PAID"].includes(order.status));
+  return (
+    <div className="mt-6 space-y-4">
+      <ProviderStatusPanel center={center} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Payment orders" value={String(orders.length)} />
+        <Metric label="Confirmed" value={String(orders.filter((order) => ["CONFIRMED", "FINISHED"].includes(order.status)).length)} />
+        <Metric label="Manual review" value={String(manualReview.length)} />
+        <Metric label="Expected value" value={money(orders.reduce((total, order) => total + order.expectedAmountCents, 0))} />
+      </div>
+      <Panel title="Manual Review Queue">
+        <PaymentOrderList orders={manualReview} admin onAction={onAction} />
+      </Panel>
+      <Panel title="All Payment Orders">
+        <PaymentOrderList orders={orders} admin onAction={onAction} />
       </Panel>
     </div>
   );

@@ -5,6 +5,7 @@ import { AuthError, AuthService } from "./authService.js";
 declare module "express-serve-static-core" {
   interface Request {
     user?: AuthUser;
+    rawBody?: Buffer;
   }
 }
 

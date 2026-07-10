@@ -17,6 +17,16 @@ const securityNotice = "Payments and subscription changes are completed securely
 const now = () => new Date().toISOString();
 const daysFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
 
+function nowPaymentsConfigured() {
+  return Boolean(
+    process.env.NOWPAYMENTS_API_KEY?.trim() &&
+    process.env.NOWPAYMENTS_IPN_SECRET?.trim() &&
+    process.env.NOWPAYMENTS_BASE_URL?.trim() &&
+    process.env.NOWPAYMENTS_PAY_CURRENCY?.trim() &&
+    process.env.NOWPAYMENTS_PRICE_CURRENCY?.trim(),
+  );
+}
+
 export class InfrastructureControlError extends Error {
   constructor(message: string, public readonly statusCode = 400) {
     super(message);
@@ -146,11 +156,13 @@ export class InfrastructureService {
       usageBasedCostCents: 0,
       transactionFeePercent: 0.5,
       nextRenewalDate: null,
-      apiConnectionStatus: "NOT_CONFIGURED",
-      healthStatus: "NOT_CONFIGURED",
+      apiConnectionStatus: nowPaymentsConfigured() ? "CONNECTED" : "NOT_CONFIGURED",
+      webhookStatus: process.env.NOWPAYMENTS_IPN_SECRET?.trim() ? "CONNECTED" : "NOT_CONFIGURED",
+      healthStatus: nowPaymentsConfigured() ? "CONNECTED" : "NOT_CONFIGURED",
       currentUsage: 0,
       usageLimit: 100,
-      tags: ["payments", "crypto", "placeholder"],
+      notes: `Credential status only. Main payment currency: ${process.env.NOWPAYMENTS_PAY_CURRENCY?.trim() || "USDTTRC20"}. API key and IPN secret values are never displayed.`,
+      tags: ["payments", "crypto", "nowpayments"],
     }),
     this.provider({
       id: "provider_openai",

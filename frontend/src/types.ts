@@ -878,6 +878,65 @@ export type InvestorWallet = {
   transactions: WalletTransaction[];
 };
 
+export type PaymentPurpose =
+  | "SUBSCRIPTION"
+  | "INVESTOR_FUNDING"
+  | "SUBSCRIPTION_RENEWAL"
+  | "SUBSCRIPTION_UPGRADE"
+  | "OTHER_ADMIN_APPROVED";
+
+export type PaymentStatus =
+  | "CREATED"
+  | "WAITING"
+  | "CONFIRMING"
+  | "PARTIALLY_PAID"
+  | "CONFIRMED"
+  | "FINISHED"
+  | "FAILED"
+  | "EXPIRED"
+  | "REFUNDED"
+  | "DISPUTED"
+  | "MANUAL_REVIEW";
+
+export type PaymentOrder = {
+  id: string;
+  userId: string;
+  purpose: PaymentPurpose;
+  status: PaymentStatus;
+  provider: "NOWPAYMENTS";
+  providerPaymentId: string | null;
+  providerInvoiceId: string | null;
+  planCode: string | null;
+  billingCycle: string | null;
+  investmentPackageId: string | null;
+  lockPeriodCode: string | null;
+  expectedAmountCents: number;
+  receivedAmountCents: number;
+  priceCurrency: string;
+  payCurrency: string;
+  paymentAddress: string | null;
+  checkoutUrl: string | null;
+  expiresAt: string | null;
+  confirmedAt: string | null;
+  reconciliationStatus: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentCenter = {
+  provider: {
+    name: "NOWPayments";
+    configured: boolean;
+    status: "CONFIGURED" | "MISSING_CONFIGURATION";
+    priceCurrency: string;
+    payCurrency: string;
+    webhookUrl: string;
+    missingVariables: string[];
+  };
+  orders: PaymentOrder[];
+};
+
 export type AnalystAssignmentStatus = "ASSIGNED" | "COMPLETED" | "CANCELLED";
 export type IntelligenceSubmissionStatus = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "PUBLISHED";
 

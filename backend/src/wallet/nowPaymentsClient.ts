@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type NowPaymentsConfig = {
   apiKey?: string;
@@ -49,8 +49,22 @@ export class NowPaymentsClient {
     if (!this.config.ipnSecret || !signature) {
       return false;
     }
-    const body = JSON.stringify(payload);
+    const body = JSON.stringify(sortObjectDeep(payload));
     const expected = createHmac("sha512", this.config.ipnSecret).update(body).digest("hex");
-    return expected === signature;
+    const expectedBuffer = Buffer.from(expected, "hex");
+    const actualBuffer = Buffer.from(signature, "hex");
+    if (expectedBuffer.length !== actualBuffer.length) return false;
+    return timingSafeEqual(expectedBuffer, actualBuffer);
   }
+}
+
+function sortObjectDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObjectDeep);
+  if (!value || typeof value !== "object") return value;
+  return Object.keys(value as Record<string, unknown>)
+    .sort()
+    .reduce<Record<string, unknown>>((result, key) => {
+      result[key] = sortObjectDeep((value as Record<string, unknown>)[key]);
+      return result;
+    }, {});
 }
