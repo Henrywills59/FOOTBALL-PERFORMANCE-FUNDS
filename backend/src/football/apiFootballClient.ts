@@ -183,6 +183,7 @@ export class ApiFootballClient {
       url: redactQuery(url),
       statusCode: response.status,
       responseTimeMs: Date.now() - startedAt,
+      responseHeaders: headersToRecord(response.headers),
       quota,
       providerError,
       responseBody,
@@ -323,4 +324,12 @@ function parseJsonOrText(text: string) {
 
 function redactQuery(url: URL) {
   return `${url.origin}${url.pathname}${url.search}`;
+}
+
+function headersToRecord(headers: Headers) {
+  const result: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
 }
