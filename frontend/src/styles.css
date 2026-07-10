@@ -12,3 +12,27 @@
 body {
   margin: 0;
 }
+
+.hero-slide {
+  animation: fpfHeroSlide 18s infinite;
+  opacity: 0;
+  transform: scale(1.04);
+}
+
+@keyframes fpfHeroSlide {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  33% {
+    opacity: 1;
+  }
+  44% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}

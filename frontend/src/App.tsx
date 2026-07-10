@@ -104,6 +104,7 @@ const navItems = [
   "Live Match Center",
   "Intelligence Reports",
   "Profile",
+  "Settings",
   "Notifications",
   "Referral Program",
 ] as const;
@@ -117,6 +118,7 @@ type AdminNavItem = (typeof adminNavItems)[number];
 type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
 type AnalystNavItem = (typeof analystNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
+type SearchResult = { category: string; title: string; description: string; target?: string };
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
   SUBSCRIBER: "Subscriber",
@@ -182,6 +184,8 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
   const [error, setError] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [showLaunchCenter, setShowLaunchCenter] = useState(() => localStorage.getItem("fpf_launch_center_seen") !== "true");
   const [fixtures, setFixtures] = useState<FootballFixtureSummary[]>([]);
   const [liveFixtures, setLiveFixtures] = useState<FootballFixtureSummary[]>([]);
   const [selectedFixture, setSelectedFixture] = useState<FootballFixtureDetail | null>(null);
@@ -338,6 +342,57 @@ export default function App() {
     const walletItems = wallet?.transactions.slice(0, 3).map((transaction) => `Wallet ${transaction.type.toLowerCase()} is ${transaction.status.toLowerCase()}.`) ?? [];
     return [...walletItems, "Subscription expiry reminder: review account access before renewal."];
   }, [wallet]);
+
+  const searchResults = useMemo<SearchResult[]>(() => {
+    const query = globalSearch.trim().toLowerCase();
+    if (!query) return [];
+    const pool: SearchResult[] = [
+      ...predictions.map((prediction) => ({
+        category: "Predictions",
+        title: prediction.predictedOutcome,
+        description: `${prediction.recommendedMarket} | confidence ${prediction.confidenceScore}%`,
+        target: "Opportunity Center",
+      })),
+      ...publishedIntelligence.map((item) => ({
+        category: "Intelligence",
+        title: item.match,
+        description: `${item.market} | ${item.prediction}`,
+        target: "Opportunity Center",
+      })),
+      ...fixtures.map((fixture) => ({
+        category: "Matches",
+        title: `${fixture.homeTeamName} vs ${fixture.awayTeamName}`,
+        description: `${fixture.leagueName} | ${fixture.status}`,
+        target: "Live Match Center",
+      })),
+      ...adminUsers.map((user) => ({
+        category: "Users",
+        title: user.name,
+        description: `${user.email} | ${user.role}`,
+        target: "User Management",
+      })),
+      ...operationalReports.map((report) => ({
+        category: "Reports",
+        title: report.title,
+        description: `${report.type} | ${report.status}`,
+        target: "Reports",
+      })),
+      ...(adminInvestorManagement?.investors ?? []).map((investor) => ({
+        category: "Investors",
+        title: investor.name,
+        description: `${investor.email} | ${money(investor.totalCapitalCents)}`,
+        target: "Investor Management",
+      })),
+      ...fixtures.flatMap((fixture) => [
+        { category: "Teams", title: fixture.homeTeamName, description: fixture.leagueName, target: "Live Match Center" },
+        { category: "Teams", title: fixture.awayTeamName, description: fixture.leagueName, target: "Live Match Center" },
+      ]),
+      { category: "Players", title: "Player intelligence", description: "Player profile search is provider-ready pending live data.", target: "Live Match Center" },
+    ];
+    return pool
+      .filter((item) => `${item.category} ${item.title} ${item.description}`.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [adminInvestorManagement, adminUsers, fixtures, globalSearch, operationalReports, predictions, publishedIntelligence]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
     const serialized = JSON.stringify(nextSession);
@@ -797,38 +852,27 @@ export default function App() {
 
   if (!session) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white">
-        <section className="mx-auto grid min-h-screen w-full max-w-6xl gap-10 px-6 py-10 lg:grid-cols-[1fr_420px] lg:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">Subscriber access</p>
-            <h1 className="mt-4 text-4xl font-bold tracking-normal sm:text-5xl">Football Performance Fund</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-300">
-              A fast, focused workspace for approved football opportunities, match context, and smart slip building.
-            </p>
-            <PricingCards plans={commercialStructure.subscriberPlans} />
-          </div>
-          <AuthPanel
-            apiCheck={apiCheck}
-            apiUrl={apiUrl}
-            error={error}
-            message={message}
-            mode={mode}
-            onApiTest={testApiConnection}
-            setMode={setMode}
-            onLogin={safelySubmit(handleLogin)}
-            onRegister={safelySubmit(handleRegister)}
-            onForgot={safelySubmit(handleForgotPassword)}
-            languages={languages}
-            currencies={currencies}
-            preferences={globalPreferences}
-            onLocalPreferenceChange={(next) => {
-              const updated = { ...globalPreferences, ...next };
-              setGlobalPreferences(updated);
-              localStorage.setItem("fpf_global_preferences", JSON.stringify(updated));
-            }}
-          />
-        </section>
-      </main>
+      <PublicLaunchExperience
+        apiCheck={apiCheck}
+        apiUrl={apiUrl}
+        commercialStructure={commercialStructure}
+        currencies={currencies}
+        error={error}
+        languages={languages}
+        message={message}
+        mode={mode}
+        onApiTest={testApiConnection}
+        onForgot={safelySubmit(handleForgotPassword)}
+        onLocalPreferenceChange={(next) => {
+          const updated = { ...globalPreferences, ...next };
+          setGlobalPreferences(updated);
+          localStorage.setItem("fpf_global_preferences", JSON.stringify(updated));
+        }}
+        onLogin={safelySubmit(handleLogin)}
+        onRegister={safelySubmit(handleRegister)}
+        preferences={globalPreferences}
+        setMode={setMode}
+      />
     );
   }
 
@@ -848,8 +892,8 @@ export default function App() {
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col lg:flex-row">
         <aside className="border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r lg:p-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">FPF Subscriber</p>
-            <h1 className="mt-2 text-xl font-bold">Command Center</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
+            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
           </div>
           <nav className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1">
             {navigationItems.map((item) => (
@@ -887,7 +931,7 @@ export default function App() {
               type="button"
               onClick={() => setAdminMode((current) => !current)}
             >
-              {adminMode ? "Subscriber View" : "Admin Portal"}
+              {adminMode ? "Subscriber View" : "Admin Command"}
             </button>
           ) : null}
           <button
@@ -902,11 +946,11 @@ export default function App() {
         <section className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm text-emerald-300">{loadingLabel}</p>
+              <p className="text-sm text-emerald-300">{loadingLabel} | {roleLabels[session.user.role]} workspace</p>
               <h2 className="mt-1 text-3xl font-bold tracking-normal">Welcome, {session.user.name}</h2>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
-              Subscriber Preview · Active
+              Unified FPF Platform | Ready
             </div>
             <GlobalPreferenceBar
               currencies={currencies}
@@ -917,8 +961,36 @@ export default function App() {
             />
           </div>
 
+          <UnifiedCommandBar
+            notifications={operationalNotifications}
+            query={globalSearch}
+            results={searchResults}
+            role={session.user.role}
+            onQuery={setGlobalSearch}
+            onResult={(result) => {
+              if (!result.target) return;
+              if (adminMode) setActiveAdminView(result.target as AdminNavItem);
+              else setActiveView(result.target as NavItem);
+            }}
+            onSettings={() => {
+              if (adminMode) setActiveAdminView("Settings");
+              else if (session.user.role === "SUBSCRIBER") setActiveView("Settings");
+              else if (session.user.role === "INVESTOR") setActiveInvestorView("Profile");
+            }}
+          />
+
           {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
           {message ? <p className="mt-4 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
+
+          {showLaunchCenter ? (
+            <LaunchExperienceCenter
+              role={session.user.role}
+              onDismiss={() => {
+                localStorage.setItem("fpf_launch_center_seen", "true");
+                setShowLaunchCenter(false);
+              }}
+            />
+          ) : null}
 
           {adminMode ? (
             <AdminPortal
@@ -1037,6 +1109,20 @@ export default function App() {
               languages={languages}
               onPasswordChange={safelySubmit(handlePasswordChange)}
               onPreferences={saveGlobalPreferences}
+              preferences={globalPreferences}
+              session={session}
+              timezones={timezones}
+            />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Settings" ? (
+            <SettingsCenterView
+              currencies={currencies}
+              languages={languages}
+              notificationPreferences={notificationPreferences}
+              notifications={operationalNotifications}
+              onPasswordChange={safelySubmit(handlePasswordChange)}
+              onPreferences={saveGlobalPreferences}
+              onSaveNotificationPreferences={saveNotificationPreferences}
               preferences={globalPreferences}
               session={session}
               timezones={timezones}
@@ -2610,6 +2696,147 @@ function InvestorPortal({
   );
 }
 
+function PublicLaunchExperience({
+  apiCheck,
+  apiUrl,
+  commercialStructure,
+  currencies,
+  error,
+  languages,
+  message,
+  mode,
+  onApiTest,
+  onForgot,
+  onLocalPreferenceChange,
+  onLogin,
+  onRegister,
+  preferences,
+  setMode,
+}: {
+  apiCheck: string;
+  apiUrl: string;
+  commercialStructure: CommercialStructure;
+  currencies: CurrencySetting[];
+  error: string;
+  languages: LanguageSetting[];
+  message: string;
+  mode: AuthMode;
+  onApiTest: () => void;
+  onForgot: (event: FormEvent<HTMLFormElement>) => void;
+  onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
+  onLogin: (event: FormEvent<HTMLFormElement>) => void;
+  onRegister: (event: FormEvent<HTMLFormElement>) => void;
+  preferences: UserGlobalPreferences;
+  setMode: (mode: AuthMode) => void;
+}) {
+  const slides = [
+    "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?auto=format&fit=crop&w=1600&q=80",
+    "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1600&q=80",
+    "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1600&q=80",
+  ];
+  return (
+    <main className="min-h-screen bg-zinc-950 text-white">
+      <nav className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/85 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Football Performance Fund</p>
+            <h1 className="text-lg font-semibold">FPF Global Intelligence Platform</h1>
+          </div>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {["AI Intelligence", "Subscribers", "Investors", "Pricing", "FAQ"].map((item) => (
+              <a className="rounded-md px-3 py-2 text-zinc-300 transition hover:bg-zinc-900 hover:text-white" href={`#${item.toLowerCase().replaceAll(" ", "-")}`} key={item}>{item}</a>
+            ))}
+          </div>
+        </div>
+      </nav>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0">
+          {slides.map((slide, index) => (
+            <div className="hero-slide absolute inset-0 bg-cover bg-center" key={slide} style={{ animationDelay: `${index * 6}s`, backgroundImage: `linear-gradient(90deg, rgba(9,9,11,0.96), rgba(9,9,11,0.74), rgba(9,9,11,0.35)), url(${slide})` }} />
+          ))}
+        </div>
+        <div className="relative mx-auto grid min-h-[92vh] max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1fr_430px] lg:items-center">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">Institutional football AI</p>
+            <h2 className="mt-5 max-w-4xl text-5xl font-black tracking-normal sm:text-7xl">
+              We Don't Chase Luck.<br />We Build Performance.
+            </h2>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-200">
+              One premium platform for football intelligence, subscriber opportunities, investor transparency, media operations, commercial controls, and global settings.
+            </p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-4">
+              <MiniStat label="AI mode" value="Safe" />
+              <MiniStat label="Markets" value="Global" />
+              <MiniStat label="Accuracy" value="Tracked" />
+              <MiniStat label="Status" value="Ready" />
+            </div>
+          </div>
+          <AuthPanel
+            apiCheck={apiCheck}
+            apiUrl={apiUrl}
+            currencies={currencies}
+            error={error}
+            languages={languages}
+            message={message}
+            mode={mode}
+            onApiTest={onApiTest}
+            onForgot={onForgot}
+            onLocalPreferenceChange={onLocalPreferenceChange}
+            onLogin={onLogin}
+            onRegister={onRegister}
+            preferences={preferences}
+            setMode={setMode}
+          />
+        </div>
+      </section>
+      <section className="mx-auto max-w-7xl space-y-10 px-6 py-12">
+        <div id="ai-intelligence" className="grid gap-4 md:grid-cols-3">
+          <LaunchCard title="AI Statistics" body="Confidence, risk, value, opportunity, and decision scores are centralized through the FPF Intelligence Core." />
+          <LaunchCard title="Live Performance" body="Performance cards, reports, and alerts are ready for live data expansion without changing the user experience." />
+          <LaunchCard title="Prediction Accuracy" body="Approved predictions and analyst-reviewed intelligence are tracked without guaranteeing outcomes." />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <LaunchPanel id="subscribers" title="Subscriber Benefits" items={["Approved opportunities only", "AI explanations and risk context", "Live match center and intelligence feed", "Global settings and notification controls"]} />
+          <LaunchPanel id="investors" title="Investor Benefits" items={["Portfolio transparency", "Weekly distribution placeholders", "Investment simulator", "Risk-first reporting and lock-period visibility"]} />
+        </div>
+        <PricingCards plans={commercialStructure.subscriberPlans} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          {["FPF feels like a professional command room, not a tips feed.", "The risk language is clear and disciplined.", "The investor portal gives the transparency a serious platform needs."].map((quote) => (
+            <blockquote className="rounded-lg border border-zinc-800 bg-zinc-900 p-5 text-sm leading-6 text-zinc-300" key={quote}>{quote}</blockquote>
+          ))}
+        </div>
+        <LaunchPanel id="faq" title="FAQ" items={["Payments are placeholder-only until approved providers are connected.", "Returns are never guaranteed.", "AI output is explainable and admin-review ready.", "Language, currency, and timezone settings are built into the platform."]} />
+      </section>
+      <footer className="border-t border-zinc-800 px-6 py-8 text-sm text-zinc-500">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span>Football Performance Fund</span>
+          <span>Global football intelligence, built for performance.</span>
+        </div>
+      </footer>
+    </main>
+  );
+}
+
+function LaunchCard({ body, title }: { body: string; title: string }) {
+  return (
+    <article className="rounded-lg border border-emerald-400/20 bg-zinc-900/80 p-5 shadow-xl shadow-emerald-950/10">
+      <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">{title}</p>
+      <p className="mt-3 text-sm leading-6 text-zinc-300">{body}</p>
+    </article>
+  );
+}
+
+function LaunchPanel({ id, items, title }: { id: string; items: string[]; title: string }) {
+  return (
+    <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-5" id={id}>
+      <h2 className="text-xl font-semibold">{title}</h2>
+      <div className="mt-4 grid gap-2">
+        {items.map((item) => <div className="rounded-md bg-zinc-950 p-3 text-sm text-zinc-300" key={item}>{item}</div>)}
+      </div>
+    </section>
+  );
+}
+
 function AuthPanel({
   apiCheck,
   apiUrl,
@@ -3176,6 +3403,148 @@ function NotificationCenterView({
   );
 
   return compact ? content : <Panel title="Subscriber Notification Center">{content}</Panel>;
+}
+
+function UnifiedCommandBar({
+  notifications,
+  onQuery,
+  onResult,
+  onSettings,
+  query,
+  results,
+  role,
+}: {
+  notifications: OperationalNotification[];
+  onQuery: (value: string) => void;
+  onResult: (result: SearchResult) => void;
+  onSettings: () => void;
+  query: string;
+  results: SearchResult[];
+  role: AuthUser["role"];
+}) {
+  const unread = notifications.filter((item) => item.status === "UNREAD").length;
+  return (
+    <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/80 p-3">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-start">
+        <div className="relative">
+          <input
+            className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-300"
+            placeholder="Search predictions, users, matches, reports, investors, teams, players"
+            type="search"
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+          />
+          {query ? (
+            <div className="absolute left-0 right-0 top-12 z-20 max-h-80 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-2xl">
+              {results.map((result) => (
+                <button className="w-full rounded-md p-3 text-left text-sm transition hover:bg-zinc-900" key={`${result.category}-${result.title}`} type="button" onClick={() => onResult(result)}>
+                  <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{result.category}</p>
+                  <p className="mt-1 font-semibold">{result.title}</p>
+                  <p className="mt-1 text-zinc-400">{result.description}</p>
+                </button>
+              ))}
+              {!results.length ? <EmptyState message="No matching platform records yet." /> : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-zinc-300">
+          {unread} unread alerts | {roleLabels[role]}
+        </div>
+        <button className="rounded-md border border-emerald-700 px-4 py-3 text-sm text-emerald-100 transition hover:border-emerald-300" type="button" onClick={onSettings}>
+          Settings
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function LaunchExperienceCenter({ onDismiss, role }: { onDismiss: () => void; role: AuthUser["role"] }) {
+  return (
+    <section className="mt-4 rounded-lg border border-emerald-400/20 bg-gradient-to-br from-zinc-900 to-emerald-950/20 p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Welcome Wizard</p>
+          <h2 className="mt-2 text-xl font-semibold">Your unified FPF workspace is ready.</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
+            First login tour: use global search, review notifications, configure settings, then open your {role.toLowerCase()} command area. Empty states, coming-soon pages, maintenance messaging, success screens, and a custom 404 pattern are prepared in the launch system.
+          </p>
+        </div>
+        <button className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={onDismiss}>Start</button>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {[
+          ["Loading", "Skeleton loaders keep navigation calm while data arrives."],
+          ["Success", "Actions return clear confirmation messages."],
+          ["Empty", "No-data areas explain what will appear next."],
+          ["Fallback", "Maintenance, coming soon, and 404 states use the same FPF system language."],
+        ].map(([title, body]) => <MiniStat key={title} label={title} value={body} />)}
+      </div>
+    </section>
+  );
+}
+
+function SettingsCenterView({
+  currencies,
+  languages,
+  notificationPreferences,
+  notifications,
+  onPasswordChange,
+  onPreferences,
+  onSaveNotificationPreferences,
+  preferences,
+  session,
+  timezones,
+}: {
+  currencies: CurrencySetting[];
+  languages: LanguageSetting[];
+  notificationPreferences: NotificationPreferences | null;
+  notifications: OperationalNotification[];
+  onPasswordChange: (event: FormEvent<HTMLFormElement>) => void;
+  onPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
+  onSaveNotificationPreferences: (preferences: Partial<NotificationPreferences>) => Promise<void>;
+  preferences: UserGlobalPreferences;
+  session: AuthResponse;
+  timezones: TimezoneSetting[];
+}) {
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Professional Settings Center">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Theme" value="Dark premium" />
+          <MiniStat label="Security" value="JWT session active" />
+          <MiniStat label="Devices" value="Current device trusted" />
+          <MiniStat label="2FA" value="Placeholder ready" />
+        </div>
+      </Panel>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <GlobalPreferencesForm currencies={currencies} languages={languages} onSave={onPreferences} preferences={preferences} timezones={timezones} title="Language, Currency & Timezone" />
+        <Panel title="Security & Sessions">
+          <dl className="space-y-3 text-sm">
+            <ProfileRow label="Account" value={session.user.email} />
+            <ProfileRow label="Role" value={roleLabels[session.user.role]} />
+            <ProfileRow label="Session" value="Bearer token secured in browser storage" />
+            <ProfileRow label="2FA Placeholder" value="Provider-ready, not connected" />
+          </dl>
+          <form className="mt-4 space-y-3" onSubmit={onPasswordChange}>
+            <TextField label="Current password" name="currentPassword" type="password" />
+            <TextField label="New password" name="newPassword" type="password" />
+            <SubmitButton>Update security</SubmitButton>
+          </form>
+        </Panel>
+      </div>
+      <NotificationCenterView
+        legacyNotifications={[]}
+        notifications={notifications}
+        onSavePreferences={onSaveNotificationPreferences}
+        preferences={notificationPreferences}
+      />
+      <div className="grid gap-4 md:grid-cols-3">
+        <LaunchCard title="Maintenance Page" body="Platform-wide maintenance messaging is ready for operations events." />
+        <LaunchCard title="Coming Soon Page" body="Future modules can be introduced without leaving blank screens." />
+        <LaunchCard title="Custom 404 Page" body="Unknown routes use a clear FPF recovery pattern in the unified app shell." />
+      </div>
+    </div>
+  );
 }
 
 function ReferralView({ referral }: { referral: SubscriberCommandCenter["referral"] | null }) {
