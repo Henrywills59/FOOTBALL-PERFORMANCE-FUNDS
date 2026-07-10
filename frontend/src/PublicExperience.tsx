@@ -227,6 +227,7 @@ export function Mission21PublicExperience({
         </div>
       </PublicSection>
 
+      <PublicRouteCoverage onNavigate={onNavigate} />
       <PerformanceCenter experience={experience} />
 
       <PublicSection id="subscribers" eyebrow="Subscriber experience" title="Approved intelligence with confidence and risk context">
@@ -339,6 +340,96 @@ function PerformanceCenter({ experience }: { experience: PublicExperience | null
   );
 }
 
+function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
+  const publicPages = [
+    {
+      id: "about",
+      eyebrow: "About FPF",
+      title: "A disciplined football intelligence company, not a public tipster feed",
+      body: "FPF combines normalized football data, AI scoring, internal analyst workflow, admin approval, and transparent reporting. Production authentication, role permissions, payments, treasury, and monitoring remain connected to the existing backend.",
+      action: ["How FPF Works", "/how-fpf-works", "how-fpf-works"],
+    },
+    {
+      id: "platform",
+      eyebrow: "Unified platform",
+      title: "One website and operating system",
+      body: "Guests, subscribers, investors, analysts, admins, and executives enter through one production app shell. Each role receives the correct protected workspace after login.",
+      action: ["Sign In", "/login", "auth"],
+    },
+    {
+      id: "technology",
+      eyebrow: "Technology",
+      title: "Built around the Intelligence Core",
+      body: "Football data, scoring engines, decision outputs, reports, payments, notifications, and monitoring flow through production services rather than visual-only mock data.",
+      action: ["Explore Intelligence", "/ai-intelligence", "intelligence-preview"],
+    },
+    {
+      id: "ai-intelligence",
+      eyebrow: "AI intelligence",
+      title: "Explainable confidence, risk, value, and opportunity scoring",
+      body: "FPF intelligence is designed to show why an opportunity is being considered, what changed, and what risks remain before publication.",
+      action: ["View Pricing", "/pricing", "pricing"],
+    },
+    {
+      id: "analyst-applications",
+      eyebrow: "Analyst pathway",
+      title: "Professional internal analysts, never public tipsters",
+      body: "Analysts work inside a protected workspace with assignments, rulebooks, discipline metrics, War Room context, and admin-controlled publication.",
+      action: ["Create Analyst Account", "/register", "auth"],
+    },
+    {
+      id: "investor-packages",
+      eyebrow: "Investor packages",
+      title: "Investment education with risk-first placeholders",
+      body: "Investor pages explain minimums, lock periods, simulator assumptions, weekly distributions, and reporting while real payment and treasury rules stay in production services.",
+      action: ["Investor Overview", "/investors", "investor-transparency"],
+    },
+    {
+      id: "blog",
+      eyebrow: "Insights",
+      title: "Launch updates and market education",
+      body: "The publishing surface is ready for verified updates, market education, platform announcements, and operating notes without exposing private selections.",
+      action: ["Media Center", "/media", "media"],
+    },
+    {
+      id: "media",
+      eyebrow: "Media",
+      title: "Press, announcements, and public communication",
+      body: "Public communication points to approved FPF messaging. Internal campaigns and approvals remain inside the Admin Media Command Center.",
+      action: ["Contact", "/contact", "contact"],
+    },
+    {
+      id: "careers",
+      eyebrow: "Careers",
+      title: "Analysts, operations, engineering, and support",
+      body: "FPF is prepared for future hiring and contracted expert workflows without exposing internal analyst identities to subscribers.",
+      action: ["Apply as Analyst", "/analyst-applications", "analyst-applications"],
+    },
+    {
+      id: "contact",
+      eyebrow: "Contact",
+      title: "Support and partnership entry points",
+      body: "Subscribers, investors, analysts, partners, and media can start from the public app and route into the correct authenticated workflow when needed.",
+      action: ["Sign In", "/login", "auth"],
+    },
+  ] as const;
+
+  return (
+    <PublicSection id="public-route-center" eyebrow="Public website routes" title="Every public route resolves inside one production experience">
+      <div className="route-grid">
+        {publicPages.map((page) => (
+          <article id={page.id} key={page.id}>
+            <span>{page.eyebrow}</span>
+            <strong>{page.title}</strong>
+            <p>{page.body}</p>
+            <button type="button" onClick={() => onNavigate(page.action[1], page.action[2])}>{page.action[0]}</button>
+          </article>
+        ))}
+      </div>
+    </PublicSection>
+  );
+}
+
 function TrustCenter({ experience }: { experience: PublicExperience | null }) {
   const trust = experience?.trust;
   const rows = [
@@ -436,6 +527,24 @@ function LegalDisclosures() {
     <section className="legal-strip" id="risk-disclosure">
       <strong>Legal and risk disclosures</strong>
       <p>FPF does not guarantee football outcomes, fixed returns, investor profits, or payout timing. Public pages do not show private selections, investor identities, analyst identities, treasury balances, API keys, or internal logs.</p>
+      <div className="legal-route-grid">
+        <article id="privacy-policy">
+          <strong>Privacy Policy</strong>
+          <p>FPF uses account, preference, security, and operational data only to run the platform experience and protected role workspaces.</p>
+        </article>
+        <article id="terms-and-conditions">
+          <strong>Terms and Conditions</strong>
+          <p>Membership, investor, analyst, and admin workflows are governed by platform rules, risk disclosures, and production authorization controls.</p>
+        </article>
+        <article id="responsible-participation">
+          <strong>Responsible Participation</strong>
+          <p>Football intelligence is informational. Users must manage risk responsibly and understand that outcomes are never guaranteed.</p>
+        </article>
+        <article id="cookie-policy">
+          <strong>Cookie Policy</strong>
+          <p>Theme, language, currency, timezone, and authenticated session preferences are used to keep the app consistent across visits.</p>
+        </article>
+      </div>
     </section>
   );
 }

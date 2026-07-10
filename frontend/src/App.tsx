@@ -81,6 +81,7 @@ const apiUrl = normalizeApiBaseUrl(
     import.meta.env.VITE_API_URL ||
     "https://football-performance-funds-backend.vercel.app",
 );
+const enableExecutiveGlobalCommandWall = import.meta.env.VITE_ENABLE_EXECUTIVE_GLOBAL_COMMAND_WALL === "true";
 
 function apiEndpoint(path: string) {
   return `${apiUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
@@ -123,7 +124,9 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavBaseItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const futureAdminNavItems = ["Global Command Wall"] as const;
+const adminNavItems = [...adminNavBaseItems, ...(enableExecutiveGlobalCommandWall ? futureAdminNavItems : [])] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Payments", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
 
@@ -1894,6 +1897,10 @@ function AdminPortal({
     return <ExecutiveSituationRoomView situation={executiveSituation} />;
   }
 
+  if (activeView === "Global Command Wall") {
+    return <ExecutiveGlobalCommandWallPlaceholder />;
+  }
+
   if (activeView === "Fixture Management") {
     return (
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -2899,6 +2906,55 @@ function ExecutiveSituationRoomView({ situation }: { situation: ExecutiveSituati
         </Panel>
       </div>
     </div>
+  );
+}
+
+function ExecutiveGlobalCommandWallPlaceholder() {
+  return (
+    <CommandCenterLayout
+      eyebrow="Module 7 reserved"
+      title="Executive Global Command Wall"
+      summary="The navigation slot, route handler, and shared layout are ready. The module remains disabled unless VITE_ENABLE_EXECUTIVE_GLOBAL_COMMAND_WALL is explicitly enabled."
+    >
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatusCard title="Access" value="Admin / Executive only" detail="Protected by the existing admin shell and role guard." />
+        <StatusCard title="Data source" value="Pending final module" detail="Will connect to production APIs without replacing current dashboards." />
+        <StatusCard title="Release state" value="Feature-flagged" detail="Safe to add later without rebuilding the app shell." />
+      </div>
+    </CommandCenterLayout>
+  );
+}
+
+function CommandCenterLayout({
+  children,
+  eyebrow,
+  summary,
+  title,
+}: {
+  children: ReactNode;
+  eyebrow: string;
+  summary: string;
+  title: string;
+}) {
+  return (
+    <div className="mt-6 space-y-4">
+      <section className="rounded-lg border border-emerald-900/60 bg-gradient-to-br from-zinc-950 via-slate-950 to-emerald-950/30 p-5 shadow-xl shadow-black/20">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">{eyebrow}</p>
+        <h3 className="mt-2 text-2xl font-bold">{title}</h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">{summary}</p>
+      </section>
+      {children}
+    </div>
+  );
+}
+
+function StatusCard({ detail, title, value }: { detail: string; title: string; value: string }) {
+  return (
+    <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+      <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">{title}</p>
+      <strong className="mt-2 block text-lg text-white">{value}</strong>
+      <span className="mt-2 block text-sm leading-6 text-zinc-400">{detail}</span>
+    </article>
   );
 }
 

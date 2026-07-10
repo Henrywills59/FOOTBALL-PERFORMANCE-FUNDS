@@ -314,12 +314,14 @@ textarea:focus-visible {
 .signal-grid div,
 .workflow-grid article,
 .workspace-preview,
+.route-grid article,
 .performance-grid article,
 .value-grid article,
 .trust-grid article,
 .timeline article,
 .pricing-grid article,
 .faq-grid article,
+.legal-route-grid article,
 .legal-strip {
   border: 1px solid var(--fpf-border);
   border-radius: 0.75rem;
@@ -334,6 +336,7 @@ textarea:focus-visible {
 .activity-track span,
 .signal-grid span,
 .workspace-preview span,
+.route-grid span,
 .trust-grid span {
   display: block;
   color: var(--fpf-subtle);
@@ -342,7 +345,8 @@ textarea:focus-visible {
 
 .activity-track strong,
 .signal-grid strong,
-.workspace-preview strong {
+.workspace-preview strong,
+.route-grid strong {
   display: block;
   margin-top: 0.35rem;
   color: var(--fpf-text);
@@ -411,22 +415,26 @@ textarea:focus-visible {
 
 .workflow-grid,
 .preview-grid,
+.route-grid,
 .performance-grid,
 .value-grid,
 .trust-grid,
 .pricing-grid,
+.legal-route-grid,
 .faq-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .workflow-grid article,
 .workspace-preview,
+.route-grid article,
 .performance-grid article,
 .value-grid article,
 .trust-grid article,
 .timeline article,
 .pricing-grid article,
-.faq-grid article {
+.faq-grid article,
+.legal-route-grid article {
   padding: 1.15rem;
 }
 
@@ -466,10 +474,27 @@ textarea:focus-visible {
 
 .performance-grid p,
 .performance-grid small,
+.route-grid p,
+.legal-route-grid p,
 .faq-grid p,
 .pricing-grid li {
   color: var(--fpf-muted);
   line-height: 1.65;
+}
+
+.route-grid button {
+  border: 1px solid var(--fpf-strong-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fpf-text);
+  cursor: pointer;
+  margin-top: 0.65rem;
+  padding: 0.68rem 0.9rem;
+}
+
+.route-grid button:hover {
+  border-color: var(--fpf-accent);
+  color: var(--fpf-accent);
 }
 
 .value-grid.compact {
@@ -548,10 +573,12 @@ textarea:focus-visible {
   .activity-track,
   .workflow-grid,
   .preview-grid,
+  .route-grid,
   .performance-grid,
   .value-grid,
   .trust-grid,
   .pricing-grid,
+  .legal-route-grid,
   .faq-grid {
     grid-template-columns: 1fr;
   }
