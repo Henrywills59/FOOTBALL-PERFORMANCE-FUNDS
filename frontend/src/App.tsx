@@ -26,6 +26,7 @@ import type {
   FootballFixtureDetail,
   FootballFixtureSummary,
   GlobalizationBootstrap,
+  InfrastructureControlCenter,
   InvestmentPlan,
   InvestorDashboard,
   InvestorDistribution,
@@ -117,7 +118,7 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Executive BI", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
 
@@ -267,6 +268,7 @@ export default function App() {
   const [adminAnnouncements, setAdminAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [mediaDashboard, setMediaDashboard] = useState<MediaDashboard | null>(null);
   const [commercialControl, setCommercialControl] = useState<CommercialControlCenter | null>(null);
+  const [infrastructureControl, setInfrastructureControl] = useState<InfrastructureControlCenter | null>(null);
 
   useEffect(() => {
     const loadPublicGlobalization = async () => {
@@ -616,6 +618,7 @@ export default function App() {
       const announcementsData = await apiGet<{ announcements: AdminAnnouncement[] }>("/admin/announcements", token);
       const mediaData = await apiGet<MediaDashboard>("/admin/media/dashboard", token);
       const commercialControlData = await apiGet<CommercialControlCenter>("/admin/commercial/control", token);
+      const infrastructureControlData = await apiGet<InfrastructureControlCenter>("/admin/infrastructure", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
@@ -640,6 +643,7 @@ export default function App() {
       setAdminAnnouncements(announcementsData.announcements);
       setMediaDashboard(mediaData);
       setCommercialControl(commercialControlData);
+      setInfrastructureControl(infrastructureControlData);
       setAdminInvestorManagement(investorManagementData);
       setAdminAnalystControl(analystControlData);
       setWarRoom(warRoomData);
@@ -759,6 +763,9 @@ export default function App() {
       path.includes("/admin/announcements/") ||
       path.includes("/admin/media/posts/") ||
       path.includes("/admin/commercial/investor-packages/") ||
+      path.includes("/admin/infrastructure/alerts/") ||
+      path.includes("/admin/infrastructure/renewals/") ||
+      path.includes("/admin/infrastructure/procurement/") ||
       path.includes("/admin/analyst-applications/")
       ? "PATCH"
       : "POST";
@@ -1149,6 +1156,7 @@ export default function App() {
               analystControl={adminAnalystControl}
               mediaDashboard={mediaDashboard}
               commercialControl={commercialControl}
+              infrastructureControl={infrastructureControl}
               treasuryDashboard={treasuryDashboard}
               executiveSituation={executiveSituation}
               executiveAnalytics={executiveAnalytics}
@@ -1347,6 +1355,7 @@ function AdminPortal({
   adminAnnouncements,
   mediaDashboard,
   commercialControl,
+  infrastructureControl,
   treasuryDashboard,
   executiveSituation,
   executiveAnalytics,
@@ -1383,6 +1392,7 @@ function AdminPortal({
   adminAnnouncements: AdminAnnouncement[];
   mediaDashboard: MediaDashboard | null;
   commercialControl: CommercialControlCenter | null;
+  infrastructureControl: InfrastructureControlCenter | null;
   treasuryDashboard: TreasuryDashboard | null;
   executiveSituation: ExecutiveSituationRoom | null;
   executiveAnalytics: ExecutiveAnalyticsDashboard | null;
@@ -1415,6 +1425,10 @@ function AdminPortal({
 
   if (activeView === "Executive BI") {
     return <ExecutiveBiView dashboard={executiveAnalytics} />;
+  }
+
+  if (activeView === "Infrastructure Center") {
+    return <InfrastructureControlCenterView control={infrastructureControl} onAction={onAction} />;
   }
 
   if (activeView === "Prediction Review") {
@@ -2629,6 +2643,194 @@ function WarRoomTagList({ items, title }: { items: string[]; title: string }) {
       <div className="mt-2 flex flex-wrap gap-2">
         {items.map((item) => <span className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300" key={item}>{item}</span>)}
       </div>
+    </div>
+  );
+}
+
+function InfrastructureControlCenterView({
+  control,
+  onAction,
+}: {
+  control: InfrastructureControlCenter | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  if (!control) return <LoadingSkeleton label="Preparing Infrastructure Center" />;
+  const overview = control.overview;
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Providers" value={String(overview.totalProviders)} />
+        <Metric label="Connected APIs" value={String(overview.connectedApis)} />
+        <Metric label="Renewals in 7 days" value={String(overview.renewalsDueIn7Days)} />
+        <Metric label="Monthly cost" value={money(overview.monthlyOperatingCostCents)} />
+        <Metric label="Annual cost" value={money(overview.annualOperatingCostCents)} />
+        <Metric label="Credentials due" value={String(overview.credentialsRequiringRotation)} />
+        <Metric label="Over budget" value={String(overview.providersOverBudget)} />
+        <Metric label="Procurement approvals" value={String(overview.procurementRequestsAwaitingApproval)} />
+      </div>
+
+      <Panel title="Executive Infrastructure Dashboard">
+        <p className="text-sm text-zinc-300">{overview.executiveSummary}</p>
+        <p className="mt-3 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">{control.securityNotice}</p>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+        <Panel title="Provider Registry">
+          <form
+            className="mb-4 grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              const providerWebsite = String(form.get("providerWebsite") ?? "https://example.com");
+              void onAction("/admin/infrastructure/providers", {
+                name: form.get("name"),
+                category: form.get("category"),
+                servicePurpose: form.get("servicePurpose"),
+                providerWebsite,
+                dashboardUrl: providerWebsite,
+                billingUrl: providerWebsite,
+                renewalUrl: providerWebsite,
+                documentationUrl: providerWebsite,
+                monthlyCostCents: Number(form.get("monthlyCostCents") ?? 0),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Provider name" name="name" type="text" />
+            <SelectField label="Category" name="category" value="Other" options={["Football Data", "Odds Data", "Artificial Intelligence", "Hosting", "Database", "Crypto Payments", "Security", "Analytics", "Other"].map((item) => ({ value: item, label: item }))} />
+            <TextField label="Purpose" name="servicePurpose" type="text" />
+            <TextField label="Official HTTPS URL" name="providerWebsite" type="url" value="https://example.com" />
+            <TextField label="Monthly cost cents" name="monthlyCostCents" type="number" value="0" />
+            <div className="self-end"><SubmitButton>Add provider metadata</SubmitButton></div>
+          </form>
+          <div className="space-y-3">
+            {control.providers.map((provider) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={provider.id}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{provider.category} · {provider.healthStatus}</p>
+                    <h3 className="mt-2 font-semibold">{provider.name}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">{provider.servicePurpose}</p>
+                    <p className="mt-2 text-xs text-zinc-500">Owner: {provider.internalOwner} · Plan: {provider.currentPlan}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <a className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:border-emerald-300" href={provider.dashboardUrl} rel="noreferrer" target="_blank">Dashboard</a>
+                    <a className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:border-emerald-300" href={provider.billingUrl} rel="noreferrer" target="_blank">Billing</a>
+                    <a className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200 hover:border-emerald-300" href={provider.documentationUrl} rel="noreferrer" target="_blank">Docs</a>
+                    <button className="rounded-md bg-emerald-300 px-3 py-2 text-xs font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/admin/infrastructure/providers/${provider.id}/test`)}>Test</button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                  <MiniStat label="Monthly" value={money(provider.monthlyCostCents)} />
+                  <MiniStat label="Usage" value={`${provider.currentUsage}/${provider.usageLimit}`} />
+                  <MiniStat label="Quota left" value={String(provider.remainingQuota)} />
+                  <MiniStat label="Renewal" value={provider.nextRenewalDate ? new Date(provider.nextRenewalDate).toLocaleDateString() : "Manual"} />
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Credential Metadata">
+          <div className="space-y-3">
+            {control.credentialMetadata.map((credential) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={credential.id}>
+                <p className="font-semibold">{credential.credentialName}</p>
+                <p className="text-zinc-400">{credential.maskedIdentifier} · {credential.rotationStatus}</p>
+                <p className="mt-1 text-xs text-zinc-500">{credential.notes}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Renewal Calendar">
+          <CompactTreasuryList items={control.renewals.map((item) => `${item.providerName}: ${money(item.amountDueCents)} due in ${item.daysRemaining} day(s)`)} />
+        </Panel>
+        <Panel title="Usage & Quotas">
+          <CompactTreasuryList items={control.usage.map((item) => `${item.providerName}: ${item.usagePercent}% used (${item.status})`)} />
+        </Panel>
+        <Panel title="Provider Alerts">
+          <div className="space-y-2">
+            {control.alerts.map((alert) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm" key={alert.id}>
+                <p className="font-semibold">{alert.severity} · {alert.providerName}</p>
+                <p className="mt-1 text-zinc-400">{alert.message}</p>
+                <button className="mt-2 rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/admin/infrastructure/alerts/${alert.id}`, {})}>Acknowledge</button>
+              </div>
+            ))}
+            {!control.alerts.length ? <p className="text-sm text-zinc-400">No infrastructure alerts.</p> : null}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Cost & FinOps">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MiniStat label="Recurring monthly" value={money(control.costs.monthlyRecurringCostCents)} />
+            <MiniStat label="Usage costs" value={money(control.costs.usageBasedCostsCents)} />
+            <MiniStat label="Forecast monthly" value={money(control.costs.forecastedMonthlyCostCents)} />
+            <MiniStat label="First-year estimate" value={money(control.costs.forecastedAnnualCostCents)} />
+          </div>
+          <CompactTreasuryList items={control.costs.costByProvider.map((item) => `${item.providerName}: ${money(item.monthlyCostCents)}/month`)} />
+        </Panel>
+
+        <Panel title="Provider Comparison">
+          <div className="space-y-3">
+            {control.comparisons.map((item) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.category} · {item.status}</p>
+                <h3 className="mt-2 font-semibold">{item.providerName}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{item.features.join(", ")} · Complexity {item.integrationComplexity}</p>
+                <p className="mt-2 text-sm text-zinc-500">{item.coverage} · {item.contractCommitment}</p>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Procurement Workflow">
+          <form
+            className="grid gap-3 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/infrastructure/procurement", {
+                businessNeed: form.get("businessNeed"),
+                requestedProvider: form.get("requestedProvider"),
+                recommendedPlan: form.get("recommendedPlan"),
+                estimatedMonthlyCostCents: Number(form.get("estimatedMonthlyCostCents") ?? 0),
+                notes: form.get("notes"),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Business need" name="businessNeed" type="text" />
+            <TextField label="Provider" name="requestedProvider" type="text" />
+            <TextField label="Recommended plan" name="recommendedPlan" type="text" />
+            <TextField label="Monthly cost cents" name="estimatedMonthlyCostCents" type="number" value="0" />
+            <div className="md:col-span-2"><TextField label="Notes" name="notes" type="text" /></div>
+            <div className="md:col-span-2"><SubmitButton>Create procurement request</SubmitButton></div>
+          </form>
+          <CompactTreasuryList items={control.procurement.map((item) => `${item.requestedProvider}: ${item.status} · ${money(item.estimatedMonthlyCostCents)}/month`)} />
+        </Panel>
+
+        <Panel title="Procurement Report">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MiniStat label="Essential launch" value={money(control.procurementReport.totals.essentialLaunchTotalCents)} />
+            <MiniStat label="Recommended growth" value={money(control.procurementReport.totals.recommendedGrowthTotalCents)} />
+            <MiniStat label="Monthly total" value={money(control.procurementReport.totals.monthlyTotalCents)} />
+            <MiniStat label="First year" value={money(control.procurementReport.totals.estimatedFirstYearTotalCents)} />
+          </div>
+          <CompactTreasuryList items={control.procurementReport.providers.map((item) => `${item.provider}: ${item.required ? "Required" : "Optional"} · ${item.purchaseStatus}`)} />
+        </Panel>
+      </div>
+
+      <Panel title="Infrastructure Tasks">
+        <CompactTreasuryList items={control.tasks.map((task) => `${task.priority}: ${task.title} · due ${new Date(task.dueDate).toLocaleDateString()}`)} />
+      </Panel>
     </div>
   );
 }

@@ -32,6 +32,8 @@ import type { FootballRepository } from "./football/types.js";
 import { GlobalizationRepository } from "./globalization/repository.js";
 import { createGlobalizationRouter } from "./globalization/routes.js";
 import { GlobalizationService } from "./globalization/service.js";
+import { createInfrastructureRouter } from "./infrastructure/infrastructureRoutes.js";
+import { InfrastructureService } from "./infrastructure/infrastructureService.js";
 import { MemoryCacheStore } from "./intelligence/cache.js";
 import { DecisionEngineService } from "./intelligence/decision/decisionService.js";
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
@@ -248,6 +250,7 @@ export function createApp(options?: {
   const mediaService = new MediaService(mediaRepository);
   const treasuryService = new TreasuryService();
   const analyticsService = new AnalyticsService();
+  const infrastructureService = new InfrastructureService();
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -350,17 +353,25 @@ export function createApp(options?: {
   app.use("/api", createAuthRouter(authService));
   app.use(
     "/api",
-    createCommercialRouter({
-      authService,
-      commercialService,
-    }),
-  );
-  app.use(
-    "/api",
     createOperationsRouter({
       authService,
       operationsService,
       adminService,
+    }),
+  );
+  app.use(
+    "/api",
+    createInfrastructureRouter({
+      authService,
+      infrastructureService,
+      adminService,
+    }),
+  );
+  app.use(
+    "/api",
+    createCommercialRouter({
+      authService,
+      commercialService,
     }),
   );
   app.use(

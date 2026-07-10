@@ -2048,3 +2048,297 @@ model AnalyticsExportRequest {
   @@index([providerStatus])
   @@map("analytics_export_requests")
 }
+
+model ProviderCategorySetting {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("provider_categories")
+}
+
+model ProviderLink {
+  id          String   @id @default(uuid())
+  providerId  String
+  label       String
+  url         String
+  linkType    String
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([linkType])
+  @@map("provider_links")
+}
+
+model ProviderPlan {
+  id              String   @id @default(uuid())
+  providerId      String
+  planName        String
+  planTier        String
+  monthlyCostCents Int     @default(0)
+  annualCostCents  Int     @default(0)
+  features        Json     @default("[]")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([active])
+  @@map("provider_plans")
+}
+
+model ProviderBudget {
+  id                String   @id @default(uuid())
+  providerId         String?
+  category           String
+  monthlyBudgetCents Int      @default(0)
+  annualBudgetCents  Int      @default(0)
+  ownerUserId        String?
+  status             String   @default("ACTIVE")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([category])
+  @@index([status])
+  @@map("provider_budgets")
+}
+
+model ProviderUsageSnapshot {
+  id          String   @id @default(uuid())
+  providerId  String
+  metric      String
+  used        Int      @default(0)
+  limit       Int      @default(0)
+  remaining   Int      @default(0)
+  status      String   @default("OK")
+  capturedAt  DateTime @default(now())
+
+  @@index([providerId])
+  @@index([status])
+  @@map("provider_usage")
+}
+
+model ProviderQuota {
+  id          String   @id @default(uuid())
+  providerId  String
+  metric      String
+  quotaLimit  Int      @default(0)
+  threshold   Int      @default(90)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([enabled])
+  @@map("provider_quotas")
+}
+
+model ProviderHealthCheck {
+  id             String   @id @default(uuid())
+  providerId      String
+  status          String
+  responseTimeMs  Int      @default(0)
+  statusCode      Int?
+  errorMessage    String?
+  checkedAt       DateTime @default(now())
+
+  @@index([providerId])
+  @@index([status])
+  @@map("provider_health_checks")
+}
+
+model ProviderCredentialMetadataRecord {
+  id                     String   @id @default(uuid())
+  providerId              String
+  credentialName          String
+  credentialType          String
+  environment             String
+  secretManagerReference  String
+  maskedIdentifier        String
+  rotationStatus          String   @default("UNKNOWN")
+  connectionTestStatus    String   @default("NOT_TESTED")
+  lastRotatedAt           DateTime?
+  nextRotationAt          DateTime?
+  expiryDate              DateTime?
+  credentialOwner         String?
+  notes                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([rotationStatus])
+  @@map("provider_credentials")
+}
+
+model ProviderCredentialRotation {
+  id            String   @id @default(uuid())
+  credentialId  String
+  status        String   @default("SCHEDULED")
+  requestedBy   String?
+  completedBy   String?
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@index([credentialId])
+  @@index([status])
+  @@map("provider_credential_rotations")
+}
+
+model ProviderBillingRecord {
+  id              String   @id @default(uuid())
+  providerId       String
+  billingPeriod    String
+  amountCents      Int      @default(0)
+  currency         String   @default("USD")
+  status           String   @default("PENDING")
+  providerPortalUrl String?
+  paidAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([status])
+  @@map("provider_billing_records")
+}
+
+model ProviderInvoiceRecord {
+  id              String   @id @default(uuid())
+  providerId       String
+  billingRecordId  String?
+  invoiceReference String?
+  amountCents      Int      @default(0)
+  currency         String   @default("USD")
+  status           String   @default("PENDING")
+  invoiceDate      DateTime?
+  dueDate          DateTime?
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+
+  @@index([providerId])
+  @@index([status])
+  @@map("provider_invoices")
+}
+
+model ProviderAlertRecord {
+  id          String   @id @default(uuid())
+  providerId  String?
+  type        String
+  severity    String
+  status      String   @default("OPEN")
+  message     String
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  @@index([providerId])
+  @@index([severity])
+  @@index([status])
+  @@map("provider_alerts")
+}
+
+model ProviderTaskRecord {
+  id             String   @id @default(uuid())
+  providerId      String?
+  title           String
+  category        String
+  priority        String
+  assignedPerson  String?
+  dueDate         DateTime?
+  status          String   @default("OPEN")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([status])
+  @@map("provider_tasks")
+}
+
+model ProcurementApprovalRecord {
+  id             String   @id @default(uuid())
+  procurementId  String
+  status         String   @default("PENDING")
+  requestedBy    String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([procurementId])
+  @@index([status])
+  @@map("procurement_approvals")
+}
+
+model ProviderComparisonRecord {
+  id                     String   @id @default(uuid())
+  category               String
+  providerName           String
+  status                 String
+  features               Json     @default("[]")
+  monthlyCostCents       Int      @default(0)
+  annualCostCents        Int      @default(0)
+  reliability            String?
+  integrationComplexity  String?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@map("provider_comparisons")
+}
+
+model ProviderContractRecord {
+  id                   String   @id @default(uuid())
+  providerId            String
+  contractStatus        String   @default("PLACEHOLDER")
+  contractStartDate     DateTime?
+  contractEndDate       DateTime?
+  cancellationDeadline  DateTime?
+  autoRenewal           Boolean  @default(false)
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([contractStatus])
+  @@map("provider_contracts")
+}
+
+model ProviderIncidentRecord {
+  id             String   @id @default(uuid())
+  providerId      String?
+  title           String
+  severity        String
+  status          String   @default("OPEN")
+  rootCause       String?
+  resolution      String?
+  openedAt        DateTime @default(now())
+  resolvedAt      DateTime?
+
+  @@index([providerId])
+  @@index([severity])
+  @@index([status])
+  @@map("provider_incidents")
+}
+
+model InfrastructureCostSnapshot {
+  id                         String   @id @default(uuid())
+  periodLabel                 String
+  monthlyRecurringCostCents   Int      @default(0)
+  usageBasedCostCents         Int      @default(0)
+  taxesCents                  Int      @default(0)
+  forecastedMonthlyCostCents  Int      @default(0)
+  metadata                    Json     @default("{}")
+  capturedAt                  DateTime @default(now())
+
+  @@index([periodLabel])
+  @@map("infrastructure_cost_snapshots")
+}
