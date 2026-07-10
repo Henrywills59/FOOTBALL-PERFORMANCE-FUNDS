@@ -808,11 +808,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
     await ensureInvestorSchema(prisma);
     await ensureGlobalizationSchema(prisma);
     await ensureCommercialSchema(prisma);
-    await ensureBusinessCommercialSchema(prisma);
     await ensureOperationsSchema(prisma);
     await ensureMediaSchema(prisma);
 
     const body = parseBody(request.body);
+    const shouldEnsureBusinessCommercialSchema = body.ensureBusinessCommercialSchema === true;
+    if (shouldEnsureBusinessCommercialSchema) {
+      await ensureBusinessCommercialSchema(prisma);
+    }
     const email =
       typeof body.email === "string"
         ? body.email.trim().toLowerCase()
@@ -854,7 +857,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       investorSchemaEnsured: true,
       globalizationSchemaEnsured: true,
       commercialSchemaEnsured: true,
-      businessCommercialSchemaEnsured: true,
+      businessCommercialSchemaEnsured: shouldEnsureBusinessCommercialSchema,
       operationsSchemaEnsured: true,
       mediaSchemaEnsured: true,
       user,
