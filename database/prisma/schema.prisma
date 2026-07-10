@@ -803,6 +803,186 @@ model PricingSetting {
   @@map("pricing_settings")
 }
 
+model Report {
+  id           String    @id @default(uuid())
+  title        String
+  type         String
+  status       String
+  ownerUserId  String?
+  ownerRole    String?
+  filters      Json
+  summary      String
+  data         Json
+  errorMessage String?
+  generatedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  runs         ReportRun[]
+
+  @@index([type])
+  @@index([status])
+  @@index([ownerUserId])
+  @@map("reports")
+}
+
+model ReportRun {
+  id           String    @id @default(uuid())
+  reportId     String
+  status       String
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+  errorMessage String?
+  report       Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("report_runs")
+}
+
+model ReportSchedule {
+  id          String   @id @default(uuid())
+  reportType  String
+  filters     Json
+  cadence     String
+  enabled     Boolean  @default(false)
+  nextRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("report_schedules")
+}
+
+model SystemHealthCheck {
+  id          String   @id @default(uuid())
+  component   String
+  status      String
+  message     String
+  metadata    Json
+  checkedAt   DateTime @default(now())
+
+  @@index([component])
+  @@map("system_health_checks")
+}
+
+model SystemIncident {
+  id               String         @id @default(uuid())
+  title            String
+  severity         String
+  status           String
+  affectedModules  Json
+  assignedToUserId String?
+  rootCause        String?
+  resolution       String?
+  archived         Boolean        @default(false)
+  createdByUserId  String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  notes            IncidentNote[]
+
+  @@index([status])
+  @@index([severity])
+  @@map("system_incidents")
+}
+
+model IncidentNote {
+  id           String         @id @default(uuid())
+  incidentId   String
+  authorUserId String
+  note         String
+  createdAt    DateTime       @default(now())
+  incident     SystemIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+  @@map("incident_notes")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  category  String
+  status    String
+  title     String
+  message   String
+  metadata  Json
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  userId                     String   @id
+  inAppEnabled               Boolean  @default(true)
+  emailPlaceholderEnabled    Boolean  @default(false)
+  smsPlaceholderEnabled      Boolean  @default(false)
+  whatsappPlaceholderEnabled Boolean  @default(false)
+  pushPlaceholderEnabled     Boolean  @default(false)
+  marketingEnabled           Boolean  @default(true)
+  financialEnabled           Boolean  @default(true)
+  predictionEnabled          Boolean  @default(true)
+  securityEnabled            Boolean  @default(true)
+  updatedAt                  DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+model NotificationDelivery {
+  id             String   @id @default(uuid())
+  notificationId String
+  channel        String
+  status         String
+  provider       String
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  @@index([notificationId])
+  @@map("notification_deliveries")
+}
+
+model AdminAnnouncement {
+  id                      String   @id @default(uuid())
+  title                   String
+  message                 String
+  status                  String
+  targetRoles             Json
+  targetCountries         Json
+  targetLanguages         Json
+  targetSubscriptionPlans Json
+  scheduledAt             DateTime?
+  expiresAt               DateTime?
+  createdByUserId         String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([status])
+  @@map("admin_announcements")
+}
+
+model AnnouncementTarget {
+  id             String   @id @default(uuid())
+  announcementId String
+  targetType     String
+  targetValue    String
+  createdAt      DateTime @default(now())
+
+  @@index([announcementId])
+  @@map("announcement_targets")
+}
+
+model MonitoringEvent {
+  id        String   @id @default(uuid())
+  component String
+  level     String
+  message   String
+  metadata  Json
+  createdAt DateTime @default(now())
+
+  @@index([component])
+  @@index([level])
+  @@map("monitoring_events")
+}
+
 model WalletTransaction {
   id                 String                  @id @default(uuid())
   walletId           String

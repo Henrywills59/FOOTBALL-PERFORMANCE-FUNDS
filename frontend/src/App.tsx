@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   AdminOverview,
+  AdminAnnouncement,
   AdminReports,
   AdminInvestorManagement,
   AdminSettings,
@@ -27,6 +28,10 @@ import type {
   InvestorSimulatorInput,
   InvestorSimulatorResult,
   InvestorWallet,
+  MonitoringOverview,
+  NotificationPreferences,
+  OperationalNotification,
+  OperationalReport,
   PredictionResult,
   PredictionQueueItem,
   PredictionWorkflowQueue,
@@ -38,6 +43,7 @@ import type {
   SubscriberNotification,
   SubscriberOpportunity,
   SubscriberReport,
+  SystemIncident,
   UserGlobalPreferences,
   WithdrawalRequest,
   LanguageSetting,
@@ -98,7 +104,7 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Reports", "Monitoring", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavItems = ["Admin Dashboard", "Prediction Review", "Intelligence Review", "Investor Management", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Documents", "Support", "Wallet", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "Submit Intelligence"] as const;
 
@@ -212,6 +218,12 @@ export default function App() {
   const [currencies, setCurrencies] = useState<CurrencySetting[]>([]);
   const [timezones, setTimezones] = useState<TimezoneSetting[]>([]);
   const [globalPreferences, setGlobalPreferences] = useState<UserGlobalPreferences>(() => getStoredPreferences());
+  const [operationalReports, setOperationalReports] = useState<OperationalReport[]>([]);
+  const [monitoringOverview, setMonitoringOverview] = useState<MonitoringOverview | null>(null);
+  const [systemIncidents, setSystemIncidents] = useState<SystemIncident[]>([]);
+  const [operationalNotifications, setOperationalNotifications] = useState<OperationalNotification[]>([]);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null);
+  const [adminAnnouncements, setAdminAnnouncements] = useState<AdminAnnouncement[]>([]);
 
   useEffect(() => {
     const loadPublicGlobalization = async () => {
@@ -245,6 +257,7 @@ export default function App() {
 
     const loadSessionData = async () => {
       await loadGlobalPreferences(session.token);
+      await loadOperationsData(session.token);
       if (session.user.role === "ADMIN") {
         await loadAdminData(session.token);
         if (!cancelled) await loadSubscriberData(session.token);
@@ -400,6 +413,35 @@ export default function App() {
     );
   }
 
+  async function apiPatch<T>(path: string, token: string, body?: object) {
+    return fetchJson<T>(
+      apiEndpoint(path),
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      },
+    );
+  }
+
+  async function loadOperationsData(token: string) {
+    try {
+      const [reportsData, notificationsData, preferencesData] = await Promise.all([
+        apiGet<{ reports: OperationalReport[] }>("/reports", token),
+        apiGet<{ notifications: OperationalNotification[] }>("/notifications", token),
+        apiGet<NotificationPreferences>("/notifications/preferences", token),
+      ]);
+      setOperationalReports(reportsData.reports);
+      setOperationalNotifications(notificationsData.notifications);
+      setNotificationPreferences(preferencesData);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load operations center");
+    }
+  }
+
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
@@ -450,6 +492,9 @@ export default function App() {
       const intelligenceData = await apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token);
       const reportsData = await apiGet<AdminReports>("/admin/reports", token);
       const monitoringData = await apiGet<PlatformHealth>("/admin/monitoring", token);
+      const operationsMonitoringData = await apiGet<MonitoringOverview>("/admin/monitoring/overview", token);
+      const incidentsData = await apiGet<{ incidents: SystemIncident[] }>("/admin/monitoring/incidents", token);
+      const announcementsData = await apiGet<{ announcements: AdminAnnouncement[] }>("/admin/announcements", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
@@ -464,6 +509,9 @@ export default function App() {
       setAdminIntelligence(intelligenceData.submissions);
       setAdminReports(reportsData);
       setPlatformHealth(monitoringData);
+      setMonitoringOverview(operationsMonitoringData);
+      setSystemIncidents(incidentsData.incidents);
+      setAdminAnnouncements(announcementsData.announcements);
       setAdminInvestorManagement(investorManagementData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load admin portal");
@@ -554,6 +602,7 @@ export default function App() {
     if (!session) return;
     await apiPost(path, session.token, body);
     await loadInvestorData(session.token);
+    await loadOperationsData(session.token);
   }
 
   async function investorSimulate(body: InvestorSimulatorInput) {
@@ -563,7 +612,12 @@ export default function App() {
 
   async function adminAction(path: string, body?: object) {
     if (!session) return;
-    const method = path.includes("/settings") || path.includes("/notes") ? "PATCH" : "POST";
+    const method = path.includes("/settings") ||
+      path.includes("/notes") ||
+      path.includes("/admin/monitoring/incidents/") ||
+      path.includes("/admin/announcements/")
+      ? "PATCH"
+      : "POST";
     await fetchJson(
       apiEndpoint(path),
       {
@@ -575,6 +629,7 @@ export default function App() {
         body: body ? JSON.stringify(body) : undefined,
       },
     );
+    await loadOperationsData(session.token);
     await loadAdminData(session.token);
     if (session.user.role === "ADMIN") await loadSubscriberData(session.token);
   }
@@ -582,6 +637,23 @@ export default function App() {
   async function adminSimulate(body: InvestorSimulatorInput) {
     if (!session) throw new Error("Login required");
     return apiPost<{ simulation: InvestorSimulatorResult }>("/admin/investor-simulator", session.token, body);
+  }
+
+  async function markNotificationRead(id: string) {
+    if (!session) return;
+    await apiPatch<{ notification: OperationalNotification }>(`/notifications/${id}/read`, session.token);
+    await loadOperationsData(session.token);
+  }
+
+  async function saveNotificationPreferences(nextPreferences: Partial<NotificationPreferences>) {
+    if (!session || !notificationPreferences) return;
+    const preferences = await apiPut<NotificationPreferences>("/notifications/preferences", session.token, {
+      ...notificationPreferences,
+      ...nextPreferences,
+      securityEnabled: true,
+    });
+    setNotificationPreferences(preferences);
+    setMessage("Notification preferences updated.");
   }
 
   async function analystAction(path: string, body?: object) {
@@ -856,6 +928,10 @@ export default function App() {
               globalization={{ languages, currencies, timezones, preferences: globalPreferences }}
               onGlobalPreferences={saveGlobalPreferences}
               commercialStructure={commercialStructure}
+              monitoringOverview={monitoringOverview}
+              operationalReports={operationalReports}
+              systemIncidents={systemIncidents}
+              adminAnnouncements={adminAnnouncements}
             />
           ) : null}
 
@@ -938,7 +1014,7 @@ export default function App() {
             />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Intelligence Reports" ? (
-            <ReportsView reports={subscriberCommandCenter?.reports ?? []} />
+            <ReportsView operationalReports={operationalReports} reports={subscriberCommandCenter?.reports ?? []} />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Profile" ? (
             <ProfileView
@@ -952,7 +1028,13 @@ export default function App() {
             />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Notifications" ? (
-            <NotificationCenterView notifications={subscriberCommandCenter?.notifications ?? []} />
+            <NotificationCenterView
+              legacyNotifications={subscriberCommandCenter?.notifications ?? []}
+              notifications={operationalNotifications}
+              preferences={notificationPreferences}
+              onMarkRead={markNotificationRead}
+              onSavePreferences={saveNotificationPreferences}
+            />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Referral Program" ? (
             <ReferralView referral={subscriberCommandCenter?.referral ?? null} />
@@ -977,6 +1059,10 @@ function AdminPortal({
   investorManagement,
   globalization,
   commercialStructure,
+  monitoringOverview,
+  operationalReports,
+  systemIncidents,
+  adminAnnouncements,
   onGlobalPreferences,
   onAction,
   onSimulate,
@@ -1002,6 +1088,10 @@ function AdminPortal({
     preferences: UserGlobalPreferences;
   };
   commercialStructure: CommercialStructure;
+  monitoringOverview: MonitoringOverview | null;
+  operationalReports: OperationalReport[];
+  systemIncidents: SystemIncident[];
+  adminAnnouncements: AdminAnnouncement[];
   onGlobalPreferences: (preferences: Partial<UserGlobalPreferences>) => Promise<void>;
   onAction: (path: string, body?: object) => Promise<void>;
   onSimulate: (body: InvestorSimulatorInput) => Promise<{ simulation: InvestorSimulatorResult }>;
@@ -1076,7 +1166,7 @@ function AdminPortal({
   }
 
   if (activeView === "Reports") {
-    return <AdminReportsView reports={reports} />;
+    return <AdminReportsView operationalReports={operationalReports} reports={reports} onAction={onAction} />;
   }
 
   if (activeView === "Investor Management") {
@@ -1084,19 +1174,11 @@ function AdminPortal({
   }
 
   if (activeView === "Monitoring") {
-    return (
-      <div className="mt-6 space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="API health" value={health?.api ?? "OK"} />
-          <Metric label="Database" value={health?.database ?? "OK"} />
-          <Metric label="Football jobs" value={health?.footballJobs ?? "STOPPED"} />
-          <Metric label="Last sync" value={health?.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString() : "Pending"} />
-        </div>
-        <Panel title="Scheduled Job Monitoring">
-          <CompactAuditList logs={syncLogs} emptyLabel="No scheduled job logs yet." />
-        </Panel>
-      </div>
-    );
+    return <MonitoringDashboardView health={health} incidents={systemIncidents} monitoring={monitoringOverview} syncLogs={syncLogs} onAction={onAction} />;
+  }
+
+  if (activeView === "Announcements") {
+    return <AdminAnnouncementsView announcements={adminAnnouncements} onAction={onAction} />;
   }
 
   if (activeView === "Intelligence Review") {
@@ -1388,10 +1470,76 @@ function AnalystPortal({
   );
 }
 
-function AdminReportsView({ reports }: { reports: AdminReports | null }) {
+function AdminReportsView({
+  onAction,
+  operationalReports,
+  reports,
+}: {
+  onAction: (path: string, body?: object) => Promise<void>;
+  operationalReports: OperationalReport[];
+  reports: AdminReports | null;
+}) {
   if (!reports) return <LoadingSkeleton label="Preparing admin reports" />;
   return (
     <div className="mt-6 space-y-4">
+      <Panel title="Reports Center">
+        <form
+          className="grid gap-3 md:grid-cols-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void onAction("/reports/generate", {
+              type: form.get("type"),
+              filters: {
+                dateFrom: form.get("dateFrom"),
+                dateTo: form.get("dateTo"),
+                userRole: form.get("userRole"),
+                league: form.get("league"),
+                predictionMarket: form.get("predictionMarket"),
+                subscriptionPlan: form.get("subscriptionPlan"),
+                status: form.get("status"),
+                currency: form.get("currency"),
+                country: form.get("country"),
+              },
+            });
+          }}
+        >
+          <SelectField label="Report type" name="type" value="PLATFORM_ACTIVITY" options={[
+            "SUBSCRIBER",
+            "INVESTOR",
+            "PREDICTION_PERFORMANCE",
+            "ANALYST_PERFORMANCE",
+            "CAMPAIGN",
+            "PLATFORM_ACTIVITY",
+            "FINANCIAL_SUMMARY",
+            "DISTRIBUTION",
+            "USER_GROWTH",
+            "SYSTEM_HEALTH",
+          ].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))} />
+          <TextField label="Date from" name="dateFrom" type="date" />
+          <TextField label="Date to" name="dateTo" type="date" />
+          <TextField label="League" name="league" type="text" />
+          <TextField label="Prediction market" name="predictionMarket" type="text" />
+          <TextField label="Subscription plan" name="subscriptionPlan" type="text" />
+          <TextField label="Status" name="status" type="text" />
+          <TextField label="Currency" name="currency" type="text" value="USD" />
+          <TextField label="Country" name="country" type="text" />
+          <div className="md:col-span-3">
+            <SubmitButton>Generate placeholder report</SubmitButton>
+          </div>
+        </form>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {operationalReports.map((report) => (
+            <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={report.id}>
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{report.type} - {report.status}</p>
+              <h3 className="mt-2 font-semibold">{report.title}</h3>
+              <p className="mt-2 text-sm text-zinc-400">{report.summary}</p>
+              <p className="mt-3 text-xs text-zinc-500">Generated: {report.generatedAt ? new Date(report.generatedAt).toLocaleString() : "Pending"}</p>
+            </article>
+          ))}
+          {!operationalReports.length ? <EmptyState message="Generated reports will appear here. Safe placeholder reports are available immediately." /> : null}
+        </div>
+      </Panel>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Subscribers" value={`${reports.subscribers.active}/${reports.subscribers.total}`} />
         <Metric label="Investors" value={`${reports.investors.active}/${reports.investors.total}`} />
@@ -1425,6 +1573,135 @@ function AdminReportsView({ reports }: { reports: AdminReports | null }) {
         </div>
       </Panel>
     </div>
+  );
+}
+
+function statusColor(status: "GREEN" | "AMBER" | "RED") {
+  if (status === "GREEN") return "bg-emerald-500/20 text-emerald-100 border-emerald-500/30";
+  if (status === "AMBER") return "bg-amber-500/20 text-amber-100 border-amber-500/30";
+  return "bg-red-500/20 text-red-100 border-red-500/30";
+}
+
+function MonitoringDashboardView({
+  health,
+  incidents,
+  monitoring,
+  onAction,
+  syncLogs,
+}: {
+  health: PlatformHealth | null;
+  incidents: SystemIncident[];
+  monitoring: MonitoringOverview | null;
+  onAction: (path: string, body?: object) => Promise<void>;
+  syncLogs: AuditLogEntry[];
+}) {
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="API health" value={health?.api ?? "OK"} />
+        <Metric label="Database" value={health?.database ?? "OK"} />
+        <Metric label="Active incidents" value={String(monitoring?.activeIncidents ?? incidents.length)} />
+        <Metric label="Last health check" value={monitoring?.lastHealthCheck ? new Date(monitoring.lastHealthCheck).toLocaleString() : "Pending"} />
+      </div>
+      <Panel title="Monitoring Dashboard">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {(monitoring?.components ?? []).map((component) => (
+            <div className={`rounded-lg border p-4 ${statusColor(component.status)}`} key={component.name}>
+              <p className="text-xs uppercase tracking-[0.14em]">{component.status}</p>
+              <h3 className="mt-2 font-semibold">{component.name}</h3>
+              <p className="mt-2 text-sm">{component.message}</p>
+            </div>
+          ))}
+          {!monitoring ? <EmptyState message="Monitoring overview is loading." /> : null}
+        </div>
+      </Panel>
+      <Panel title="Incident Management">
+        <form
+          className="mb-4 grid gap-3 md:grid-cols-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void onAction("/admin/monitoring/incidents", {
+              title: form.get("title"),
+              severity: form.get("severity"),
+              affectedModules: String(form.get("affectedModules") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+            });
+            event.currentTarget.reset();
+          }}
+        >
+          <TextField label="Incident title" name="title" type="text" />
+          <SelectField label="Severity" name="severity" value="LOW" options={["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((item) => ({ value: item, label: item }))} />
+          <TextField label="Affected modules" name="affectedModules" type="text" />
+          <div className="md:col-span-3"><SubmitButton>Create incident</SubmitButton></div>
+        </form>
+        <div className="space-y-3">
+          {incidents.map((incident) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={incident.id}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{incident.severity} - {incident.status}</p>
+                  <h3 className="mt-2 font-semibold">{incident.title}</h3>
+                  <p className="mt-1 text-sm text-zinc-400">{incident.affectedModules.join(", ") || "No modules linked"}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {["INVESTIGATING", "IDENTIFIED", "MONITORING", "RESOLVED", "CLOSED"].map((status) => (
+                    <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" key={status} type="button" onClick={() => void onAction(`/admin/monitoring/incidents/${incident.id}`, { status, note: `Status moved to ${status}.` })}>{status}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+          {!incidents.length ? <EmptyState message="No active incidents. Create one here if production operations require tracking." /> : null}
+        </div>
+      </Panel>
+      <Panel title="Scheduled Job Monitoring">
+        <CompactAuditList logs={syncLogs} emptyLabel="No scheduled job logs yet." />
+      </Panel>
+    </div>
+  );
+}
+
+function AdminAnnouncementsView({ announcements, onAction }: { announcements: AdminAnnouncement[]; onAction: (path: string, body?: object) => Promise<void> }) {
+  return (
+    <Panel title="Admin Announcements">
+      <form
+        className="grid gap-3 md:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          void onAction("/admin/announcements", {
+            title: form.get("title"),
+            message: form.get("message"),
+            status: form.get("status"),
+            targetRoles: String(form.get("targetRoles") ?? "ALL").split(",").map((item) => item.trim()).filter(Boolean),
+            targetCountries: String(form.get("targetCountries") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+            targetLanguages: String(form.get("targetLanguages") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+            targetSubscriptionPlans: String(form.get("targetSubscriptionPlans") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
+          });
+          event.currentTarget.reset();
+        }}
+      >
+        <TextField label="Title" name="title" type="text" />
+        <SelectField label="Status" name="status" value="DRAFT" options={["DRAFT", "SCHEDULED", "PUBLISHED", "EXPIRED", "ARCHIVED"].map((item) => ({ value: item, label: item }))} />
+        <TextField label="Message" name="message" type="text" />
+        <TextField label="Target roles" name="targetRoles" type="text" value="ALL" />
+        <TextField label="Countries" name="targetCountries" type="text" />
+        <TextField label="Languages" name="targetLanguages" type="text" />
+        <TextField label="Subscription plans" name="targetSubscriptionPlans" type="text" />
+        <div className="md:col-span-2"><SubmitButton>Create announcement</SubmitButton></div>
+      </form>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {announcements.map((announcement) => (
+          <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={announcement.id}>
+            <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{announcement.status}</p>
+            <h3 className="mt-2 font-semibold">{announcement.title}</h3>
+            <p className="mt-2 text-sm text-zinc-300">{announcement.message}</p>
+            <p className="mt-3 text-xs text-zinc-500">Targets: {announcement.targetRoles.join(", ")}</p>
+          </article>
+        ))}
+        {!announcements.length ? <EmptyState message="Announcements will appear here after admin creation. Scheduling is placeholder-only." /> : null}
+      </div>
+    </Panel>
   );
 }
 
@@ -2100,7 +2377,7 @@ function DashboardView({
         <CompactPredictionList predictions={recent} />
       </Panel>
       <Panel title="Notifications">
-        {commandCenter ? <NotificationCenterView notifications={commandCenter.notifications} compact /> : <NotificationList notifications={notifications} />}
+        {commandCenter ? <NotificationCenterView legacyNotifications={commandCenter.notifications} notifications={[]} compact /> : <NotificationList notifications={notifications} />}
       </Panel>
     </div>
   );
@@ -2355,10 +2632,18 @@ function LiveIntelligenceFeedView({ feed }: { feed: SubscriberIntelligenceFeedIt
   );
 }
 
-function ReportsView({ reports }: { reports: SubscriberReport[] }) {
+function ReportsView({ operationalReports, reports }: { operationalReports: OperationalReport[]; reports: SubscriberReport[] }) {
   return (
     <Panel title="Intelligence Reports">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {operationalReports.map((report) => (
+          <article className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 p-4" key={report.id}>
+            <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{report.type} - {report.status}</p>
+            <h3 className="mt-2 text-lg font-semibold">{report.title}</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{report.summary}</p>
+            <p className="mt-4 text-xs text-slate-500">{report.generatedAt ? new Date(report.generatedAt).toLocaleString() : "Pending generation"}</p>
+          </article>
+        ))}
         {reports.map((report) => (
           <article className="rounded-lg border border-slate-800 bg-slate-950 p-4" key={report.id}>
             <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{report.category}</p>
@@ -2367,16 +2652,45 @@ function ReportsView({ reports }: { reports: SubscriberReport[] }) {
             <p className="mt-4 text-xs text-slate-500">{new Date(report.publishedAt).toLocaleString()}</p>
           </article>
         ))}
-        {!reports.length ? <EmptyState message="Daily briefings, weekly reports, market trends, and league analysis will appear here." /> : null}
+        {!reports.length && !operationalReports.length ? <EmptyState message="Daily briefings, weekly reports, market trends, and league analysis will appear here." /> : null}
       </div>
     </Panel>
   );
 }
 
-function NotificationCenterView({ compact = false, notifications }: { compact?: boolean; notifications: SubscriberNotification[] }) {
+function NotificationCenterView({
+  compact = false,
+  legacyNotifications,
+  notifications,
+  onMarkRead,
+  onSavePreferences,
+  preferences,
+}: {
+  compact?: boolean;
+  legacyNotifications: SubscriberNotification[];
+  notifications: OperationalNotification[];
+  onMarkRead?: (id: string) => Promise<void>;
+  onSavePreferences?: (preferences: Partial<NotificationPreferences>) => Promise<void>;
+  preferences?: NotificationPreferences | null;
+}) {
   const content = (
     <div className="space-y-3">
       {notifications.map((notification) => (
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 p-4" key={notification.id}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{notification.category} - {notification.status}</p>
+              <h3 className="mt-2 font-semibold">{notification.title}</h3>
+            </div>
+            {notification.status === "UNREAD" && onMarkRead ? (
+              <button className="rounded-md border border-emerald-700 px-3 py-2 text-xs text-emerald-100" type="button" onClick={() => void onMarkRead(notification.id)}>Mark read</button>
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm text-slate-300">{notification.message}</p>
+          <p className="mt-3 text-xs text-slate-500">{new Date(notification.createdAt).toLocaleString()}</p>
+        </div>
+      ))}
+      {legacyNotifications.map((notification) => (
         <div className="rounded-lg border border-slate-800 bg-slate-950 p-4" key={notification.id}>
           <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{notification.type}</p>
           <h3 className="mt-2 font-semibold">{notification.title}</h3>
@@ -2384,7 +2698,46 @@ function NotificationCenterView({ compact = false, notifications }: { compact?: 
           <p className="mt-3 text-xs text-slate-500">{new Date(notification.createdAt).toLocaleString()}</p>
         </div>
       ))}
-      {!notifications.length ? <EmptyState message="No subscriber notifications right now." /> : null}
+      {!notifications.length && !legacyNotifications.length ? <EmptyState message="No subscriber notifications right now." /> : null}
+      {!compact && preferences && onSavePreferences ? (
+        <Panel title="Notification Preferences">
+          <form
+            className="grid gap-3 sm:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onSavePreferences({
+                inAppEnabled: form.get("inAppEnabled") === "on",
+                emailPlaceholderEnabled: form.get("emailPlaceholderEnabled") === "on",
+                smsPlaceholderEnabled: form.get("smsPlaceholderEnabled") === "on",
+                whatsappPlaceholderEnabled: form.get("whatsappPlaceholderEnabled") === "on",
+                pushPlaceholderEnabled: form.get("pushPlaceholderEnabled") === "on",
+                marketingEnabled: form.get("marketingEnabled") === "on",
+                financialEnabled: form.get("financialEnabled") === "on",
+                predictionEnabled: form.get("predictionEnabled") === "on",
+              });
+            }}
+          >
+            {[
+              ["inAppEnabled", "In-app notifications"],
+              ["emailPlaceholderEnabled", "Email placeholder"],
+              ["smsPlaceholderEnabled", "SMS placeholder"],
+              ["whatsappPlaceholderEnabled", "WhatsApp placeholder"],
+              ["pushPlaceholderEnabled", "Push placeholder"],
+              ["marketingEnabled", "Marketing notifications"],
+              ["financialEnabled", "Financial notifications"],
+              ["predictionEnabled", "Prediction notifications"],
+            ].map(([name, label]) => (
+              <label className="flex items-center gap-2 text-sm text-slate-300" key={name}>
+                <input defaultChecked={Boolean(preferences[name as keyof NotificationPreferences])} name={name} type="checkbox" />
+                {label}
+              </label>
+            ))}
+            <p className="rounded-md bg-amber-500/10 p-3 text-sm text-amber-100 sm:col-span-2">Security alerts remain mandatory and cannot be fully disabled.</p>
+            <div className="sm:col-span-2"><SubmitButton>Save notification preferences</SubmitButton></div>
+          </form>
+        </Panel>
+      ) : null}
     </div>
   );
 

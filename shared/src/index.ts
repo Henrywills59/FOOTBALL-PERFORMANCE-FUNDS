@@ -191,6 +191,152 @@ export type CommercialStructure = {
   };
 };
 
+export type OperationalReportStatus = "DRAFT" | "GENERATING" | "READY" | "FAILED" | "ARCHIVED";
+export type OperationalReportType =
+  | "SUBSCRIBER"
+  | "INVESTOR"
+  | "PREDICTION_PERFORMANCE"
+  | "ANALYST_PERFORMANCE"
+  | "CAMPAIGN"
+  | "PLATFORM_ACTIVITY"
+  | "FINANCIAL_SUMMARY"
+  | "DISTRIBUTION"
+  | "USER_GROWTH"
+  | "SYSTEM_HEALTH";
+
+export type OperationalReport = {
+  id: string;
+  title: string;
+  type: OperationalReportType;
+  status: OperationalReportStatus;
+  ownerUserId: string | null;
+  ownerRole: UserRole | "ALL" | null;
+  filters: Record<string, unknown>;
+  summary: string;
+  data: Record<string, unknown>;
+  errorMessage: string | null;
+  generatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReportRun = {
+  id: string;
+  reportId: string;
+  status: OperationalReportStatus;
+  startedAt: string;
+  completedAt: string | null;
+  errorMessage: string | null;
+};
+
+export type MonitoringHealthLevel = "GREEN" | "AMBER" | "RED";
+export type MonitoringComponentHealth = {
+  name: string;
+  status: MonitoringHealthLevel;
+  message: string;
+  lastCheckedAt: string;
+};
+
+export type MonitoringOverview = {
+  components: MonitoringComponentHealth[];
+  errorCounts: {
+    lastHour: number;
+    lastDay: number;
+  };
+  failedJobs: number;
+  slowEndpoints: Array<{ endpoint: string; averageMs: number; status: MonitoringHealthLevel }>;
+  dataFreshness: Array<{ source: string; lastUpdatedAt: string | null; status: MonitoringHealthLevel }>;
+  lastSuccessfulDeployment: string | null;
+  lastHealthCheck: string;
+  activeIncidents: number;
+  providerPlaceholders: string[];
+};
+
+export type IncidentStatus = "OPEN" | "INVESTIGATING" | "IDENTIFIED" | "MONITORING" | "RESOLVED" | "CLOSED";
+export type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export type SystemIncident = {
+  id: string;
+  title: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  affectedModules: string[];
+  assignedToUserId: string | null;
+  rootCause: string | null;
+  resolution: string | null;
+  archived: boolean;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type IncidentNote = {
+  id: string;
+  incidentId: string;
+  authorUserId: string;
+  note: string;
+  createdAt: string;
+};
+
+export type NotificationCategory =
+  | "PREDICTION_PUBLISHED"
+  | "PREDICTION_UPDATED"
+  | "REPORT_READY"
+  | "DISTRIBUTION_CALCULATED"
+  | "DISTRIBUTION_APPROVED"
+  | "DISTRIBUTION_PAID"
+  | "ACCOUNT_ACTION_REQUIRED"
+  | "SECURITY_ALERT"
+  | "SYSTEM_MAINTENANCE"
+  | "CAMPAIGN_UPDATE"
+  | "GENERAL_ANNOUNCEMENT";
+
+export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED" | "FAILED";
+
+export type OperationalNotification = {
+  id: string;
+  userId: string;
+  category: NotificationCategory;
+  status: NotificationStatus;
+  title: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type NotificationPreferences = {
+  userId: string;
+  inAppEnabled: boolean;
+  emailPlaceholderEnabled: boolean;
+  smsPlaceholderEnabled: boolean;
+  whatsappPlaceholderEnabled: boolean;
+  pushPlaceholderEnabled: boolean;
+  marketingEnabled: boolean;
+  financialEnabled: boolean;
+  predictionEnabled: boolean;
+  securityEnabled: boolean;
+  updatedAt: string;
+};
+
+export type AnnouncementStatus = "DRAFT" | "SCHEDULED" | "PUBLISHED" | "EXPIRED" | "ARCHIVED";
+
+export type AdminAnnouncement = {
+  id: string;
+  title: string;
+  message: string;
+  status: AnnouncementStatus;
+  targetRoles: Array<UserRole | "ALL" | "EXECUTIVE" | "MEDIA_TEAM">;
+  targetCountries: string[];
+  targetLanguages: string[];
+  targetSubscriptionPlans: string[];
+  scheduledAt: string | null;
+  expiresAt: string | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SupportedLanguageCode = "en" | "fr" | "es" | "pt" | "de" | "it" | "ar" | "zh";
 export type SupportedCurrencyCode = "USD" | "EUR" | "GBP" | "UGX" | "KES" | "TZS" | "NGN" | "ZAR" | "CAD" | "AUD";
 

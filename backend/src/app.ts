@@ -39,6 +39,10 @@ import { PrismaInvestorRepository } from "./investor/investorRepository.js";
 import { createInvestorRouter } from "./investor/investorRoutes.js";
 import { InvestorService } from "./investor/investorService.js";
 import type { InvestorRepository } from "./investor/types.js";
+import { InMemoryOperationsRepository, PrismaOperationsRepository } from "./operations/repository.js";
+import { createOperationsRouter } from "./operations/routes.js";
+import { OperationsService } from "./operations/service.js";
+import type { OperationsRepository } from "./operations/types.js";
 import { PrismaPredictionRepository } from "./predictions/predictionRepository.js";
 import { createPredictionRouter } from "./predictions/predictionRoutes.js";
 import { PredictionService } from "./predictions/predictionService.js";
@@ -167,6 +171,7 @@ export function createApp(options?: {
   investorRepository?: InvestorRepository;
   walletRepository?: WalletRepository;
   analystRepository?: AnalystRepository;
+  operationsRepository?: OperationsRepository;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -220,6 +225,12 @@ export function createApp(options?: {
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
   );
+  const operationsRepository = options?.operationsRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryOperationsRepository()
+      : new PrismaOperationsRepository()
+  );
+  const operationsService = new OperationsService(operationsRepository);
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -325,6 +336,14 @@ export function createApp(options?: {
     createCommercialRouter({
       authService,
       commercialService,
+    }),
+  );
+  app.use(
+    "/api",
+    createOperationsRouter({
+      authService,
+      operationsService,
+      adminService,
     }),
   );
   app.use(

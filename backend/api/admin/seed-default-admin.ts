@@ -335,6 +335,164 @@ async function ensureCommercialSchema(prisma: PrismaClient) {
   `);
 }
 
+async function ensureOperationsSchema(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "reports" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "title" TEXT NOT NULL,
+      "type" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "ownerUserId" TEXT,
+      "ownerRole" TEXT,
+      "filters" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "summary" TEXT NOT NULL,
+      "data" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "errorMessage" TEXT,
+      "generatedAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "reports_type_idx" ON "reports"("type")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "reports_status_idx" ON "reports"("status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "reports_ownerUserId_idx" ON "reports"("ownerUserId")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "report_runs" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "reportId" TEXT NOT NULL REFERENCES "reports"("id") ON DELETE CASCADE,
+      "status" TEXT NOT NULL,
+      "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "completedAt" TIMESTAMP(3),
+      "errorMessage" TEXT
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "report_runs_reportId_idx" ON "report_runs"("reportId")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "report_schedules" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "reportType" TEXT NOT NULL,
+      "filters" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "cadence" TEXT NOT NULL,
+      "enabled" BOOLEAN NOT NULL DEFAULT false,
+      "nextRunAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "system_health_checks" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "component" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "checkedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "system_incidents" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "title" TEXT NOT NULL,
+      "severity" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "affectedModules" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "assignedToUserId" TEXT,
+      "rootCause" TEXT,
+      "resolution" TEXT,
+      "archived" BOOLEAN NOT NULL DEFAULT false,
+      "createdByUserId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "system_incidents_status_idx" ON "system_incidents"("status")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "incident_notes" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "incidentId" TEXT NOT NULL REFERENCES "system_incidents"("id") ON DELETE CASCADE,
+      "authorUserId" TEXT NOT NULL,
+      "note" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "notifications" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "userId" TEXT NOT NULL,
+      "category" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "readAt" TIMESTAMP(3)
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "notifications_userId_idx" ON "notifications"("userId")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "notification_preferences" (
+      "userId" TEXT PRIMARY KEY,
+      "inAppEnabled" BOOLEAN NOT NULL DEFAULT true,
+      "emailPlaceholderEnabled" BOOLEAN NOT NULL DEFAULT false,
+      "smsPlaceholderEnabled" BOOLEAN NOT NULL DEFAULT false,
+      "whatsappPlaceholderEnabled" BOOLEAN NOT NULL DEFAULT false,
+      "pushPlaceholderEnabled" BOOLEAN NOT NULL DEFAULT false,
+      "marketingEnabled" BOOLEAN NOT NULL DEFAULT true,
+      "financialEnabled" BOOLEAN NOT NULL DEFAULT true,
+      "predictionEnabled" BOOLEAN NOT NULL DEFAULT true,
+      "securityEnabled" BOOLEAN NOT NULL DEFAULT true,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "notification_deliveries" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "notificationId" TEXT NOT NULL,
+      "channel" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "provider" TEXT NOT NULL,
+      "errorMessage" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "admin_announcements" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "title" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "targetRoles" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "targetCountries" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "targetLanguages" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "targetSubscriptionPlans" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "scheduledAt" TIMESTAMP(3),
+      "expiresAt" TIMESTAMP(3),
+      "createdByUserId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "announcement_targets" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "announcementId" TEXT NOT NULL,
+      "targetType" TEXT NOT NULL,
+      "targetValue" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "monitoring_events" (
+      "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "component" TEXT NOT NULL,
+      "level" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   response.setHeader?.("access-control-allow-methods", "POST,OPTIONS");
   response.setHeader?.("access-control-allow-headers", "content-type,x-admin-seed-token");
@@ -372,6 +530,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     await ensureInvestorSchema(prisma);
     await ensureGlobalizationSchema(prisma);
     await ensureCommercialSchema(prisma);
+    await ensureOperationsSchema(prisma);
 
     const body = parseBody(request.body);
     const email =
@@ -415,6 +574,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       investorSchemaEnsured: true,
       globalizationSchemaEnsured: true,
       commercialSchemaEnsured: true,
+      operationsSchemaEnsured: true,
       user,
     });
   } catch (error) {
