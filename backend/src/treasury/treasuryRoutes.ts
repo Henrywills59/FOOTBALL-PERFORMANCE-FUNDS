@@ -47,6 +47,76 @@ export function createTreasuryRouter({
     response.json(treasuryService.executiveSituationRoom());
   });
 
+  router.get("/treasury/ledger", adminOnly, (_request, response) => {
+    response.json(treasuryService.ledgerOverview());
+  });
+
+  router.post("/treasury/ledger/transactions", adminOnly, (request, response, next) => {
+    try {
+      response.status(201).json({
+        transaction: treasuryService.createLedgerTransaction(actorId(request), {
+          sourceAccount: request.body?.sourceAccount,
+          destinationAccount: request.body?.destinationAccount,
+          amount: request.body?.amount,
+          currency: request.body?.currency,
+          purpose: request.body?.purpose,
+          referenceType: request.body?.referenceType,
+          referenceId: request.body?.referenceId,
+          externalTransactionReference: request.body?.externalTransactionReference,
+          reconciliationStatus: request.body?.reconciliationStatus,
+          metadata: request.body?.metadata,
+          approvalStatus: request.body?.approvalStatus,
+        }),
+      });
+    } catch (error) {
+      sendTreasuryError(error, response, next);
+    }
+  });
+
+  router.post("/treasury/ledger/transactions/:id/approve", adminOnly, (request, response, next) => {
+    try {
+      response.json({ transaction: treasuryService.approveLedgerTransaction(actorId(request), request.params.id) });
+    } catch (error) {
+      sendTreasuryError(error, response, next);
+    }
+  });
+
+  router.post("/treasury/ledger/transactions/:id/reject", adminOnly, (request, response, next) => {
+    try {
+      response.json({ transaction: treasuryService.rejectLedgerTransaction(actorId(request), request.params.id, request.body?.reason) });
+    } catch (error) {
+      sendTreasuryError(error, response, next);
+    }
+  });
+
+  router.post("/treasury/ledger/transactions/:id/reconcile", adminOnly, (request, response, next) => {
+    try {
+      response.json({
+        transaction: treasuryService.updateLedgerReconciliation(actorId(request), request.params.id, {
+          reconciliationStatus: request.body?.reconciliationStatus,
+          externalTransactionReference: request.body?.externalTransactionReference,
+        }),
+      });
+    } catch (error) {
+      sendTreasuryError(error, response, next);
+    }
+  });
+
+  router.post("/treasury/ledger/eligible-profit/allocate", adminOnly, (request, response, next) => {
+    try {
+      response.status(201).json({
+        transactions: treasuryService.allocateEligibleProfit(actorId(request), {
+          amount: request.body?.amount,
+          currency: request.body?.currency,
+          referenceId: request.body?.referenceId,
+          externalTransactionReference: request.body?.externalTransactionReference,
+        }),
+      });
+    } catch (error) {
+      sendTreasuryError(error, response, next);
+    }
+  });
+
   router.post("/treasury/executions", adminOnly, (request, response, next) => {
     try {
       response.status(201).json({ execution: treasuryService.createExecution(actorId(request), request.body) });

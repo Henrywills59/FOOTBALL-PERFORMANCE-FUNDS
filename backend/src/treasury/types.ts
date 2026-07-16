@@ -266,3 +266,87 @@ export type AnalystTreasuryView = {
   rewards: AnalystRewardAllocation[];
   notice: string;
 };
+
+export type TreasuryLedgerAccountCode =
+  | "PERFORMANCE_PARTNER_CAPITAL"
+  | "COMPANY_TRADING_CAPITAL"
+  | "PERFORMANCE_PARTNER_DISTRIBUTIONS"
+  | "ANALYST_PERFORMANCE_POOL"
+  | "RISK_STABILITY_RESERVE"
+  | "COMPANY_GROWTH_OPERATIONS"
+  | "SUBSCRIBER_REVENUE";
+
+export type TreasuryLedgerPurpose =
+  | "PARTNER_CONTRIBUTION"
+  | "COMPANY_CAPITALIZATION"
+  | "SUBSCRIBER_REVENUE"
+  | "ELIGIBLE_PROFIT_ALLOCATION"
+  | "PERFORMANCE_PARTNER_DISTRIBUTION"
+  | "ANALYST_REWARD_ALLOCATION"
+  | "RISK_RESERVE_ALLOCATION"
+  | "COMPANY_GROWTH_ALLOCATION"
+  | "RECONCILIATION_ADJUSTMENT";
+
+export type TreasuryLedgerApprovalStatus = "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
+export type TreasuryLedgerReconciliationStatus = "UNRECONCILED" | "MATCHED" | "DISPUTED" | "EXTERNAL_PENDING";
+
+export type TreasuryMoney = {
+  amount: string;
+  minorUnits: string;
+  currency: string;
+  scale: number;
+};
+
+export type TreasuryLedgerAccount = {
+  code: TreasuryLedgerAccountCode;
+  name: string;
+  category: "PARTNER_CAPITAL" | "COMPANY_CAPITAL" | "LIABILITY" | "POOL" | "RESERVE" | "REVENUE";
+  currencyBalances: Record<string, TreasuryMoney>;
+};
+
+export type TreasuryDoubleEntryLine = {
+  account: TreasuryLedgerAccountCode;
+  direction: "DEBIT" | "CREDIT";
+  amount: TreasuryMoney;
+  resultingBalance: TreasuryMoney;
+};
+
+export type TreasuryDoubleEntryTransaction = {
+  id: string;
+  sourceAccount: TreasuryLedgerAccountCode;
+  destinationAccount: TreasuryLedgerAccountCode;
+  amount: TreasuryMoney;
+  currency: string;
+  purpose: TreasuryLedgerPurpose;
+  actorUserId: string;
+  approvalStatus: TreasuryLedgerApprovalStatus;
+  approvedByUserId: string | null;
+  approvedAt: string | null;
+  referenceType: string;
+  referenceId: string | null;
+  externalTransactionReference: string | null;
+  reconciliationStatus: TreasuryLedgerReconciliationStatus;
+  timestamp: string;
+  lines: TreasuryDoubleEntryLine[];
+  metadata: Record<string, unknown>;
+};
+
+export type TreasuryLedgerAuditLog = {
+  id: string;
+  action: string;
+  actorUserId: string;
+  transactionId: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type TreasuryLedgerOverview = {
+  accounts: TreasuryLedgerAccount[];
+  transactions: TreasuryDoubleEntryTransaction[];
+  auditLogs: TreasuryLedgerAuditLog[];
+  invariant: {
+    balanced: boolean;
+    transactionCount: number;
+    checkedAt: string;
+  };
+};

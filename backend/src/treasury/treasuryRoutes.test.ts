@@ -158,4 +158,113 @@ describe("treasury routes", () => {
     expect(weekly.body.closure.analystRewards.length).toBeGreaterThan(0);
     expect(weekly.body.closure.investorDistributions.length).toBeGreaterThan(0);
   });
+
+  it("creates the fixed treasury ledger accounts and keeps pending transactions from changing balances", async () => {
+    const { app, adminToken } = testApp();
+
+    const overview = await request(app).get("/api/treasury/ledger").set("Authorization", `Bearer ${adminToken}`).expect(200);
+    expect(overview.body.accounts.map((account: { code: string }) => account.code)).toEqual([
+      "PERFORMANCE_PARTNER_CAPITAL",
+      "COMPANY_TRADING_CAPITAL",
+      "PERFORMANCE_PARTNER_DISTRIBUTIONS",
+      "ANALYST_PERFORMANCE_POOL",
+      "RISK_STABILITY_RESERVE",
+      "COMPANY_GROWTH_OPERATIONS",
+      "SUBSCRIBER_REVENUE",
+    ]);
+
+    const pending = await request(app)
+      .post("/api/treasury/ledger/transactions")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        sourceAccount: "COMPANY_TRADING_CAPITAL",
+        destinationAccount: "SUBSCRIBER_REVENUE",
+        amount: "49.99",
+        currency: "USD",
+        purpose: "SUBSCRIBER_REVENUE",
+        referenceType: "SUBSCRIPTION",
+        referenceId: "sub_001",
+      })
+      .expect(201);
+
+    expect(pending.body.transaction.approvalStatus).toBe("PENDING_APPROVAL");
+    expect(pending.body.transaction.lines).toHaveLength(0);
+    const afterPending = await request(app).get("/api/treasury/ledger").set("Authorization", `Bearer ${adminToken}`);
+    const subscriberRevenue = afterPending.body.accounts.find((account: { code: string }) => account.code === "SUBSCRIBER_REVENUE");
+    expect(subscriberRevenue.currencyBalances).toEqual({});
+  });
+
+  it("approves immutable double-entry ledger transactions with balanced debits and credits", async () => {
+    const { app, adminToken } = testApp();
+
+    const created = await request(app)
+      .post("/api/treasury/ledger/transactions")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        sourceAccount: "COMPANY_TRADING_CAPITAL",
+        destinationAccount: "SUBSCRIBER_REVENUE",
+        amount: "49.99",
+        currency: "USD",
+        purpose: "SUBSCRIBER_REVENUE",
+        externalTransactionReference: "stripe-placeholder-001",
+      })
+      .expect(201);
+
+    const approved = await request(app)
+      .post(`/api/treasury/ledger/transactions/${created.body.transaction.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    const debit = approved.body.transaction.lines
+      .filter((line: { direction: string }) => line.direction === "DEBIT")
+      .reduce((total: bigint, line: { amount: { minorUnits: string } }) => total + BigInt(line.amount.minorUnits), 0n);
+    const credit = approved.body.transaction.lines
+      .filter((line: { direction: string }) => line.direction === "CREDIT")
+      .reduce((total: bigint, line: { amount: { minorUnits: string } }) => total + BigInt(line.amount.minorUnits), 0n);
+
+    expect(debit).toBe(credit);
+    expect(approved.body.transaction.lines[0].resultingBalance.currency).toBe("USD");
+
+    const overview = await request(app).get("/api/treasury/ledger").set("Authorization", `Bearer ${adminToken}`);
+    expect(overview.body.invariant.balanced).toBe(true);
+  });
+
+  it("blocks subscriber revenue from entering Performance Partner Capital", async () => {
+    const { app, adminToken } = testApp();
+
+    await request(app)
+      .post("/api/treasury/ledger/transactions")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        sourceAccount: "SUBSCRIBER_REVENUE",
+        destinationAccount: "PERFORMANCE_PARTNER_CAPITAL",
+        amount: "19.00",
+        currency: "USD",
+        purpose: "SUBSCRIBER_REVENUE",
+      })
+      .expect(400);
+  });
+
+  it("allocates only verified eligible profit using the 35/15/15/35 policy", async () => {
+    const { app, adminToken } = testApp();
+
+    const allocated = await request(app)
+      .post("/api/treasury/ledger/eligible-profit/allocate")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ amount: "1000.00", currency: "USD", referenceId: "verified-profit-week-1" })
+      .expect(201);
+
+    expect(allocated.body.transactions).toHaveLength(4);
+    const byDestination = Object.fromEntries(
+      allocated.body.transactions.map((transaction: { destinationAccount: string; amount: { minorUnits: string } }) => [
+        transaction.destinationAccount,
+        transaction.amount.minorUnits,
+      ]),
+    );
+    expect(byDestination.PERFORMANCE_PARTNER_DISTRIBUTIONS).toBe("35000");
+    expect(byDestination.ANALYST_PERFORMANCE_POOL).toBe("15000");
+    expect(byDestination.RISK_STABILITY_RESERVE).toBe("15000");
+    expect(byDestination.COMPANY_GROWTH_OPERATIONS).toBe("35000");
+    expect(allocated.body.transactions.every((transaction: { metadata: { eligibleProfitOnly: boolean } }) => transaction.metadata.eligibleProfitOnly)).toBe(true);
+  });
 });

@@ -12,7 +12,16 @@ import type {
   ProfitDistributionPolicy,
   TradingDaySummary,
   TreasuryDashboard,
+  TreasuryDoubleEntryTransaction,
+  TreasuryLedgerAccount,
+  TreasuryLedgerAccountCode,
+  TreasuryLedgerAuditLog,
+  TreasuryLedgerApprovalStatus,
   TreasuryLedgerEntry,
+  TreasuryLedgerPurpose,
+  TreasuryLedgerReconciliationStatus,
+  TreasuryLedgerOverview,
+  TreasuryMoney,
   TreasurySettlementOutcome,
   WeeklyFinancialPeriod,
 } from "./types.js";
@@ -26,6 +35,57 @@ function id(prefix: string) {
 
 function sum(items: number[]) {
   return items.reduce((total, item) => total + item, 0);
+}
+
+const ledgerAccountDefinitions: Array<Omit<TreasuryLedgerAccount, "currencyBalances">> = [
+  { code: "PERFORMANCE_PARTNER_CAPITAL", name: "Performance Partner Capital", category: "PARTNER_CAPITAL" },
+  { code: "COMPANY_TRADING_CAPITAL", name: "Company Trading Capital", category: "COMPANY_CAPITAL" },
+  { code: "PERFORMANCE_PARTNER_DISTRIBUTIONS", name: "Performance Partner Distributions", category: "LIABILITY" },
+  { code: "ANALYST_PERFORMANCE_POOL", name: "Analyst Performance Pool", category: "POOL" },
+  { code: "RISK_STABILITY_RESERVE", name: "Risk & Stability Reserve", category: "RESERVE" },
+  { code: "COMPANY_GROWTH_OPERATIONS", name: "Company Growth & Operations", category: "COMPANY_CAPITAL" },
+  { code: "SUBSCRIBER_REVENUE", name: "Subscriber Revenue", category: "REVENUE" },
+];
+
+const currencyScale: Record<string, number> = {
+  BHD: 3,
+  JOD: 3,
+  KWD: 3,
+  OMR: 3,
+  TND: 3,
+  UGX: 0,
+  JPY: 0,
+};
+
+function scaleFor(currency: string) {
+  return currencyScale[currency.toUpperCase()] ?? 2;
+}
+
+function parseMoney(amount: string | number, currency: string): TreasuryMoney {
+  const scale = scaleFor(currency);
+  const normalized = String(amount).trim();
+  if (!/^\d+(\.\d+)?$/.test(normalized)) throw new TreasuryControlError("Amount must be a positive decimal string.");
+  const [major, fraction = ""] = normalized.split(".");
+  if (fraction.length > scale) throw new TreasuryControlError(`Amount exceeds ${scale} decimal places for ${currency.toUpperCase()}.`);
+  const minorUnits = BigInt(major) * 10n ** BigInt(scale) + BigInt((fraction.padEnd(scale, "0") || "0"));
+  if (minorUnits <= 0n) throw new TreasuryControlError("Amount must be greater than zero.");
+  return formatMoney(minorUnits, currency.toUpperCase(), scale);
+}
+
+function formatMoney(minorUnits: bigint, currency: string, scale = scaleFor(currency)): TreasuryMoney {
+  const negative = minorUnits < 0n;
+  const absolute = negative ? -minorUnits : minorUnits;
+  const divisor = 10n ** BigInt(scale);
+  const major = absolute / divisor;
+  const fraction = absolute % divisor;
+  const amount = scale === 0
+    ? `${negative ? "-" : ""}${major.toString()}`
+    : `${negative ? "-" : ""}${major.toString()}.${fraction.toString().padStart(scale, "0")}`;
+  return { amount, minorUnits: `${negative ? "-" : ""}${absolute.toString()}`, currency, scale };
+}
+
+function moneyToBigInt(value: TreasuryMoney) {
+  return BigInt(value.minorUnits);
 }
 
 function defaultAllocation(): CapitalAllocationExtension {
@@ -70,6 +130,9 @@ export class TreasuryControlError extends Error {
 }
 
 export class TreasuryService {
+  private readonly ledgerBalances = new Map<TreasuryLedgerAccountCode, Map<string, bigint>>();
+  private readonly ledgerTransactions: TreasuryDoubleEntryTransaction[] = [];
+  private readonly ledgerAuditLogs: TreasuryLedgerAuditLog[] = [];
   private readonly allocations: CapitalAllocationExtension[] = [defaultAllocation()];
   private readonly ledger: TreasuryLedgerEntry[] = [
     {
@@ -105,6 +168,165 @@ export class TreasuryService {
   private dailyStatus: TradingDaySummary["status"] = "OPEN";
   private dailyClosureNotes: string | null = null;
   private weeklyStatus: WeeklyFinancialPeriod["status"] = "OPEN";
+
+  ledgerOverview(): TreasuryLedgerOverview {
+    return {
+      accounts: this.ledgerAccounts(),
+      transactions: this.ledgerTransactions.slice().reverse(),
+      auditLogs: this.ledgerAuditLogs.slice().reverse(),
+      invariant: {
+        balanced: this.ledgerTransactions.every((transaction) => this.transactionBalances(transaction)),
+        transactionCount: this.ledgerTransactions.length,
+        checkedAt: now(),
+      },
+    };
+  }
+
+  createLedgerTransaction(actorUserId: string, input: {
+    sourceAccount: TreasuryLedgerAccountCode;
+    destinationAccount: TreasuryLedgerAccountCode;
+    amount: string | number;
+    currency?: string;
+    purpose: TreasuryLedgerPurpose;
+    referenceType?: string;
+    referenceId?: string | null;
+    externalTransactionReference?: string | null;
+    reconciliationStatus?: TreasuryLedgerReconciliationStatus;
+    metadata?: Record<string, unknown>;
+    approvalStatus?: TreasuryLedgerApprovalStatus;
+  }) {
+    const currency = (input.currency ?? "USD").toUpperCase();
+    this.validateLedgerTransaction(input.sourceAccount, input.destinationAccount, input.purpose);
+    const amount = parseMoney(input.amount, currency);
+    const transaction: TreasuryDoubleEntryTransaction = {
+      id: id("treasury_txn"),
+      sourceAccount: input.sourceAccount,
+      destinationAccount: input.destinationAccount,
+      amount,
+      currency,
+      purpose: input.purpose,
+      actorUserId,
+      approvalStatus: input.approvalStatus ?? "PENDING_APPROVAL",
+      approvedByUserId: null,
+      approvedAt: null,
+      referenceType: input.referenceType ?? "INTERNAL_LEDGER",
+      referenceId: input.referenceId ?? null,
+      externalTransactionReference: input.externalTransactionReference ?? null,
+      reconciliationStatus: input.reconciliationStatus ?? "UNRECONCILED",
+      timestamp: now(),
+      lines: [],
+      metadata: input.metadata ?? {},
+    };
+    this.ledgerTransactions.push(transaction);
+    this.auditLedger(actorUserId, "LEDGER_TRANSACTION_CREATED", transaction.id, {
+      purpose: transaction.purpose,
+      currency,
+      amountMinorUnits: amount.minorUnits,
+      approvalStatus: transaction.approvalStatus,
+    });
+    if (transaction.approvalStatus === "APPROVED") {
+      return this.approveLedgerTransaction(actorUserId, transaction.id);
+    }
+    return transaction;
+  }
+
+  approveLedgerTransaction(actorUserId: string, transactionId: string) {
+    const transaction = this.ledgerTransactions.find((candidate) => candidate.id === transactionId);
+    if (!transaction) throw new TreasuryControlError("Ledger transaction not found", 404);
+    if (transaction.approvalStatus === "REJECTED") throw new TreasuryControlError("Rejected ledger transactions cannot be approved.");
+    if (transaction.lines.length) return transaction;
+
+    const amount = moneyToBigInt(transaction.amount);
+    const sourceBalance = this.adjustLedgerBalance(transaction.sourceAccount, transaction.currency, -amount);
+    const destinationBalance = this.adjustLedgerBalance(transaction.destinationAccount, transaction.currency, amount);
+    transaction.lines.push(
+      {
+        account: transaction.sourceAccount,
+        direction: "CREDIT",
+        amount: transaction.amount,
+        resultingBalance: sourceBalance,
+      },
+      {
+        account: transaction.destinationAccount,
+        direction: "DEBIT",
+        amount: transaction.amount,
+        resultingBalance: destinationBalance,
+      },
+    );
+    transaction.approvalStatus = "APPROVED";
+    transaction.approvedByUserId = actorUserId;
+    transaction.approvedAt = now();
+    this.auditLedger(actorUserId, "LEDGER_TRANSACTION_APPROVED", transaction.id, {
+      sourceAccount: transaction.sourceAccount,
+      destinationAccount: transaction.destinationAccount,
+      amountMinorUnits: transaction.amount.minorUnits,
+      currency: transaction.currency,
+    });
+    return transaction;
+  }
+
+  rejectLedgerTransaction(actorUserId: string, transactionId: string, reason?: string | null) {
+    const transaction = this.ledgerTransactions.find((candidate) => candidate.id === transactionId);
+    if (!transaction) throw new TreasuryControlError("Ledger transaction not found", 404);
+    if (transaction.lines.length) throw new TreasuryControlError("Approved ledger transactions are immutable and cannot be rejected.");
+    transaction.approvalStatus = "REJECTED";
+    this.auditLedger(actorUserId, "LEDGER_TRANSACTION_REJECTED", transaction.id, { reason: reason ?? null });
+    return transaction;
+  }
+
+  updateLedgerReconciliation(actorUserId: string, transactionId: string, input: {
+    reconciliationStatus: TreasuryLedgerReconciliationStatus;
+    externalTransactionReference?: string | null;
+  }) {
+    const transaction = this.ledgerTransactions.find((candidate) => candidate.id === transactionId);
+    if (!transaction) throw new TreasuryControlError("Ledger transaction not found", 404);
+    transaction.reconciliationStatus = input.reconciliationStatus;
+    transaction.externalTransactionReference = input.externalTransactionReference ?? transaction.externalTransactionReference;
+    this.auditLedger(actorUserId, "LEDGER_RECONCILIATION_UPDATED", transaction.id, {
+      reconciliationStatus: transaction.reconciliationStatus,
+      externalTransactionReferencePresent: Boolean(transaction.externalTransactionReference),
+    });
+    return transaction;
+  }
+
+  allocateEligibleProfit(actorUserId: string, input: {
+    amount: string | number;
+    currency?: string;
+    referenceId?: string | null;
+    externalTransactionReference?: string | null;
+  }) {
+    const currency = (input.currency ?? "USD").toUpperCase();
+    const eligibleProfit = parseMoney(input.amount, currency);
+    const total = moneyToBigInt(eligibleProfit);
+    const allocations: Array<{ destinationAccount: TreasuryLedgerAccountCode; basisPoints: bigint; purpose: TreasuryLedgerPurpose }> = [
+      { destinationAccount: "PERFORMANCE_PARTNER_DISTRIBUTIONS", basisPoints: 3500n, purpose: "PERFORMANCE_PARTNER_DISTRIBUTION" },
+      { destinationAccount: "ANALYST_PERFORMANCE_POOL", basisPoints: 1500n, purpose: "ANALYST_REWARD_ALLOCATION" },
+      { destinationAccount: "RISK_STABILITY_RESERVE", basisPoints: 1500n, purpose: "RISK_RESERVE_ALLOCATION" },
+      { destinationAccount: "COMPANY_GROWTH_OPERATIONS", basisPoints: 3500n, purpose: "COMPANY_GROWTH_ALLOCATION" },
+    ];
+    let allocated = 0n;
+    return allocations.map((allocation, index) => {
+      const amountMinor = index === allocations.length - 1 ? total - allocated : (total * allocation.basisPoints) / 10000n;
+      allocated += amountMinor;
+      return this.createLedgerTransaction(actorUserId, {
+        sourceAccount: "COMPANY_TRADING_CAPITAL",
+        destinationAccount: allocation.destinationAccount,
+        amount: formatMoney(amountMinor, currency).amount,
+        currency,
+        purpose: allocation.purpose,
+        referenceType: "VERIFIED_ELIGIBLE_PROFIT",
+        referenceId: input.referenceId ?? null,
+        externalTransactionReference: input.externalTransactionReference ?? null,
+        approvalStatus: "APPROVED",
+        metadata: {
+          allocationPolicy: "35/15/15/35",
+          eligibleProfitOnly: true,
+          excludesPartnerPrincipal: true,
+          excludesGrossDeposits: true,
+        },
+      });
+    });
+  }
 
   dashboard(): TreasuryDashboard {
     return {
@@ -521,6 +743,69 @@ export class TreasuryService {
       status: "OPEN",
       message,
       relatedId,
+      createdAt: now(),
+    });
+  }
+
+  private ledgerAccounts(): TreasuryLedgerAccount[] {
+    return ledgerAccountDefinitions.map((definition) => {
+      const balances = this.ledgerBalances.get(definition.code) ?? new Map<string, bigint>();
+      return {
+        ...definition,
+        currencyBalances: Object.fromEntries(
+          Array.from(balances.entries()).map(([currency, value]) => [currency, formatMoney(value, currency)]),
+        ),
+      };
+    });
+  }
+
+  private validateLedgerTransaction(
+    sourceAccount: TreasuryLedgerAccountCode,
+    destinationAccount: TreasuryLedgerAccountCode,
+    purpose: TreasuryLedgerPurpose,
+  ) {
+    const validAccounts = new Set(ledgerAccountDefinitions.map((account) => account.code));
+    if (!validAccounts.has(sourceAccount) || !validAccounts.has(destinationAccount)) {
+      throw new TreasuryControlError("Unknown ledger account.");
+    }
+    if (sourceAccount === destinationAccount) throw new TreasuryControlError("Source and destination accounts must be different.");
+    if (purpose === "SUBSCRIBER_REVENUE" && destinationAccount === "PERFORMANCE_PARTNER_CAPITAL") {
+      throw new TreasuryControlError("Subscriber revenue must never enter Performance Partner Capital.");
+    }
+    if (purpose === "PARTNER_CONTRIBUTION" && destinationAccount !== "PERFORMANCE_PARTNER_CAPITAL") {
+      throw new TreasuryControlError("Partner contributions must be recorded only in Performance Partner Capital.");
+    }
+    if (purpose === "ELIGIBLE_PROFIT_ALLOCATION") {
+      throw new TreasuryControlError("Use the eligible profit allocation workflow so policy percentages remain auditable.");
+    }
+  }
+
+  private adjustLedgerBalance(account: TreasuryLedgerAccountCode, currency: string, delta: bigint) {
+    const balances = this.ledgerBalances.get(account) ?? new Map<string, bigint>();
+    const next = (balances.get(currency) ?? 0n) + delta;
+    balances.set(currency, next);
+    this.ledgerBalances.set(account, balances);
+    return formatMoney(next, currency);
+  }
+
+  private transactionBalances(transaction: TreasuryDoubleEntryTransaction) {
+    if (transaction.approvalStatus !== "APPROVED") return true;
+    const debit = transaction.lines
+      .filter((line) => line.direction === "DEBIT")
+      .reduce((total, line) => total + moneyToBigInt(line.amount), 0n);
+    const credit = transaction.lines
+      .filter((line) => line.direction === "CREDIT")
+      .reduce((total, line) => total + moneyToBigInt(line.amount), 0n);
+    return debit === credit;
+  }
+
+  private auditLedger(actorUserId: string, action: string, transactionId: string | null, details: Record<string, unknown>) {
+    this.ledgerAuditLogs.push({
+      id: id("ledger_audit"),
+      action,
+      actorUserId,
+      transactionId,
+      details,
       createdAt: now(),
     });
   }
