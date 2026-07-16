@@ -2232,6 +2232,161 @@ model WeeklyClosureReport {
   @@map("weekly_closure_reports")
 }
 
+model FinancialEngineRun {
+  id                              String   @id @default(uuid())
+  weekLabel                       String
+  seasonId                        String?
+  grossReturnsCents               Int      @default(0)
+  returnedStakeCents              Int      @default(0)
+  totalStakeCents                 Int      @default(0)
+  totalLossesCents                Int      @default(0)
+  operatingAdjustmentsCents       Int      @default(0)
+  eligibleProfitCents             Int      @default(0)
+  status                          String   @default("CALCULATED")
+  calculationInput                Json     @default("{}")
+  calculationOutput               Json     @default("{}")
+  calculatedBy                    String
+  calculatedAt                    DateTime @default(now())
+  allocations                     FinancialEngineAllocation[]
+  partnerDistributions            FinancialPartnerDistribution[]
+  analystRewards                  FinancialAnalystReward[]
+  reserveLedgerEntries            FinancialReserveLedger[]
+  companyGrowthLedgerEntries      FinancialCompanyGrowthLedger[]
+  reports                         FinancialReport[]
+  auditRecords                    FinancialAuditRecord[]
+
+  @@index([weekLabel])
+  @@index([seasonId])
+  @@index([status])
+  @@index([calculatedAt])
+  @@map("financial_engine_runs")
+}
+
+model FinancialEngineAllocation {
+  id                String   @id @default(uuid())
+  runId             String
+  allocationType    String
+  label             String
+  percent           Float
+  amountCents       Int      @default(0)
+  distributable     Boolean  @default(false)
+  auditExplanation  String
+  createdAt         DateTime @default(now())
+  run               FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([allocationType])
+  @@map("financial_engine_allocations")
+}
+
+model FinancialPartnerDistribution {
+  id                   String   @id @default(uuid())
+  runId                String
+  participationId      String?
+  userId               String?
+  participationWeight  Float    @default(0)
+  distributionCents    Int      @default(0)
+  status               String   @default("CALCULATED")
+  explanation          String
+  createdAt            DateTime @default(now())
+  run                  FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([participationId])
+  @@index([userId])
+  @@index([status])
+  @@map("financial_partner_distributions")
+}
+
+model FinancialAnalystReward {
+  id                 String   @id @default(uuid())
+  runId              String
+  analystId          String
+  analystName        String
+  contributionWeight Float    @default(0)
+  rewardCents        Int      @default(0)
+  status             String   @default("CALCULATED")
+  breakdown          Json     @default("[]")
+  createdAt          DateTime @default(now())
+  run                FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([analystId])
+  @@index([status])
+  @@map("financial_analyst_rewards")
+}
+
+model FinancialReserveLedger {
+  id                String   @id @default(uuid())
+  runId             String
+  direction         String
+  amountCents       Int      @default(0)
+  balanceAfterCents Int      @default(0)
+  classification    String
+  notes             String
+  createdBy         String
+  createdAt         DateTime @default(now())
+  run               FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([classification])
+  @@map("financial_reserve_ledger")
+}
+
+model FinancialCompanyGrowthLedger {
+  id                String   @id @default(uuid())
+  runId             String
+  direction         String
+  amountCents       Int      @default(0)
+  balanceAfterCents Int      @default(0)
+  classification    String
+  notes             String
+  createdBy         String
+  createdAt         DateTime @default(now())
+  run               FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([classification])
+  @@map("financial_company_growth_ledger")
+}
+
+model FinancialReport {
+  id             String   @id @default(uuid())
+  runId          String
+  reportType     String
+  title          String
+  summary        String
+  metrics        Json     @default("{}")
+  generatedBy    String
+  generatedAt    DateTime @default(now())
+  run            FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([reportType])
+  @@map("financial_reports")
+}
+
+model FinancialAuditRecord {
+  id             String   @id @default(uuid())
+  runId          String?
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String?
+  beforeState    Json?
+  afterState     Json?
+  calculationRef String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  run            FinancialEngineRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("financial_audit_records")
+}
+
 model AnalyticsSnapshot {
   id            String   @id @default(uuid())
   snapshotType  String

@@ -21,6 +21,11 @@ import { CommercialService } from "./commercial/service.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
 import { checkPrismaConnection, isDatabaseUrlConfigured } from "./database/prismaClient.js";
+import { FinancialEngineService } from "./financial/financialEngineService.js";
+import { InMemoryFinancialRepository } from "./financial/inMemoryFinancialRepository.js";
+import { PrismaFinancialRepository } from "./financial/financialRepository.js";
+import { createFinancialRouter } from "./financial/financialRoutes.js";
+import type { FinancialRepository } from "./financial/types.js";
 import { ApiFootballClient } from "./football/apiFootballClient.js";
 import { getFootballConfig } from "./football/config.js";
 import { FootballJobScheduler } from "./football/footballJobs.js";
@@ -198,6 +203,7 @@ export function createApp(options?: {
   operationsRepository?: OperationsRepository;
   mediaRepository?: MediaRepository;
   seasonRepository?: SeasonRepository;
+  financialRepository?: FinancialRepository;
   paymentRepository?: PaymentRepository;
   nowPaymentsProvider?: NowPaymentsProvider;
   jwtSecret?: string;
@@ -280,6 +286,12 @@ export function createApp(options?: {
       : new PrismaSeasonRepository()
   );
   const seasonService = new SeasonService(seasonRepository);
+  const financialRepository = options?.financialRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryFinancialRepository()
+      : new PrismaFinancialRepository()
+  );
+  const financialEngineService = new FinancialEngineService(financialRepository);
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -419,6 +431,13 @@ export function createApp(options?: {
     createSeasonRouter({
       authService,
       seasonService,
+    }),
+  );
+  app.use(
+    "/api",
+    createFinancialRouter({
+      authService,
+      financialEngineService,
     }),
   );
   app.use(
