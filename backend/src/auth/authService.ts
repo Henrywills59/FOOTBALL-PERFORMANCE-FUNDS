@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import type { AuthResponse, AuthUser, PublicUserRole, UserRole } from "@fpf/shared";
 import { isPrismaConnectionPressureError } from "../database/prismaErrors.js";
 import type { NotificationDeliveryService } from "../integrations/notificationProviders.js";
+import { buildFrontendUrl } from "../config/publicUrls.js";
 import { getDashboardRoute } from "./dashboard.js";
 import type { JwtUser, StoredUser, UserRepository } from "./types.js";
 
@@ -578,8 +579,7 @@ export class AuthService {
   }
 
   private passwordResetUrl(token: string) {
-    const baseUrl = process.env.FRONTEND_URL?.trim() || "https://football-performance-funds-frontend.vercel.app";
-    return `${baseUrl.replace(/\/+$/, "")}/reset-password?token=${encodeURIComponent(token)}`;
+    return buildFrontendUrl(`/reset-password?token=${encodeURIComponent(token)}`);
   }
 
   private async sendAccountNotification(

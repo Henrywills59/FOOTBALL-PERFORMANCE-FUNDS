@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryUserRepository } from "../auth/inMemoryUserRepository.js";
@@ -9,8 +9,9 @@ import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorReposito
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
 import { InMemoryPaymentRepository } from "./inMemoryPaymentRepository.js";
+import { getNowPaymentsWebhookUrl } from "./config.js";
 import { signNowPaymentsPayload } from "./nowPaymentsProvider.js";
-import type { NowPaymentsProvider } from "./types.js";
+import type { NowPaymentsCreatePaymentRequest, NowPaymentsProvider } from "./types.js";
 
 function seedUser(users: InMemoryUserRepository, role: "SUBSCRIBER" | "INVESTOR" | "ADMIN", id = `${role.toLowerCase()}-payment-user`) {
   users.seedUser({
@@ -31,6 +32,7 @@ function seedUser(users: InMemoryUserRepository, role: "SUBSCRIBER" | "INVESTOR"
 class MockNowPaymentsProvider implements NowPaymentsProvider {
   paymentStatus = "waiting";
   configured = true;
+  lastCreatePaymentInput: NowPaymentsCreatePaymentRequest | null = null;
 
   isConfigured() {
     return this.configured;
@@ -40,7 +42,8 @@ class MockNowPaymentsProvider implements NowPaymentsProvider {
     return this.configured ? [] : ["NOWPAYMENTS_API_KEY"];
   }
 
-  async createPayment(input: { orderId: string; payCurrency: string; priceCurrency: string; priceAmount: number }) {
+  async createPayment(input: NowPaymentsCreatePaymentRequest) {
+    this.lastCreatePaymentInput = input;
     return {
       paymentId: `pay_${input.orderId}`,
       invoiceId: `invoice_${input.orderId}`,
@@ -111,7 +114,51 @@ function signature(payload: Record<string, unknown>) {
   return signNowPaymentsPayload(payload, "test-ipn-secret");
 }
 
+const urlEnvKeys = ["BACKEND_BASE_URL", "BACKEND_PUBLIC_URL", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL", "NOWPAYMENTS_IPN_CALLBACK_URL"] as const;
+const previousUrlEnv = Object.fromEntries(urlEnvKeys.map((key) => [key, process.env[key]]));
+
+function restoreUrlEnv() {
+  for (const key of urlEnvKeys) {
+    const value = previousUrlEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
 describe("NOWPayments payment routes", () => {
+  afterEach(restoreUrlEnv);
+
+  it("uses an environment-aware Preview backend callback URL for checkout creation", async () => {
+    process.env.BACKEND_BASE_URL = "https://backend-preview.example.com";
+    delete process.env.NOWPAYMENTS_IPN_CALLBACK_URL;
+    const { app, users, provider } = testApp();
+    const token = seedUser(users, "SUBSCRIBER");
+
+    await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY", paymentNetwork: "USDT_TRC20" })
+      .expect(201);
+
+    expect(provider.lastCreatePaymentInput?.ipnCallbackUrl).toBe("https://backend-preview.example.com/api/payments/nowpayments/webhook");
+    expect(getNowPaymentsWebhookUrl()).toBe("https://backend-preview.example.com/api/payments/nowpayments/webhook");
+  });
+
+  it("allows an explicit NOWPayments callback URL override for Production", async () => {
+    process.env.BACKEND_BASE_URL = "https://backend-preview.example.com";
+    process.env.NOWPAYMENTS_IPN_CALLBACK_URL = "https://backend-production.example.com/api/payments/nowpayments/webhook";
+    const { app, users, provider } = testApp();
+    const token = seedUser(users, "SUBSCRIBER");
+
+    await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY", paymentNetwork: "USDT_TRC20" })
+      .expect(201);
+
+    expect(provider.lastCreatePaymentInput?.ipnCallbackUrl).toBe("https://backend-production.example.com/api/payments/nowpayments/webhook");
+  });
+
   it("creates subscription payment orders from authoritative plan pricing", async () => {
     const { app, users } = testApp();
     const token = seedUser(users, "SUBSCRIBER");

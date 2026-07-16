@@ -1,3 +1,5 @@
+import { buildBackendUrl } from "../config/publicUrls.js";
+
 const requiredNowPaymentsVariables = [
   "NOWPAYMENTS_API_KEY",
   "NOWPAYMENTS_IPN_SECRET",
@@ -30,6 +32,12 @@ export type NowPaymentsRuntimeConfig = {
 
 function clean(value: string | undefined, fallback = "") {
   return value?.trim() || fallback;
+}
+
+function normalizeUrl(value: string) {
+  const trimmed = value.trim();
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return withProtocol.replace(/\/+$/, "");
 }
 
 const payoutWalletDefinitions: Record<PaymentNetwork, Omit<NowPaymentsPayoutWalletConfig, "configured">> = {
@@ -97,8 +105,9 @@ export function getPayoutWalletForNetwork(network: PaymentNetwork) {
 }
 
 export function getNowPaymentsWebhookUrl() {
-  const baseUrl = clean(process.env.BACKEND_PUBLIC_URL, "https://football-performance-funds-backend.vercel.app").replace(/\/+$/, "");
-  return `${baseUrl}/api/payments/nowpayments/webhook`;
+  const explicitCallback = clean(process.env.NOWPAYMENTS_IPN_CALLBACK_URL);
+  if (explicitCallback) return normalizeUrl(explicitCallback);
+  return buildBackendUrl("/api/payments/nowpayments/webhook");
 }
 
 export function safeNowPaymentsConfigStatus() {
