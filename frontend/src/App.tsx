@@ -66,6 +66,7 @@ import type {
   TimezoneSetting,
   PublicExperience,
   ThemePreference,
+  UserRole,
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
 import { Mission21PublicExperience, ThemeSwitcher } from "./PublicExperience";
@@ -214,11 +215,16 @@ function setMetaTag(name: string, content: string, attribute: "name" | "property
   element.content = content;
 }
 
-const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
+const roleLabels: Record<UserRole, string> = {
   SUBSCRIBER: "Subscriber",
   INVESTOR: "Performance Partner",
   ANALYST: "Analyst",
   ADMIN: "Admin",
+  CEO: "CEO",
+  FINANCE: "Finance",
+  RISK_MANAGER: "Risk Manager",
+  CAPITAL_MANAGER: "Capital Manager",
+  SUPER_ADMINISTRATOR: "Super Administrator",
 };
 
 function displayNavigationLabel(label: string) {

@@ -1,4 +1,4 @@
-import type { AccountStatus, AuthUser, UserRole } from "@fpf/shared";
+import type { AccountStatus, AuthUser, PublicUserRole, UserRole } from "@fpf/shared";
 
 export type StoredUser = AuthUser & {
   passwordHash: string;
@@ -8,7 +8,7 @@ export type CreateUserInput = {
   name: string;
   email: string;
   passwordHash: string;
-  role: Exclude<UserRole, "ADMIN">;
+  role: PublicUserRole;
 };
 
 export type PasswordResetRecord = {

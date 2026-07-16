@@ -4,8 +4,19 @@ export type HealthStatus = {
   version: string;
 };
 
-export const USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST", "ADMIN"] as const;
+export const USER_ROLES = [
+  "SUBSCRIBER",
+  "INVESTOR",
+  "ANALYST",
+  "ADMIN",
+  "CEO",
+  "FINANCE",
+  "RISK_MANAGER",
+  "CAPITAL_MANAGER",
+  "SUPER_ADMINISTRATOR",
+] as const;
 export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"] as const;
+export const COMPANY_CAPITAL_ROLES = ["CEO", "FINANCE", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"] as const;
 export const INTERNAL_PLATFORM_NAME = "FPF OS";
 export const PUBLIC_BRAND_NAME = "Football Performance Fund";
 export const COMPANY_POSITIONING = "Global Football Performance Intelligence Company";
@@ -15,10 +26,16 @@ export const ROLE_DISPLAY_LABELS = {
   INVESTOR: "Performance Partner",
   ANALYST: "Analyst",
   ADMIN: "Admin",
+  CEO: "CEO",
+  FINANCE: "Finance",
+  RISK_MANAGER: "Risk Manager",
+  CAPITAL_MANAGER: "Capital Manager",
+  SUPER_ADMINISTRATOR: "Super Administrator",
 } as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 export type PublicUserRole = (typeof PUBLIC_USER_ROLES)[number];
+export type CompanyCapitalRole = (typeof COMPANY_CAPITAL_ROLES)[number];
 export type PerformancePartnerRole = typeof PERFORMANCE_PARTNER_ROLE;
 
 export function isPerformancePartnerRole(role: UserRole): role is PerformancePartnerRole {

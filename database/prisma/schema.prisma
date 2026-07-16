@@ -13,6 +13,11 @@ enum UserRole {
   INVESTOR
   ANALYST
   ADMIN
+  CEO
+  FINANCE
+  RISK_MANAGER
+  CAPITAL_MANAGER
+  SUPER_ADMINISTRATOR
 }
 
 enum AccountStatus {
@@ -2385,6 +2390,154 @@ model FinancialAuditRecord {
   @@index([action])
   @@index([createdAt])
   @@map("financial_audit_records")
+}
+
+model CompanyCapitalPortfolio {
+  id                    String   @id @default(uuid())
+  name                  String
+  baseCurrency          String   @default("USD")
+  openingBalanceCents   Int      @default(0)
+  availableCapitalCents Int      @default(0)
+  allocatedCapitalCents Int      @default(0)
+  exposureCents         Int      @default(0)
+  settledProfitCents    Int      @default(0)
+  settledLossCents      Int      @default(0)
+  status                String   @default("ACTIVE")
+  createdBy             String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  allocations           CompanyCapitalAllocation[]
+
+  @@index([status])
+  @@map("company_capital_portfolios")
+}
+
+model CompanyCapitalAllocation {
+  id                      String   @id @default(uuid())
+  portfolioId             String
+  candidateId             String?
+  fixtureId               String?
+  matchLabel              String
+  market                  String
+  selection               String
+  recommendedStakeCents   Int      @default(0)
+  approvedStakeCents      Int      @default(0)
+  maxStakeCents           Int      @default(0)
+  odds                    Float    @default(0)
+  riskGrade               String   @default("MEDIUM")
+  exposureCents           Int      @default(0)
+  status                  String   @default("DRAFT")
+  approvalStatus          String   @default("PENDING")
+  analystApprovalStatus   String   @default("PENDING")
+  intelligenceStatus      String   @default("PENDING_REVIEW")
+  rationale               String?
+  createdBy               String
+  approvedBy              String?
+  approvedAt              DateTime?
+  rejectedBy              String?
+  rejectedAt              DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  portfolio               CompanyCapitalPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  stakes                  CompanyCapitalStake[]
+  settlements             CompanyCapitalSettlement[]
+  riskEvents              CompanyCapitalRiskEvent[]
+
+  @@index([portfolioId])
+  @@index([candidateId])
+  @@index([fixtureId])
+  @@index([status])
+  @@index([approvalStatus])
+  @@map("company_capital_allocations")
+}
+
+model CompanyCapitalStake {
+  id             String   @id @default(uuid())
+  allocationId   String
+  stakeCents     Int      @default(0)
+  odds           Float    @default(0)
+  bookmaker      String   @default("Manual execution placeholder")
+  reference      String?
+  status         String   @default("PENDING_PLACEMENT")
+  placedBy       String?
+  placedAt       DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  allocation     CompanyCapitalAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  settlements    CompanyCapitalSettlement[]
+
+  @@index([allocationId])
+  @@index([status])
+  @@map("company_capital_stakes")
+}
+
+model CompanyCapitalSettlement {
+  id                String   @id @default(uuid())
+  allocationId      String
+  stakeId           String?
+  outcome           String
+  grossReturnCents  Int      @default(0)
+  profitCents       Int      @default(0)
+  lossCents         Int      @default(0)
+  netResultCents    Int      @default(0)
+  settlementStatus  String   @default("RECORDED")
+  settledBy         String
+  settledAt         DateTime @default(now())
+  notes             String?
+  allocation        CompanyCapitalAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  stake             CompanyCapitalStake? @relation(fields: [stakeId], references: [id], onDelete: SetNull)
+
+  @@index([allocationId])
+  @@index([stakeId])
+  @@map("company_capital_settlements")
+}
+
+model CompanyCapitalRiskEvent {
+  id            String   @id @default(uuid())
+  allocationId  String?
+  severity      String
+  status        String   @default("OPEN")
+  message       String
+  createdBy     String
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+  allocation    CompanyCapitalAllocation? @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  @@index([allocationId])
+  @@index([severity])
+  @@index([status])
+  @@map("company_capital_risk_events")
+}
+
+model CompanyCapitalReport {
+  id           String   @id @default(uuid())
+  periodType   String
+  periodLabel  String
+  summary      String
+  metrics      Json     @default("{}")
+  generatedBy  String
+  generatedAt  DateTime @default(now())
+
+  @@index([periodType, periodLabel])
+  @@map("company_capital_reports")
+}
+
+model CompanyCapitalAuditRecord {
+  id           String   @id @default(uuid())
+  actorUserId  String?
+  action       String
+  entityType   String
+  entityId     String?
+  beforeState  Json?
+  afterState   Json?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("company_capital_audit_records")
 }
 
 model AnalyticsSnapshot {

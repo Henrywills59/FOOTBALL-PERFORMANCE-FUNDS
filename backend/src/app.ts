@@ -16,6 +16,11 @@ import type { AnalystRepository } from "./analyst/types.js";
 import { createAnalyticsRouter } from "./analytics/analyticsRoutes.js";
 import { AnalyticsService } from "./analytics/analyticsService.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
+import { CompanyCapitalService } from "./companyCapital/companyCapitalService.js";
+import { InMemoryCompanyCapitalRepository } from "./companyCapital/inMemoryCompanyCapitalRepository.js";
+import { PrismaCompanyCapitalRepository } from "./companyCapital/companyCapitalRepository.js";
+import { createCompanyCapitalRouter } from "./companyCapital/companyCapitalRoutes.js";
+import type { CompanyCapitalRepository } from "./companyCapital/types.js";
 import { createCommercialRouter } from "./commercial/routes.js";
 import { CommercialService } from "./commercial/service.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
@@ -204,6 +209,7 @@ export function createApp(options?: {
   mediaRepository?: MediaRepository;
   seasonRepository?: SeasonRepository;
   financialRepository?: FinancialRepository;
+  companyCapitalRepository?: CompanyCapitalRepository;
   paymentRepository?: PaymentRepository;
   nowPaymentsProvider?: NowPaymentsProvider;
   jwtSecret?: string;
@@ -292,6 +298,12 @@ export function createApp(options?: {
       : new PrismaFinancialRepository()
   );
   const financialEngineService = new FinancialEngineService(financialRepository);
+  const companyCapitalRepository = options?.companyCapitalRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryCompanyCapitalRepository()
+      : new PrismaCompanyCapitalRepository()
+  );
+  const companyCapitalService = new CompanyCapitalService(companyCapitalRepository, predictionWorkflowService);
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -438,6 +450,13 @@ export function createApp(options?: {
     createFinancialRouter({
       authService,
       financialEngineService,
+    }),
+  );
+  app.use(
+    "/api",
+    createCompanyCapitalRouter({
+      authService,
+      companyCapitalService,
     }),
   );
   app.use(

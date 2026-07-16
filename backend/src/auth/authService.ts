@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
-import type { AuthResponse, AuthUser, UserRole } from "@fpf/shared";
+import type { AuthResponse, AuthUser, PublicUserRole, UserRole } from "@fpf/shared";
 import { isPrismaConnectionPressureError } from "../database/prismaErrors.js";
 import { getDashboardRoute } from "./dashboard.js";
 import type { JwtUser, StoredUser, UserRepository } from "./types.js";
@@ -110,7 +110,7 @@ export class AuthService {
     name: string;
     email: string;
     password: string;
-    role: Exclude<UserRole, "ADMIN">;
+    role: PublicUserRole;
   }): Promise<AuthResponse> {
     const existingUser = await this.users.findUserByEmail(input.email);
     if (existingUser) {

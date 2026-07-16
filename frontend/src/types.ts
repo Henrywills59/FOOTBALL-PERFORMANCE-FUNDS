@@ -1,6 +1,15 @@
 export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"] as const;
 
-export type UserRole = "SUBSCRIBER" | "INVESTOR" | "ANALYST" | "ADMIN";
+export type UserRole =
+  | "SUBSCRIBER"
+  | "INVESTOR"
+  | "ANALYST"
+  | "ADMIN"
+  | "CEO"
+  | "FINANCE"
+  | "RISK_MANAGER"
+  | "CAPITAL_MANAGER"
+  | "SUPER_ADMINISTRATOR";
 export type PublicUserRole = (typeof PUBLIC_USER_ROLES)[number];
 export type AccountStatus = "ACTIVE" | "DISABLED";
 
