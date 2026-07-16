@@ -15,6 +15,17 @@ const contradictionSchema = z.object({
   evidence: z.record(z.unknown()).default({}),
 });
 
+const evidenceSchema = z.object({
+  matchId: z.string().optional(),
+  context: z.record(z.unknown()).default({}),
+});
+
+const postMatchReviewSchema = z.object({
+  fixtureId: z.string().optional(),
+  result: z.record(z.unknown()).default({}),
+  preMatchIntelligence: z.record(z.unknown()).default({}),
+});
+
 export function createAiIntelligenceRouter(input: {
   authService: AuthService;
   openAiProvider: OpenAiProvider;
@@ -62,6 +73,34 @@ export function createAiIntelligenceRouter(input: {
       const insight = await input.openAiProvider.generateInsight({
         task: "CONTRADICTION_DETECTION",
         prompt: "Detect contradictions between analyst submission and supporting evidence. Return only internal review notes.",
+        context: body,
+      });
+      response.status(200).json({ insight });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/intelligence/ai/evidence-summary", ...internalOnly, async (request, response, next) => {
+    try {
+      const body = evidenceSchema.parse(request.body);
+      const insight = await input.openAiProvider.generateInsight({
+        task: "SUPPORTING_OPPOSING_EVIDENCE",
+        prompt: "Summarize supporting and opposing evidence for internal FPF review. Use only supplied context.",
+        context: body,
+      });
+      response.status(200).json({ insight });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/intelligence/ai/post-match-review", ...internalOnly, async (request, response, next) => {
+    try {
+      const body = postMatchReviewSchema.parse(request.body);
+      const insight = await input.openAiProvider.generateInsight({
+        task: "POST_MATCH_REVIEW",
+        prompt: "Synthesize a post-match review for internal quality control. Do not settle financial results.",
         context: body,
       });
       response.status(200).json({ insight });

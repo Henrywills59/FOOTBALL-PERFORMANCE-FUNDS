@@ -182,6 +182,42 @@ function getSafeConfigStatus() {
   };
 }
 
+function getProductionProviderValidation() {
+  const variables = {
+    infobipApiKey: Boolean(process.env.INFOBIP_API_KEY?.trim()),
+    infobipBaseUrl: Boolean(process.env.INFOBIP_BASE_URL?.trim()),
+    openAiApiKey: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    openAiModel: Boolean(process.env.OPENAI_MODEL?.trim()),
+    oddsApiKey: Boolean(process.env.ODDS_API_KEY?.trim()),
+    oddsApiBaseUrl: Boolean(process.env.ODDS_API_BASE_URL?.trim()),
+  };
+  const missingVariables = [
+    !variables.infobipApiKey ? "INFOBIP_API_KEY" : null,
+    !variables.infobipBaseUrl ? "INFOBIP_BASE_URL" : null,
+    !variables.openAiApiKey ? "OPENAI_API_KEY" : null,
+    !variables.openAiModel ? "OPENAI_MODEL" : null,
+    !variables.oddsApiKey ? "ODDS_API_KEY" : null,
+    !variables.oddsApiBaseUrl ? "ODDS_API_BASE_URL" : null,
+  ].filter((item): item is string => Boolean(item));
+  return {
+    configured: missingVariables.length === 0,
+    variables,
+    missingVariables,
+  };
+}
+
+function logStartupProviderValidation() {
+  const validation = getProductionProviderValidation();
+  if (validation.configured) {
+    console.info("PROVIDER_STARTUP_VALIDATION", { status: "READY" });
+    return;
+  }
+  console.warn("PROVIDER_STARTUP_VALIDATION", {
+    status: "ACTION_REQUIRED",
+    missingVariables: validation.missingVariables,
+  });
+}
+
 function isAllowedOrigin(origin?: string) {
   if (!origin) return true;
   const normalizedOrigin = normalizeOrigin(origin);
@@ -221,10 +257,14 @@ export function createApp(options?: {
 }) {
   const app = express();
   app.set("trust proxy", 1);
+  logStartupProviderValidation();
   const footballConfig = getFootballConfig();
+  const openAiProvider = new OpenAiProvider();
+  const notificationDeliveryService = new NotificationDeliveryService();
   const authService = new AuthService(
     options?.userRepository ?? new PrismaUserRepository(),
     options?.jwtSecret ?? getJwtSecret(),
+    notificationDeliveryService,
   );
   const footballRepository = options?.footballRepository ?? new PrismaFootballRepository();
   const predictionRepository = options?.predictionRepository ?? new PrismaPredictionRepository();
@@ -269,8 +309,6 @@ export function createApp(options?: {
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
   );
-  const openAiProvider = new OpenAiProvider();
-  const notificationDeliveryService = new NotificationDeliveryService();
   const analystService = new AnalystService(
     analystRepository,
     footballRepository,
@@ -430,12 +468,14 @@ export function createApp(options?: {
       openAi: openAiProvider.status(),
       notifications: notificationDeliveryService.status(),
       nowPayments: safeNowPaymentsConfigStatus(),
+      productionProviderValidation: getProductionProviderValidation(),
     };
     const required = [
       config.requiredEnvironment.databaseUrl,
       config.requiredEnvironment.jwtSecret,
       database.ok,
       providers.nowPayments.configured,
+      providers.productionProviderValidation.configured,
     ];
     response.status(required.every(Boolean) ? 200 : 503).json({
       status: required.every(Boolean) ? "READY" : "ACTION_REQUIRED",

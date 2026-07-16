@@ -175,6 +175,8 @@ export class OperationsService {
         provider: "NONE",
         status: "SKIPPED" as const,
         message: "Notification delivery service is not configured.",
+        providerMessageId: null,
+        attempts: 0,
       });
     }
     return this.notificationDeliveryService.send(channel, input);

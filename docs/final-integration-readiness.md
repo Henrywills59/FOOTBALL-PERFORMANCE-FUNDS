@@ -37,14 +37,13 @@ OpenAI:
 
 Notifications:
 
-- `EMAIL_PROVIDER=RESEND`
-- `EMAIL_API_KEY` or `RESEND_API_KEY`
-- `EMAIL_FROM`
-- `EMAIL_API_URL=https://api.resend.com/emails`
-- `SMS_PROVIDER=TWILIO`
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `SMS_FROM` or `TWILIO_FROM_NUMBER`
+- `INFOBIP_API_KEY`
+- `INFOBIP_BASE_URL`
+- `INFOBIP_SMS_FROM`
+- `INFOBIP_EMAIL_FROM`
+- `INFOBIP_TIMEOUT_MS=10000`
+- `EMAIL_PROVIDER=INFOBIP`
+- `SMS_PROVIDER=INFOBIP`
 - `PUSH_PROVIDER=WEB_PUSH`
 - `PUSH_API_URL`
 - `PUSH_API_KEY`
@@ -55,7 +54,11 @@ Notifications:
 - `GET /api/football/status`
 - `POST /api/football/provider/diagnostics`
 - `POST /api/football/odds/diagnostics`
+- `GET /api/football/odds/competitions`
+- `GET /api/football/odds/markets`
 - `GET /api/intelligence/ai/status`
+- `POST /api/intelligence/ai/evidence-summary`
+- `POST /api/intelligence/ai/post-match-review`
 - `GET /api/admin/notifications/providers`
 - `GET /api/payments/config`
 

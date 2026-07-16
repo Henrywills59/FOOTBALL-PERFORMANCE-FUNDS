@@ -177,6 +177,29 @@ export class PrismaFootballRepository implements FootballRepository {
     const fixture = input.fixtureApiId
       ? await this.prisma.footballFixture.findUnique({ where: { apiFootballFixtureId: input.fixtureApiId } })
       : null;
+    const existing = await this.prisma.matchOdd.findFirst({
+      where: {
+        fixtureId: fixture?.id ?? null,
+        fixtureApiId: input.fixtureApiId,
+        bookmaker: input.bookmaker,
+        market: input.market,
+        outcome: input.outcome,
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    const movement = existing
+      ? {
+          previousPrice: existing.price,
+          currentPrice: input.price,
+          direction: input.price > existing.price ? "UP" : input.price < existing.price ? "DOWN" : "UNCHANGED",
+          changedBy: Number((input.price - existing.price).toFixed(4)),
+        }
+      : {
+          previousPrice: null,
+          currentPrice: input.price,
+          direction: "NEW",
+          changedBy: 0,
+        };
 
     await this.prisma.matchOdd.deleteMany({
       where: {
@@ -195,7 +218,14 @@ export class PrismaFootballRepository implements FootballRepository {
         market: input.market,
         outcome: input.outcome,
         price: input.price,
-        raw: prismaJson(input.raw),
+        raw: prismaJson({
+          provider: "The Odds API",
+          providerSport: input.providerSport,
+          retrievedAt: (input.retrievedAt ?? new Date()).toISOString(),
+          quota: input.quota ?? {},
+          movement,
+          source: input.raw,
+        }),
       },
     });
   }

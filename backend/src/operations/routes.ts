@@ -216,6 +216,7 @@ export function createOperationsRouter(input: {
         to: body.to,
         title: body.title,
         message: body.message,
+        purpose: "ADMIN_TEST",
         metadata: { requestedBy: request.user!.id, source: "admin_notification_test" },
       });
       await input.adminService.audit(request.user!.id, "NOTIFICATION_PROVIDER_TESTED", "NOTIFICATION_PROVIDER", body.channel);

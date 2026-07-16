@@ -263,6 +263,28 @@ export function createFootballRouter(input: {
     },
   );
 
+  router.get(
+    "/football/odds/competitions",
+    signedIn,
+    requireRole(["ANALYST", "ADMIN"]),
+    async (_request, response, next) => {
+      try {
+        response.status(200).json(await input.syncService.listOddsCompetitions());
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.get(
+    "/football/odds/markets",
+    signedIn,
+    requireRole(["ANALYST", "ADMIN"]),
+    (_request, response) => {
+      response.status(200).json(input.syncService.oddsMarkets());
+    },
+  );
+
   router.post(
     "/football/sync/odds",
     signedIn,

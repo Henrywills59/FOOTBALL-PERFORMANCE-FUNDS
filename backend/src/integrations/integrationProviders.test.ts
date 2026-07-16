@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryUserRepository } from "../auth/inMemoryUserRepository.js";
@@ -40,6 +40,12 @@ function adminApp() {
 }
 
 describe("production integration providers", () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
   it("returns safe OpenAI fallback when the API key is absent", async () => {
     delete process.env.OPENAI_API_KEY;
     const provider = new OpenAiProvider();
@@ -52,15 +58,23 @@ describe("production integration providers", () => {
     expect(provider.status().configured).toBe(false);
     expect(insight.mode).toBe("SAFE_FALLBACK");
     expect(insight.text).toContain("Safe fallback");
+    expect(insight.structured.riskWarnings[0]).toContain("cannot approve selections");
   });
 
-  it("reports notification provider configuration without exposing secrets", () => {
+  it("reports Infobip notification provider configuration without exposing secrets", () => {
+    process.env.INFOBIP_API_KEY = "test-infobip-key";
+    process.env.INFOBIP_BASE_URL = "https://example.infobip.com";
+    delete process.env.EMAIL_PROVIDER;
+    delete process.env.SMS_PROVIDER;
+
     const delivery = new NotificationDeliveryService();
     const status = delivery.status();
 
-    expect(status.email).toHaveProperty("configured");
-    expect(status.sms).toHaveProperty("missingVariables");
-    expect(JSON.stringify(status)).not.toContain("secret");
+    expect(status.email.provider).toBe("INFOBIP");
+    expect(status.sms.provider).toBe("INFOBIP");
+    expect(status.email.configured).toBe(true);
+    expect(status.sms.configured).toBe(true);
+    expect(JSON.stringify(status)).not.toContain("test-infobip-key");
   });
 
   it("exposes admin-only integration diagnostics and readiness status", async () => {
@@ -80,6 +94,17 @@ describe("production integration providers", () => {
       .post("/api/football/odds/diagnostics")
       .set("Authorization", `Bearer ${token}`)
       .expect(503);
+
+    await request(app)
+      .get("/api/football/odds/markets")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    const competitions = await request(app)
+      .get("/api/football/odds/competitions")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(competitions.body.ok).toBe(false);
 
     const readiness = await request(app)
       .get("/api/production/readiness")

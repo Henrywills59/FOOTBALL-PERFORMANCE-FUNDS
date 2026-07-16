@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { AuthResponse, AuthUser, PublicUserRole, UserRole } from "@fpf/shared";
 import { isPrismaConnectionPressureError } from "../database/prismaErrors.js";
+import type { NotificationDeliveryService } from "../integrations/notificationProviders.js";
 import { getDashboardRoute } from "./dashboard.js";
 import type { JwtUser, StoredUser, UserRepository } from "./types.js";
 
@@ -104,6 +105,7 @@ export class AuthService {
   constructor(
     private readonly users: UserRepository,
     private readonly jwtSecret: string,
+    private readonly notificationDeliveryService?: NotificationDeliveryService,
   ) {}
 
   async register(input: {
@@ -123,6 +125,12 @@ export class AuthService {
       email: input.email,
       passwordHash,
       role: input.role,
+    });
+    await this.sendAccountNotification(user.email, {
+      title: "Welcome to Football Performance Fund",
+      message: "Your Football Performance Fund account has been created. Please verify your email when verification is enabled.",
+      purpose: "EMAIL_VERIFICATION",
+      metadata: { userId: user.id, role: user.role },
     });
 
     return this.createAuthResponse(user, false);
@@ -402,6 +410,10 @@ export class AuthService {
       tokenHash: hashResetToken(token),
       expiresAt,
     });
+    await this.notificationDeliveryService?.sendPasswordReset(user.email, this.passwordResetUrl(token), {
+      userId: user.id,
+      expiresAt: expiresAt.toISOString(),
+    });
 
     return {
       message: "If an account exists, a password reset email will be sent.",
@@ -418,6 +430,15 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(input.password, passwordSaltRounds);
     await this.users.updatePassword(record.userId, passwordHash);
     await this.users.markPasswordResetTokenUsed(record.id);
+    const user = await this.users.findUserById(record.userId);
+    if (user) {
+      await this.sendAccountNotification(user.email, {
+        title: "Football Performance Fund password changed",
+        message: "Your account password was changed successfully. Contact support immediately if this was not you.",
+        purpose: "SECURITY_ALERT",
+        metadata: { userId: user.id },
+      });
+    }
 
     return {
       message: "Password updated successfully.",
@@ -441,6 +462,12 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(input.newPassword, passwordSaltRounds);
     await this.users.updatePassword(user.id, passwordHash);
+    await this.sendAccountNotification(user.email, {
+      title: "Football Performance Fund password changed",
+      message: "Your account password was changed successfully. Contact support immediately if this was not you.",
+      purpose: "SECURITY_ALERT",
+      metadata: { userId: user.id },
+    });
 
     return {
       message: "Password updated successfully.",
@@ -545,6 +572,45 @@ export class AuthService {
         email: maskEmail(input.email),
         userId: input.userId,
         success: input.success,
+        error: safeErrorDetails(error),
+      });
+    }
+  }
+
+  private passwordResetUrl(token: string) {
+    const baseUrl = process.env.FRONTEND_URL?.trim() || "https://football-performance-funds-frontend.vercel.app";
+    return `${baseUrl.replace(/\/+$/, "")}/reset-password?token=${encodeURIComponent(token)}`;
+  }
+
+  private async sendAccountNotification(
+    to: string,
+    input: {
+      title: string;
+      message: string;
+      purpose: "EMAIL_VERIFICATION" | "SECURITY_ALERT" | "ACCOUNT_NOTIFICATION";
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    try {
+      const result = await this.notificationDeliveryService?.send("EMAIL", {
+        to,
+        title: input.title,
+        message: input.message,
+        purpose: input.purpose,
+        metadata: input.metadata,
+      });
+      if (result) {
+        console.info("AUTH_NOTIFICATION_DELIVERY", {
+          purpose: input.purpose,
+          provider: result.provider,
+          status: result.status,
+          delivered: result.delivered,
+          attempts: result.attempts,
+        });
+      }
+    } catch (error) {
+      console.error("AUTH_NOTIFICATION_DELIVERY_FAILED", {
+        purpose: input.purpose,
         error: safeErrorDetails(error),
       });
     }

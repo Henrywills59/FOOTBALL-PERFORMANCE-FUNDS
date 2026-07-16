@@ -149,11 +149,16 @@ export class FootballSyncService {
       };
     }
     try {
-      const result = await this.oddsApi.odds();
+      const [competitions, odds] = await Promise.all([
+        this.oddsApi.soccerCompetitions(),
+        this.oddsApi.odds(),
+      ]);
       return {
         ok: true,
         provider: "The Odds API",
-        recordsRead: Array.isArray(result.data) ? result.data.length : 0,
+        competitionsRead: Array.isArray(competitions.data) ? competitions.data.length : 0,
+        oddsRead: Array.isArray(odds.data) ? odds.data.length : 0,
+        supportedMarkets: this.oddsApi.supportedMarkets(),
         status: this.oddsProviderStatus(),
       };
     } catch (error) {
@@ -164,6 +169,34 @@ export class FootballSyncService {
         status: this.oddsProviderStatus(),
       };
     }
+  }
+
+  async listOddsCompetitions() {
+    if (!this.oddsApi.isConfigured()) {
+      return {
+        ok: false,
+        provider: "The Odds API",
+        competitions: [],
+        status: this.oddsProviderStatus(),
+        message: "The Odds API is not configured.",
+      };
+    }
+
+    const result = await this.oddsApi.soccerCompetitions();
+    return {
+      ok: true,
+      provider: "The Odds API",
+      competitions: result.data,
+      status: this.oddsProviderStatus(),
+    };
+  }
+
+  oddsMarkets() {
+    return {
+      provider: "The Odds API",
+      markets: this.oddsApi.supportedMarkets(),
+      status: this.oddsProviderStatus(),
+    };
   }
 
   async syncFixtures(): Promise<FootballSyncResult> {
@@ -353,6 +386,7 @@ export class FootballSyncService {
       }
 
       const result = await this.oddsApi.odds();
+      const retrievedAt = new Date();
       recordsRead = result.data.length;
       for (const raw of result.data) {
         const item = asRecord(raw);
@@ -373,6 +407,9 @@ export class FootballSyncService {
                 market: String(market.key ?? "h2h"),
                 outcome: String(outcome.name),
                 price: Number(outcome.price),
+                retrievedAt,
+                providerSport: this.config.oddsApiSport,
+                quota: result.quota,
                 raw,
               });
               recordsSaved += 1;
