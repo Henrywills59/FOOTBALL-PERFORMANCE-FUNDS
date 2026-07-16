@@ -8,6 +8,7 @@ import type {
   AdminSettings,
   AdminUser,
   AdminAnalystControlCenter,
+  AnalystCommandCentre,
   AnalystApplication,
   AnalystAssignment,
   AnalystAssistance,
@@ -21,6 +22,7 @@ import type {
   CommercialStructure,
   CommercialControlCenter,
   DecisionEngineOutput,
+  IntelligenceWorkflowRun,
   ExecutiveSituationRoom,
   ExecutiveAnalyticsDashboard,
   FootballFixtureDetail,
@@ -360,6 +362,8 @@ export default function App() {
   const [analystAssistance, setAnalystAssistance] = useState<AnalystAssistance | null>(null);
   const [adminIntelligence, setAdminIntelligence] = useState<AnalystIntelligenceSubmission[]>([]);
   const [adminAnalystControl, setAdminAnalystControl] = useState<AdminAnalystControlCenter | null>(null);
+  const [analystCommandCentre, setAnalystCommandCentre] = useState<AnalystCommandCentre | null>(null);
+  const [intelligenceWorkflowRun, setIntelligenceWorkflowRun] = useState<IntelligenceWorkflowRun | null>(null);
   const [warRoom, setWarRoom] = useState<WarRoomDashboard | null>(null);
   const [treasuryDashboard, setTreasuryDashboard] = useState<TreasuryDashboard | null>(null);
   const [executiveSituation, setExecutiveSituation] = useState<ExecutiveSituationRoom | null>(null);
@@ -802,8 +806,16 @@ export default function App() {
       const adminPaymentsData = await apiGet<PaymentCenter>("/admin/payments", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const workflowData = await apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token);
+      const intelligenceWorkflowData = await apiGet<{
+        items: PredictionQueueItem[];
+        summary: PredictionWorkflowQueue["summary"];
+        verifiedSelections: PredictionQueueItem[];
+        companyCapitalEligible: PredictionQueueItem[];
+        financialEngineEligible: PredictionQueueItem[];
+      }>("/intelligence/workflow/candidates?limit=30", token);
       const investorManagementData = await apiGet<AdminInvestorManagement>("/admin/investors", token);
       const analystControlData = await apiGet<AdminAnalystControlCenter>("/analysts", token);
+      const analystCommandData = await apiGet<AnalystCommandCentre>("/analyst-command-centre", token);
       const warRoomData = await apiGet<WarRoomDashboard>("/war-room", token);
       const treasuryData = await apiGet<TreasuryDashboard>("/treasury", token);
       const executiveSituationData = await apiGet<ExecutiveSituationRoom>("/treasury/executive-situation-room", token);
@@ -811,7 +823,10 @@ export default function App() {
       setAdminOverview(overview);
       setAdminPredictions(predictionsData.predictions);
       setAdminDecisionOutputs(decisionData.decisions);
-      setPredictionWorkflowQueue(workflowData);
+      setPredictionWorkflowQueue({
+        ...workflowData,
+        items: intelligenceWorkflowData.items.length ? intelligenceWorkflowData.items : workflowData.items,
+      });
       setAdminUsers(usersData.users);
       setAuditLogs(logsData.logs);
       setAdminSettings(settingsData);
@@ -828,6 +843,7 @@ export default function App() {
       setAdminPaymentCenter(adminPaymentsData);
       setAdminInvestorManagement(investorManagementData);
       setAdminAnalystControl(analystControlData);
+      setAnalystCommandCentre(analystCommandData);
       setWarRoom(warRoomData);
       setTreasuryDashboard(treasuryData);
       setExecutiveSituation(executiveSituationData);
@@ -901,13 +917,14 @@ export default function App() {
 
   async function loadAnalystData(token: string) {
     try {
-      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData, treasuryData, analyticsData] = await Promise.all([
+      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, commandCentreData, warRoomData, treasuryData, analyticsData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<AnalystPerformanceDashboard>("/analyst/performance", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
         apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/analyst/intelligence", token),
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
         apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
+        apiGet<AnalystCommandCentre>("/analyst-command-centre", token),
         apiGet<WarRoomDashboard>("/war-room", token),
         apiGet<AnalystTreasuryView>("/treasury/analyst/me", token),
         apiGet<AnalystPrivateAnalytics>("/analytics/analyst/me", token),
@@ -918,6 +935,7 @@ export default function App() {
       setAnalystSubmissions(submissionsData.submissions);
       setFixtures(fixtureData.fixtures);
       setPredictionWorkflowQueue(workflowData);
+      setAnalystCommandCentre(commandCentreData);
       setWarRoom(warRoomData);
       setAnalystTreasury(treasuryData);
       setAnalystAnalytics(analyticsData);
@@ -1471,6 +1489,7 @@ export default function App() {
               systemIncidents={systemIncidents}
               adminAnnouncements={adminAnnouncements}
               analystControl={adminAnalystControl}
+              analystCommandCentre={analystCommandCentre}
               mediaDashboard={mediaDashboard}
               commercialControl={commercialControl}
               infrastructureControl={infrastructureControl}
@@ -1519,6 +1538,7 @@ export default function App() {
               performance={analystPerformance}
               fixtures={fixtures}
               workflowQueue={predictionWorkflowQueue}
+              commandCentre={analystCommandCentre}
               warRoom={warRoom}
               treasury={analystTreasury}
               analytics={analystAnalytics}
@@ -1668,6 +1688,7 @@ export default function App() {
 function AdminPortal({
   activeView,
   analystControl,
+  analystCommandCentre,
   auditLogs,
   decisions,
   fixtures,
@@ -1701,6 +1722,7 @@ function AdminPortal({
 }: {
   activeView: AdminNavItem;
   analystControl: AdminAnalystControlCenter | null;
+  analystCommandCentre: AnalystCommandCentre | null;
   auditLogs: AuditLogEntry[];
   decisions: DecisionEngineOutput[];
   fixtures: FootballFixtureSummary[];
@@ -1901,7 +1923,7 @@ function AdminPortal({
   }
 
   if (activeView === "Analyst Command") {
-    return <AdminAnalystCommandCenter control={analystControl} onAction={onAction} />;
+    return <AdminAnalystCommandCenter commandCentre={analystCommandCentre} control={analystControl} onAction={onAction} />;
   }
 
   if (activeView === "War Room") {
@@ -2028,6 +2050,7 @@ function AnalystPortal({
   onAssistance,
   submissions,
   workflowQueue,
+  commandCentre,
   warRoom,
   treasury,
   analytics,
@@ -2042,6 +2065,7 @@ function AnalystPortal({
   onAssistance: (fixtureId: string) => Promise<void>;
   submissions: AnalystIntelligenceSubmission[];
   workflowQueue: PredictionWorkflowQueue | null;
+  commandCentre: AnalystCommandCentre | null;
   warRoom: WarRoomDashboard | null;
   treasury: AnalystTreasuryView | null;
   analytics: AnalystPrivateAnalytics | null;
@@ -2082,6 +2106,7 @@ function AnalystPortal({
         <Panel title="Submitted Intelligence">
           <InternalSubmissionList submissions={submissions} />
         </Panel>
+        <AnalystCommandCentrePanel commandCentre={commandCentre} />
       </div>
     );
   }
@@ -2312,9 +2337,11 @@ function AnalystRewardView({ performance }: { performance: AnalystPerformanceDas
 }
 
 function AdminAnalystCommandCenter({
+  commandCentre,
   control,
   onAction,
 }: {
+  commandCentre: AnalystCommandCentre | null;
   control: AdminAnalystControlCenter | null;
   onAction: (path: string, body?: object) => Promise<void>;
 }) {
@@ -2329,6 +2356,7 @@ function AdminAnalystCommandCenter({
         <Metric label="Fraud signals" value={String(control.fraudSignals.length)} />
         <Metric label="Reward pool" value={`${control.rewardPoolPercent}%`} />
       </div>
+      <AnalystCommandCentrePanel commandCentre={commandCentre} />
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel title="Analyst Applications">
           <div className="space-y-3">
@@ -2398,6 +2426,51 @@ function AdminAnalystCommandCenter({
         </Panel>
       </div>
     </div>
+  );
+}
+
+function AnalystCommandCentrePanel({ commandCentre }: { commandCentre: AnalystCommandCentre | null }) {
+  if (!commandCentre) return <LoadingSkeleton label="Preparing Intelligence workflow" />;
+  return (
+    <Panel title="Intelligence Workflow Command Centre">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <MiniStat label="Assignments" value={String(commandCentre.assignmentQueue.length)} />
+        <MiniStat label="Pending review" value={String(commandCentre.approvalPipeline.pendingReview)} />
+        <MiniStat label="Approved" value={String(commandCentre.approvalPipeline.approved)} />
+        <MiniStat label="Published" value={String(commandCentre.approvalPipeline.published)} />
+        <MiniStat label="Senior review" value={String(commandCentre.seniorReviewQueue.length)} />
+        <MiniStat label="Evidence" value={commandCentre.evidenceCollection[0]?.evidenceStatus ?? "READY"} />
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Evidence Collection</p>
+          <div className="mt-3 space-y-2">
+            {commandCentre.evidenceCollection.slice(0, 4).map((item) => (
+              <p className="text-sm text-zinc-300" key={item.fixtureId}>{item.match}: {item.evidenceStatus}</p>
+            ))}
+            {!commandCentre.evidenceCollection.length ? <p className="text-sm text-zinc-400">No evidence gaps detected yet.</p> : null}
+          </div>
+        </div>
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Recommendation Workflow</p>
+          <div className="mt-3 space-y-2">
+            {commandCentre.recommendationWorkflow.slice(0, 4).map((item) => (
+              <p className="text-sm text-zinc-300" key={item.submissionId}>{item.match}: {item.status} | {item.confidence}%</p>
+            ))}
+            {!commandCentre.recommendationWorkflow.length ? <p className="text-sm text-zinc-400">No recommendations submitted yet.</p> : null}
+          </div>
+        </div>
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Integrations</p>
+          <div className="mt-3 space-y-2 text-sm text-zinc-300">
+            <p>Verified Selections: {commandCentre.integrationStatus.verifiedSelections}</p>
+            <p>Company Capital Desk: {commandCentre.integrationStatus.companyCapitalDesk}</p>
+            <p>Financial Engine: {commandCentre.integrationStatus.financialEngine}</p>
+            <p>Audit Logs: {commandCentre.integrationStatus.auditLogs}</p>
+          </div>
+        </div>
+      </div>
+    </Panel>
   );
 }
 

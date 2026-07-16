@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { IntelligenceService } from "./service.js";
 import type { DecisionEngineService } from "./decision/decisionService.js";
+import type { IntelligenceWorkflowService } from "./workflowService.js";
 import { intelligenceLogger } from "./logger.js";
 
 function toLimit(value: unknown, fallback: number) {
@@ -39,6 +40,7 @@ export function createIntelligenceRouter(input: {
   authService: AuthService;
   intelligenceService: IntelligenceService;
   decisionEngineService: DecisionEngineService;
+  intelligenceWorkflowService: IntelligenceWorkflowService;
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
@@ -50,6 +52,38 @@ export function createIntelligenceRouter(input: {
     ...intelligenceAccess,
     timed("/api/intelligence/decision/health", async (_request, response) => {
       response.status(200).json(input.decisionEngineService.health());
+    }),
+  );
+
+  router.post(
+    "/intelligence/workflow/ingest-mock-fixtures",
+    ...decisionReviewAccess,
+    timed("/api/intelligence/workflow/ingest-mock-fixtures", async (request, response) => {
+      response.status(200).json({
+        fixturesIngested: await input.intelligenceWorkflowService.ingestMockFixtures(toLimit(request.body?.limit, 3)),
+        mode: "MOCK_PROVIDER",
+      });
+    }),
+  );
+
+  router.post(
+    "/intelligence/workflow/scan",
+    ...decisionReviewAccess,
+    timed("/api/intelligence/workflow/scan", async (request, response) => {
+      response.status(200).json({
+        workflow: await input.intelligenceWorkflowService.runScan({
+          ingestMockFixtures: Boolean(request.body?.ingestMockFixtures),
+          limit: toLimit(request.body?.limit, 20),
+        }),
+      });
+    }),
+  );
+
+  router.get(
+    "/intelligence/workflow/candidates",
+    ...decisionReviewAccess,
+    timed("/api/intelligence/workflow/candidates", async (request, response) => {
+      response.status(200).json(await input.intelligenceWorkflowService.candidateQueue(toLimit(request.query.limit, 30)));
     }),
   );
 

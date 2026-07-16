@@ -14,7 +14,7 @@ export function priorityFromDecision(decision: DecisionEngineOutput) {
 }
 
 export function statusBucket(status: PredictionLifecycleStatus) {
-  if (["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW"].includes(status)) return "pending";
+  if (["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW", "SENIOR_REVIEW"].includes(status)) return "pending";
   if (status === "APPROVED") return "approved";
   if (status === "REJECTED") return "rejected";
   if (status === "PUBLISHED") return "published";

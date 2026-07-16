@@ -1441,6 +1441,91 @@ export type WarRoomDashboard = {
   searchIndex: Array<{ category: string; title: string; description: string }>;
 };
 
+export type IntelligenceScanStage =
+  | "FIXTURE_INGESTION"
+  | "MATCH_SCANNING"
+  | "CANDIDATE_SCORING"
+  | "CANDIDATE_QUEUE"
+  | "ANALYST_REVIEW"
+  | "PUBLICATION_PIPELINE";
+
+export type IntelligenceScanCandidate = {
+  fixtureId: string;
+  match: string;
+  league: string;
+  kickoffTime: string | null;
+  confidenceScore: number;
+  riskScore: number;
+  valueScore: number;
+  opportunityScore: number;
+  recommendationStatus: DecisionRecommendationStatus;
+  queueStatus: PredictionLifecycleStatus;
+  analystReviewStatus: "PENDING" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "PUBLISHED";
+  verifiedSelectionReady: boolean;
+  companyCapitalEligible: boolean;
+  financialEngineEligible: boolean;
+  auditTrail: string[];
+};
+
+export type IntelligenceScanSummary = {
+  fixturesIngested: number;
+  matchesScanned: number;
+  candidatesScored: number;
+  queuedCandidates: number;
+  verifiedSelectionsReady: number;
+  companyCapitalEligible: number;
+  generatedAt: string;
+};
+
+export type IntelligenceWorkflowRun = {
+  id: string;
+  mode: "MOCK_PROVIDER";
+  stages: IntelligenceScanStage[];
+  summary: IntelligenceScanSummary;
+  candidates: IntelligenceScanCandidate[];
+  warnings: string[];
+};
+
+export type AnalystCommandCentre = {
+  assignmentQueue: AnalystAssignment[];
+  workspace: {
+    pendingSubmissions: AnalystIntelligenceSubmission[];
+    approvedSubmissions: AnalystIntelligenceSubmission[];
+    rejectedSubmissions: AnalystIntelligenceSubmission[];
+    publishedSubmissions: AnalystIntelligenceSubmission[];
+  };
+  evidenceCollection: Array<{
+    fixtureId: string;
+    match: string;
+    evidenceStatus: "MISSING" | "PARTIAL" | "READY";
+    collectedEvidence: string[];
+    missingEvidence: string[];
+  }>;
+  recommendationWorkflow: Array<{
+    submissionId: string;
+    fixtureId: string;
+    match: string;
+    status: IntelligenceSubmissionStatus;
+    confidence: number;
+    riskLevel: string;
+    seniorReviewRequired: boolean;
+    publicationReady: boolean;
+  }>;
+  seniorReviewQueue: AnalystIntelligenceSubmission[];
+  approvalPipeline: {
+    pendingReview: number;
+    approved: number;
+    rejected: number;
+    published: number;
+  };
+  integrationStatus: {
+    verifiedSelections: "READY";
+    companyCapitalDesk: "READY";
+    financialEngine: "READY";
+    auditLogs: "READY";
+  };
+};
+
 export type PublishedIntelligence = {
   id: string;
   fixtureId: string;
@@ -1579,6 +1664,7 @@ export type PredictionLifecycleStatus =
   | "ANALYZING"
   | "PENDING_REVIEW"
   | "UNDER_REVIEW"
+  | "SENIOR_REVIEW"
   | "APPROVED"
   | "REJECTED"
   | "PUBLISHED"
@@ -1646,6 +1732,7 @@ export type PredictionWorkflowAction =
   | "REJECT"
   | "SAVE_DRAFT"
   | "REQUEST_REVIEW"
+  | "SENIOR_REVIEW"
   | "FLAG_HIGH_RISK"
   | "FLAG_HIGH_OPPORTUNITY"
   | "MARK_FEATURED"

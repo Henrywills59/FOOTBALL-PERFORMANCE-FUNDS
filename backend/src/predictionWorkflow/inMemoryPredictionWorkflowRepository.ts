@@ -11,6 +11,7 @@ function nextStatus(action: PredictionWorkflowActionInput["action"], previous: P
   if (action === "REJECT") return "REJECTED";
   if (action === "SAVE_DRAFT") return "NEW";
   if (action === "REQUEST_REVIEW") return "PENDING_REVIEW";
+  if (action === "SENIOR_REVIEW") return "SENIOR_REVIEW";
   if (action === "PUBLISH") return "PUBLISHED";
   if (action === "ARCHIVE") return "ARCHIVED";
   if (action === "RESTORE") return "PENDING_REVIEW";

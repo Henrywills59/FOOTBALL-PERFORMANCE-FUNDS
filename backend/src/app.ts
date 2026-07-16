@@ -49,6 +49,7 @@ import { DecisionEngineService } from "./intelligence/decision/decisionService.j
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
 import { createIntelligenceRouter } from "./intelligence/routes.js";
 import { IntelligenceService } from "./intelligence/service.js";
+import { IntelligenceWorkflowService } from "./intelligence/workflowService.js";
 import { PrismaInvestorRepository } from "./investor/investorRepository.js";
 import { createInvestorRouter } from "./investor/investorRoutes.js";
 import { InvestorService } from "./investor/investorService.js";
@@ -250,11 +251,6 @@ export function createApp(options?: {
     new NowPaymentsClient(getNowPaymentsConfig()),
     adminService,
   );
-  const analystService = new AnalystService(
-    analystRepository,
-    footballRepository,
-    adminService,
-  );
   const subscriberService = new SubscriberService(
     footballRepository,
     predictionRepository,
@@ -269,6 +265,17 @@ export function createApp(options?: {
     options?.predictionWorkflowRepository ?? new PrismaPredictionWorkflowRepository(),
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
+  );
+  const analystService = new AnalystService(
+    analystRepository,
+    footballRepository,
+    adminService,
+    predictionWorkflowService,
+  );
+  const intelligenceWorkflowService = new IntelligenceWorkflowService(
+    footballRepository,
+    decisionEngineService,
+    predictionWorkflowService,
   );
   const operationsRepository = options?.operationsRepository ?? (
     process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
@@ -542,6 +549,7 @@ export function createApp(options?: {
       authService,
       intelligenceService,
       decisionEngineService,
+      intelligenceWorkflowService,
     }),
   );
   app.use(

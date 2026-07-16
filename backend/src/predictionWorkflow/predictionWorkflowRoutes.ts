@@ -10,6 +10,7 @@ const actionSchema = z.object({
     "REJECT",
     "SAVE_DRAFT",
     "REQUEST_REVIEW",
+    "SENIOR_REVIEW",
     "FLAG_HIGH_RISK",
     "FLAG_HIGH_OPPORTUNITY",
     "MARK_FEATURED",

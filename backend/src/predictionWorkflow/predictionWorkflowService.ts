@@ -97,7 +97,7 @@ export class PredictionWorkflowService {
   validStatus(value?: string): PredictionLifecycleStatus | undefined {
     if (
       value &&
-      ["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW", "APPROVED", "REJECTED", "PUBLISHED", "EXPIRED", "ARCHIVED"].includes(value)
+      ["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW", "SENIOR_REVIEW", "APPROVED", "REJECTED", "PUBLISHED", "EXPIRED", "ARCHIVED"].includes(value)
     ) {
       return value as PredictionLifecycleStatus;
     }

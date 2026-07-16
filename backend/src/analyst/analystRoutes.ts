@@ -84,6 +84,7 @@ export function createAnalystRouter(input: {
   const analystOnly = [signedIn, requireRole(["ANALYST"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
   const warRoomAccess = [signedIn, requireRole(["ANALYST", "ADMIN"])];
+  const commandCentreAccess = [signedIn, requireRole(["ANALYST", "ADMIN", "CEO", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"])];
 
   router.post("/analyst-applications", async (request, response, next) => {
     try {
@@ -109,6 +110,14 @@ export function createAnalystRouter(input: {
   router.get("/war-room", ...warRoomAccess, async (request, response, next) => {
     try {
       response.status(200).json(await input.analystService.warRoom(request.user!));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/analyst-command-centre", ...commandCentreAccess, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.analystService.commandCentre(request.user!));
     } catch (error) {
       next(error);
     }
@@ -321,6 +330,17 @@ export function createAnalystRouter(input: {
       const body = notesSchema.parse(request.body);
       response.status(200).json({
         submission: await input.analystService.requestRevision(request.user!.id, request.params.id, body.adminNotes),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/intelligence/:id/senior-review", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = notesSchema.partial().parse(request.body);
+      response.status(200).json({
+        submission: await input.analystService.seniorReview(request.user!.id, request.params.id, body.adminNotes),
       });
     } catch (error) {
       next(error);

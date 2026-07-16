@@ -1,5 +1,6 @@
 import type {
   AnalystAssistance,
+  AnalystCommandCentre,
   AuthUser,
   FootballFixtureSummary,
   WarRoomAssignment,
@@ -11,6 +12,7 @@ import type {
 import { AuthError } from "../auth/authService.js";
 import type { FootballRepository } from "../football/types.js";
 import type { AdminService } from "../admin/adminService.js";
+import type { PredictionWorkflowService } from "../predictionWorkflow/predictionWorkflowService.js";
 import type {
   AnalystRepository,
   CreateAcademyPredictionInput,
@@ -149,6 +151,7 @@ export class AnalystService {
     private readonly repository: AnalystRepository,
     private readonly footballRepository: FootballRepository,
     private readonly adminService?: AdminService,
+    private readonly predictionWorkflowService?: PredictionWorkflowService,
   ) {}
 
   dashboard(analystId: string) {
@@ -299,6 +302,83 @@ export class AnalystService {
     };
   }
 
+  async commandCentre(user: AuthUser): Promise<AnalystCommandCentre> {
+    const isAnalyst = user.role === "ANALYST";
+    const [assignments, submissions, queue] = await Promise.all([
+      isAnalyst ? this.repository.listAssignments(user.id) : this.allAssignments(),
+      isAnalyst ? this.repository.listAnalystSubmissions(user.id) : this.repository.listAdminSubmissions(),
+      this.predictionWorkflowService?.listQueue({ sort: "priority" }) ?? Promise.resolve({ items: [], summary: { pending: 0, approved: 0, rejected: 0, published: 0, draft: 0, expired: 0, archived: 0 } }),
+    ]);
+    const assignmentQueue = assignments.filter((assignment) => assignment.status === "ASSIGNED");
+    const evidenceCollection = await Promise.all(
+      assignmentQueue.slice(0, 30).map(async (assignment) => {
+        const fixture = await this.footballRepository.getFixture(assignment.fixtureId);
+        const collectedEvidence = [
+          fixture?.standings.length ? "League standings" : null,
+          fixture?.odds.length ? "Odds snapshot" : null,
+          fixture?.injuries.length ? "Injury notes" : null,
+          fixture?.headToHeadRecords.length ? "Head-to-head" : null,
+          queue.items.some((item) => item.fixtureId === assignment.fixtureId) ? "Decision Engine candidate" : null,
+        ].filter((item): item is string => Boolean(item));
+        const missingEvidence = [
+          fixture?.standings.length ? null : "League standings",
+          fixture?.odds.length ? null : "Odds snapshot",
+          fixture?.injuries.length ? null : "Injury notes",
+          fixture?.headToHeadRecords.length ? null : "Head-to-head",
+          queue.items.some((item) => item.fixtureId === assignment.fixtureId) ? null : "Decision Engine candidate",
+        ].filter((item): item is string => Boolean(item));
+
+        return {
+          fixtureId: assignment.fixtureId,
+          match: assignment.match,
+          evidenceStatus: missingEvidence.length === 0 ? "READY" as const : collectedEvidence.length ? "PARTIAL" as const : "MISSING" as const,
+          collectedEvidence,
+          missingEvidence,
+        };
+      }),
+    );
+    const pendingSubmissions = submissions.filter((submission) => submission.status === "PENDING_REVIEW");
+    const approvedSubmissions = submissions.filter((submission) => submission.status === "APPROVED");
+    const rejectedSubmissions = submissions.filter((submission) => submission.status === "REJECTED");
+    const publishedSubmissions = submissions.filter((submission) => submission.status === "PUBLISHED");
+
+    return {
+      assignmentQueue,
+      workspace: {
+        pendingSubmissions,
+        approvedSubmissions,
+        rejectedSubmissions,
+        publishedSubmissions,
+      },
+      evidenceCollection,
+      recommendationWorkflow: submissions.map((submission) => ({
+        submissionId: submission.id,
+        fixtureId: submission.fixtureId,
+        match: submission.match,
+        status: submission.status,
+        confidence: submission.confidence,
+        riskLevel: submission.riskLevel,
+        seniorReviewRequired: submission.confidence < 68 || submission.riskLevel.toLowerCase().includes("high"),
+        publicationReady: submission.status === "APPROVED" && submission.confidence >= 60,
+      })),
+      seniorReviewQueue: pendingSubmissions.filter((submission) =>
+        submission.confidence < 68 || submission.riskLevel.toLowerCase().includes("high"),
+      ),
+      approvalPipeline: {
+        pendingReview: pendingSubmissions.length,
+        approved: approvedSubmissions.length,
+        rejected: rejectedSubmissions.length,
+        published: publishedSubmissions.length,
+      },
+      integrationStatus: {
+        verifiedSelections: "READY",
+        companyCapitalDesk: "READY",
+        financialEngine: "READY",
+        auditLogs: "READY",
+      },
+    };
+  }
+
   listAssignments(analystId: string) {
     return this.repository.listAssignments(analystId);
   }
@@ -364,6 +444,13 @@ export class AnalystService {
     return submission;
   }
 
+  async seniorReview(adminUserId: string, id: string, adminNotes?: string | null) {
+    const submission = await this.repository.updateStatus(id, "PENDING_REVIEW", adminNotes ?? "Senior analyst review requested.");
+    if (!submission) throw new AuthError("Submission not found", 404);
+    await this.adminService?.audit(adminUserId, "INTELLIGENCE_SENT_TO_SENIOR_REVIEW", "ANALYST_INTELLIGENCE", id);
+    return submission;
+  }
+
   async publish(adminUserId: string, id: string) {
     const submission = await this.repository.updateStatus(id, "PUBLISHED");
     if (!submission) throw new AuthError("Submission not found", 404);
@@ -425,5 +512,11 @@ export class AnalystService {
     if (!assignments.some((assignment) => assignment.fixtureId === fixtureId && assignment.status === "ASSIGNED")) {
       throw new AuthError("Analyst is not assigned to this match", 403);
     }
+  }
+
+  private async allAssignments() {
+    const controlCenter = await this.repository.adminControlCenter();
+    const assignments = await Promise.all(controlCenter.analysts.map((analyst) => this.repository.listAssignments(analyst.userId)));
+    return assignments.flat();
   }
 }

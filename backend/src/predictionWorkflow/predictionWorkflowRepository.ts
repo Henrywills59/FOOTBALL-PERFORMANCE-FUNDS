@@ -28,6 +28,7 @@ function lifecycle(value: string): PredictionLifecycleStatus {
       "ANALYZING",
       "PENDING_REVIEW",
       "UNDER_REVIEW",
+      "SENIOR_REVIEW",
       "APPROVED",
       "REJECTED",
       "PUBLISHED",
@@ -106,6 +107,8 @@ function statusForAction(action: PredictionWorkflowAction, previous: PredictionL
       return "NEW";
     case "REQUEST_REVIEW":
       return "PENDING_REVIEW";
+    case "SENIOR_REVIEW":
+      return "SENIOR_REVIEW";
     case "ARCHIVE":
       return "ARCHIVED";
     case "RESTORE":
@@ -261,7 +264,7 @@ export class PrismaPredictionWorkflowRepository implements PredictionWorkflowRep
               }
             : undefined,
           notes: input.notes ? { create: { note: input.notes, userId: input.actorUserId } } : undefined,
-          reviews: ["APPROVE", "REJECT", "REQUEST_REVIEW", "SAVE_DRAFT"].includes(input.action)
+          reviews: ["APPROVE", "REJECT", "REQUEST_REVIEW", "SENIOR_REVIEW", "SAVE_DRAFT"].includes(input.action)
             ? { create: { reviewerId: input.actorUserId, status: nextStatus, notes: input.notes } }
             : undefined,
           publications: nextStatus === "PUBLISHED" ? { create: { channel: "SUBSCRIBER_PORTAL" } } : undefined,
