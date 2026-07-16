@@ -32,6 +32,11 @@ function toJson(value: unknown) {
   return JSON.parse(JSON.stringify(value ?? {}));
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return toJson(value) as Record<string, unknown>;
+}
+
 function orderRow(row: PaymentOrderRow): PaymentOrder {
   return {
     id: row.id,
@@ -244,7 +249,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async activateSubscription(input: Parameters<PaymentRepository["activateSubscription"]>[0]) {
-    await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.subscriptionRecord.upsert({
         where: { id: `subscription_${input.order.userId}` },
         update: {
@@ -264,7 +269,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
           receipts: [{ orderId: input.order.id, amountCents: input.order.receivedAmountCents, issuedAt: new Date().toISOString() }],
         },
       });
-      await tx.treasuryLedger.create({
+      const ledger = await tx.treasuryLedger.create({
         data: {
           account: "COMPANY_TREASURY",
           direction: "CREDIT",
@@ -286,11 +291,13 @@ export class PrismaPaymentRepository implements PaymentRepository {
           metadata: { orderId: input.order.id },
         },
       });
+      return { treasuryLedgerTransactionId: ledger.id };
     });
+    return result;
   }
 
   async activateInvestorFunding(input: Parameters<PaymentRepository["activateInvestorFunding"]>[0]) {
-    await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const plan = await tx.investmentPlan.findFirst({ where: { active: true }, orderBy: { minimumInvestmentCents: "asc" } });
       const fallbackPlan = plan ?? await tx.investmentPlan.create({
         data: {
@@ -338,7 +345,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
           details: { investmentId: investment.id, amountCents: input.order.receivedAmountCents },
         },
       });
-      await tx.treasuryLedger.create({
+      const ledger = await tx.treasuryLedger.create({
         data: {
           account: "INVESTOR_PRINCIPAL",
           direction: "CREDIT",
@@ -360,7 +367,28 @@ export class PrismaPaymentRepository implements PaymentRepository {
           metadata: { orderId: input.order.id, investmentId: investment.id },
         },
       });
+      return { treasuryLedgerTransactionId: ledger.id };
     });
+    return result;
+  }
+
+  async linkConfirmedPayment(input: Parameters<PaymentRepository["linkConfirmedPayment"]>[0]) {
+    const existing = await this.prisma.paymentOrder.findUnique({ where: { id: input.orderId } });
+    const metadata = {
+      ...toRecord(existing?.metadata),
+      paymentNetwork: input.paymentNetwork,
+      payoutWalletReference: input.payoutWalletReference,
+      paymentPurpose: input.paymentPurpose,
+      treasuryLedgerTransactionId: input.treasuryLedgerTransactionId ?? null,
+      transactionHash: input.transactionHash ?? null,
+      webhookReceiptId: input.receiptId ?? null,
+      confirmedPaymentLinkedAt: new Date().toISOString(),
+    };
+    const row = await this.prisma.paymentOrder.update({
+      where: { id: input.orderId },
+      data: { metadata: toJson(metadata) },
+    });
+    return orderRow(row);
   }
 
   async addAdminNote(input: Parameters<PaymentRepository["addAdminNote"]>[0]) {

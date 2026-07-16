@@ -40,19 +40,19 @@ class MockNowPaymentsProvider implements NowPaymentsProvider {
     return this.configured ? [] : ["NOWPAYMENTS_API_KEY"];
   }
 
-  async createPayment(input: { orderId: string }) {
+  async createPayment(input: { orderId: string; payCurrency: string; priceCurrency: string; priceAmount: number }) {
     return {
       paymentId: `pay_${input.orderId}`,
       invoiceId: `invoice_${input.orderId}`,
       paymentStatus: "waiting",
       payAddress: "TTestAddress",
       payAmount: 10,
-      priceAmount: 19,
-      priceCurrency: "USD",
-      payCurrency: "USDTTRC20",
+      priceAmount: input.priceAmount,
+      priceCurrency: input.priceCurrency,
+      payCurrency: input.payCurrency,
       checkoutUrl: `https://nowpayments.example/${input.orderId}`,
       expiresAt: new Date(Date.now() + 900_000).toISOString(),
-      raw: { payment_id: `pay_${input.orderId}`, payment_status: "waiting" },
+      raw: { payment_id: `pay_${input.orderId}`, payment_status: "waiting", pay_currency: input.payCurrency },
     };
   }
 
@@ -87,6 +87,8 @@ function testApp() {
   process.env.NOWPAYMENTS_BASE_URL = "https://api.nowpayments.test";
   process.env.NOWPAYMENTS_PRICE_CURRENCY = "USD";
   process.env.NOWPAYMENTS_PAY_CURRENCY = "USDTTRC20";
+  process.env.NOWPAYMENTS_USDT_TRC20_PAYOUT_WALLET = "test-trc20-wallet-address";
+  process.env.NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET = "test-erc20-wallet-address";
   const users = new InMemoryUserRepository();
   const paymentRepository = new InMemoryPaymentRepository();
   const provider = new MockNowPaymentsProvider();
@@ -122,6 +124,22 @@ describe("NOWPayments payment routes", () => {
 
     expect(response.body.order.expectedAmountCents).toBe(1900);
     expect(response.body.order.checkoutUrl).toContain("nowpayments.example");
+  });
+
+  it("selects the requested payout wallet reference without exposing wallet addresses", async () => {
+    const { app, users } = testApp();
+    const token = seedUser(users, "SUBSCRIBER");
+
+    const response = await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY", paymentNetwork: "USDT_ERC20" })
+      .expect(201);
+
+    expect(response.body.order.payCurrency).toBe("USDTERC20");
+    expect(response.body.order.metadata.paymentNetwork).toBe("USDT_ERC20");
+    expect(response.body.order.metadata.payoutWalletReference).toBe("NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET");
+    expect(JSON.stringify(response.body)).not.toContain("test-erc20-wallet-address");
   });
 
   it("restricts investor funding to investors and validates package rules", async () => {
@@ -181,6 +199,36 @@ describe("NOWPayments payment routes", () => {
     await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(payload)).send(payload).expect(200);
 
     expect(paymentRepository.activations).toEqual([{ type: "INVESTOR_FUNDING", orderId: checkout.body.order.id }]);
+  });
+
+  it("links confirmed payments to network, payout wallet, transaction hash, purpose and treasury reference", async () => {
+    const { app, users, paymentRepository } = testApp();
+    const token = seedUser(users, "SUBSCRIBER");
+    const checkout = await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY", paymentNetwork: "USDT_ERC20" })
+      .expect(201);
+    const payload = {
+      payment_id: checkout.body.order.providerPaymentId,
+      order_id: checkout.body.order.id,
+      payment_status: "finished",
+      price_amount: 19,
+      actually_paid_at_fiat: 19,
+      price_currency: "USD",
+      pay_currency: "USDTERC20",
+      payin_hash: "0xtesthash",
+    };
+
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(payload)).send(payload).expect(200);
+
+    const order = await paymentRepository.findOrderById(checkout.body.order.id);
+    expect(order?.metadata.paymentNetwork).toBe("USDT_ERC20");
+    expect(order?.metadata.payoutWalletReference).toBe("NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET");
+    expect(order?.metadata.paymentPurpose).toBe("SUBSCRIPTION");
+    expect(order?.metadata.transactionHash).toBe("0xtesthash");
+    expect(order?.metadata.treasuryLedgerTransactionId).toBe(`ledger_${checkout.body.order.id}`);
+    expect(JSON.stringify(order)).not.toContain("test-erc20-wallet-address");
   });
 
   it("routes partial payments and currency mismatches to safe non-activation states", async () => {

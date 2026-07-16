@@ -1,7 +1,13 @@
 import type { AuthUser } from "@fpf/shared";
 import type { AdminService } from "../admin/adminService.js";
 import { defaultCommercialStructure } from "../commercial/defaults.js";
-import { getNowPaymentsRuntimeConfig, getNowPaymentsWebhookUrl, safeNowPaymentsConfigStatus } from "./config.js";
+import {
+  getNowPaymentsRuntimeConfig,
+  getNowPaymentsWebhookUrl,
+  getPayoutWalletForNetwork,
+  normalizePaymentNetwork,
+  safeNowPaymentsConfigStatus,
+} from "./config.js";
 import { nowPaymentsPayloadHash, signNowPaymentsPayload, verifyNowPaymentsSignature } from "./nowPaymentsProvider.js";
 import type {
   CreateInvestorFundingInput,
@@ -96,6 +102,7 @@ export class PaymentService {
       expectedAmountCents,
       planCode: plan.code,
       billingCycle,
+      paymentNetwork: input.paymentNetwork,
       description: `FPF ${plan.name} ${billingCycle.toLowerCase()} subscription`,
       metadata: { planName: plan.name, source: "subscription_checkout" },
     });
@@ -124,6 +131,7 @@ export class PaymentService {
       expectedAmountCents: input.amountCents,
       investmentPackageId: investmentPackage.id,
       lockPeriodCode: lockPeriod.code,
+      paymentNetwork: input.paymentNetwork,
       description: `FPF investor funding ${investmentPackage.name} ${lockPeriod.label}`,
       metadata: {
         packageName: investmentPackage.name,
@@ -270,9 +278,22 @@ export class PaymentService {
     billingCycle?: string | null;
     investmentPackageId?: string | null;
     lockPeriodCode?: string | null;
+    paymentNetwork?: CreateSubscriptionPaymentInput["paymentNetwork"];
     metadata?: Record<string, unknown>;
   }) {
     const config = getNowPaymentsRuntimeConfig();
+    const paymentNetwork = normalizePaymentNetwork(input.paymentNetwork, config.payCurrency);
+    const payoutWallet = getPayoutWalletForNetwork(paymentNetwork);
+    if (process.env.NODE_ENV === "production" && this.provider.isConfigured() && !payoutWallet.configured) {
+      throw new PaymentError(`${payoutWallet.reference} is required for ${paymentNetwork} NOWPayments checkout.`, 503);
+    }
+    const paymentMetadata = {
+      ...(input.metadata ?? {}),
+      paymentNetwork,
+      payoutWalletReference: payoutWallet.reference,
+      payoutWalletConfigured: payoutWallet.configured,
+      paymentPurpose: input.purpose,
+    };
     const order = await this.repository.createOrder({
       userId,
       purpose: input.purpose,
@@ -282,14 +303,14 @@ export class PaymentService {
       lockPeriodCode: input.lockPeriodCode,
       expectedAmountCents: input.expectedAmountCents,
       priceCurrency: config.priceCurrency,
-      payCurrency: config.payCurrency,
-      metadata: input.metadata,
+      payCurrency: payoutWallet.payCurrency,
+      metadata: paymentMetadata,
     });
     await this.adminService.audit(userId, "PAYMENT_ORDER_CREATED", "PAYMENT_ORDER", order.id);
     const providerPayment = await this.provider.createPayment({
       priceAmount: dollars(input.expectedAmountCents),
       priceCurrency: config.priceCurrency,
-      payCurrency: config.payCurrency,
+      payCurrency: payoutWallet.payCurrency,
       orderId: order.id,
       orderDescription: input.description,
       ipnCallbackUrl: getNowPaymentsWebhookUrl(),
@@ -320,6 +341,16 @@ export class PaymentService {
   }) {
     let status = input.status;
     let reconciliationStatus = "NOT_STARTED";
+    const paymentNetwork = normalizePaymentNetwork((input.payload.paymentNetwork ?? input.payload.payment_network), input.payCurrency);
+    const payoutWallet = getPayoutWalletForNetwork(paymentNetwork);
+    const transactionHash = extractTransactionHash(input.payload);
+    const providerPayload = {
+      ...input.payload,
+      paymentNetwork,
+      payoutWalletReference: payoutWallet.reference,
+      paymentPurpose: order.purpose,
+      transactionHash,
+    };
     const amountMismatch = input.receivedAmountCents > 0 && input.receivedAmountCents < order.expectedAmountCents;
     const currencyMismatch = input.priceCurrency.toUpperCase() !== order.priceCurrency.toUpperCase() || input.payCurrency.toUpperCase() !== order.payCurrency.toUpperCase();
     if (currencyMismatch) {
@@ -343,15 +374,40 @@ export class PaymentService {
       confirmedAt: activationStatuses.has(status) ? new Date() : null,
       reason: `Provider status ${input.status}`,
       source: input.source,
-      providerPayload: input.payload,
+      providerPayload,
     });
 
     if (activationStatuses.has(status)) {
-      if (order.purpose.startsWith("SUBSCRIPTION")) await this.repository.activateSubscription({ order: updated, receiptId: input.receiptId });
-      if (order.purpose === "INVESTOR_FUNDING") await this.repository.activateInvestorFunding({ order: updated, receiptId: input.receiptId });
+      const activationResult = order.purpose.startsWith("SUBSCRIPTION")
+        ? await this.repository.activateSubscription({ order: updated, receiptId: input.receiptId })
+        : order.purpose === "INVESTOR_FUNDING"
+          ? await this.repository.activateInvestorFunding({ order: updated, receiptId: input.receiptId })
+          : undefined;
+      const treasuryLedgerTransactionId = activationResult && typeof activationResult === "object"
+        ? activationResult.treasuryLedgerTransactionId ?? null
+        : null;
+      const linked = await this.repository.linkConfirmedPayment({
+        orderId: order.id,
+        paymentNetwork,
+        payoutWalletReference: payoutWallet.reference,
+        treasuryLedgerTransactionId,
+        paymentPurpose: order.purpose,
+        transactionHash,
+        receiptId: input.receiptId,
+      });
       await this.adminService.audit(null, `PAYMENT_${status}`, "PAYMENT_ORDER", order.id);
+      await this.adminService.audit(null, "PAYMENT_TREASURY_LINKED", "PAYMENT_ORDER", order.id);
+      return linked;
     }
 
     return updated;
   }
+}
+
+function extractTransactionHash(payload: Record<string, unknown>) {
+  for (const key of ["payin_hash", "tx_hash", "transaction_hash", "payment_hash", "blockchain_hash"]) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }

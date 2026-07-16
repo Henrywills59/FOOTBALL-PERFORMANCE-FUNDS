@@ -19,6 +19,7 @@ const subscriptionCheckoutSchema = z.object({
   planCode: z.enum(["STARTER", "PRO", "PROFESSIONAL", "PREMIUM", "ELITE", "ENTERPRISE"]),
   billingCycle: z.enum(["MONTHLY", "ANNUAL"]),
   purpose: z.enum(["SUBSCRIPTION", "SUBSCRIPTION_RENEWAL", "SUBSCRIPTION_UPGRADE"]).optional(),
+  paymentNetwork: z.enum(["USDT_TRC20", "USDT_ERC20"]).optional(),
 });
 
 const investorFundingSchema = z.object({
@@ -27,6 +28,7 @@ const investorFundingSchema = z.object({
   amountCents: z.number().int().min(10000),
   acknowledgementsAccepted: z.literal(true),
   termsAccepted: z.literal(true),
+  paymentNetwork: z.enum(["USDT_TRC20", "USDT_ERC20"]).optional(),
 });
 
 const webhookSchema = z.object({

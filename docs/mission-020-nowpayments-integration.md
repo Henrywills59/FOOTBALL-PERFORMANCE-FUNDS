@@ -11,6 +11,7 @@ The integration supports:
 - Server-side NOWPayments payment creation.
 - Signed IPN webhook verification.
 - Idempotent webhook receipts.
+- USDT TRC20 and USDT ERC20 payout wallet references selected by customer payment network.
 - Conservative payment status mapping.
 - Subscription activation only after verified final payment status.
 - Investor principal recording only after verified final payment status.
@@ -36,6 +37,8 @@ Required server-side variables:
 - `NOWPAYMENTS_BASE_URL`
 - `NOWPAYMENTS_PAY_CURRENCY`
 - `NOWPAYMENTS_PRICE_CURRENCY`
+- `NOWPAYMENTS_USDT_TRC20_PAYOUT_WALLET`
+- `NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET`
 
 Optional:
 
@@ -48,6 +51,8 @@ Recommended production values:
 - `NOWPAYMENTS_PRICE_CURRENCY=USD`
 - `NOWPAYMENTS_PAY_CURRENCY=USDTTRC20`
 - `BACKEND_PUBLIC_URL=https://football-performance-funds-backend.vercel.app`
+
+Wallet addresses are backend-only configuration. API responses expose only the wallet reference names, for example `NOWPAYMENTS_USDT_TRC20_PAYOUT_WALLET`, never the address value.
 
 ## Status Mapping
 

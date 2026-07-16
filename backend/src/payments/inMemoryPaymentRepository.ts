@@ -102,10 +102,29 @@ export class InMemoryPaymentRepository implements PaymentRepository {
 
   async activateSubscription(input: Parameters<PaymentRepository["activateSubscription"]>[0]) {
     this.activations.push({ type: "SUBSCRIPTION", orderId: input.order.id });
+    return { treasuryLedgerTransactionId: `ledger_${input.order.id}` };
   }
 
   async activateInvestorFunding(input: Parameters<PaymentRepository["activateInvestorFunding"]>[0]) {
     this.activations.push({ type: "INVESTOR_FUNDING", orderId: input.order.id });
+    return { treasuryLedgerTransactionId: `ledger_${input.order.id}` };
+  }
+
+  async linkConfirmedPayment(input: Parameters<PaymentRepository["linkConfirmedPayment"]>[0]) {
+    const order = this.orders.get(input.orderId);
+    if (!order) throw new Error("Order not found");
+    order.metadata = {
+      ...order.metadata,
+      paymentNetwork: input.paymentNetwork,
+      payoutWalletReference: input.payoutWalletReference,
+      paymentPurpose: input.paymentPurpose,
+      treasuryLedgerTransactionId: input.treasuryLedgerTransactionId ?? null,
+      transactionHash: input.transactionHash ?? null,
+      webhookReceiptId: input.receiptId ?? null,
+      confirmedPaymentLinkedAt: now(),
+    };
+    order.updatedAt = now();
+    return order;
   }
 
   async addAdminNote(input: Parameters<PaymentRepository["addAdminNote"]>[0]) {
