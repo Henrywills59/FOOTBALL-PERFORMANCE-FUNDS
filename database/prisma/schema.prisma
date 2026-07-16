@@ -124,6 +124,7 @@ enum ParticipationAgreementStatus {
   ACTIVE
   SETTLEMENT
   COMPLETED
+  RENEWAL_OPEN
   EXPIRED
   CANCELLED
 }

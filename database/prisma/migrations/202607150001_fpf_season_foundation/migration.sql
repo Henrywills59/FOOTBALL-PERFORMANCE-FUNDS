@@ -11,7 +11,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE "ParticipationAgreementStatus" AS ENUM ('DRAFT', 'ACTIVE', 'SETTLEMENT', 'COMPLETED', 'EXPIRED', 'CANCELLED');
+  CREATE TYPE "ParticipationAgreementStatus" AS ENUM ('DRAFT', 'ACTIVE', 'SETTLEMENT', 'COMPLETED', 'RENEWAL_OPEN', 'EXPIRED', 'CANCELLED');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;

@@ -69,7 +69,10 @@ import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js
 import { createPublicExperienceRouter } from "./public/publicExperienceRoutes.js";
 import { PublicExperienceService } from "./public/publicExperienceService.js";
 import { createSeasonRouter } from "./season/seasonRoutes.js";
+import { InMemorySeasonRepository } from "./season/inMemorySeasonRepository.js";
+import { PrismaSeasonRepository } from "./season/seasonRepository.js";
 import { SeasonService } from "./season/seasonService.js";
+import type { SeasonRepository } from "./season/types.js";
 import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
 import { createTreasuryRouter } from "./treasury/treasuryRoutes.js";
@@ -194,6 +197,7 @@ export function createApp(options?: {
   analystRepository?: AnalystRepository;
   operationsRepository?: OperationsRepository;
   mediaRepository?: MediaRepository;
+  seasonRepository?: SeasonRepository;
   paymentRepository?: PaymentRepository;
   nowPaymentsProvider?: NowPaymentsProvider;
   jwtSecret?: string;
@@ -270,7 +274,12 @@ export function createApp(options?: {
   const analyticsService = new AnalyticsService();
   const infrastructureService = new InfrastructureService();
   const publicExperienceService = new PublicExperienceService();
-  const seasonService = new SeasonService();
+  const seasonRepository = options?.seasonRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemorySeasonRepository()
+      : new PrismaSeasonRepository()
+  );
+  const seasonService = new SeasonService(seasonRepository);
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();

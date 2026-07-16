@@ -3876,7 +3876,7 @@ function AdminInvestorManagementView({
   return (
     <div className="mt-6 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Investors" value={String(investors.length)} />
+        <Metric label="Performance partners" value={String(investors.length)} />
         <Metric label="Distribution queue" value={String(queue.length)} />
         <Metric label="Batch status" value={latestBatch?.status ?? "PENDING_CALCULATION"} />
         <Metric label="Queued payout" value={money(latestBatch?.totalNetDistributionCents ?? 0)} />
@@ -3891,7 +3891,7 @@ function AdminInvestorManagementView({
             Calculate weekly distributions
           </button>
           <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-            Placeholder returns only. Admin approval required before payout.
+            Placeholder distributions only. Admin approval required before payout.
           </span>
         </div>
         <div className="space-y-3">
@@ -3925,14 +3925,14 @@ function AdminInvestorManagementView({
       </Panel>
       <InvestorSimulatorCalculator
         title="Admin Distribution Scenario Simulator"
-        description="Model placeholder distribution scenarios across investor capital before creating an approval queue."
+        description="Model placeholder distribution scenarios across Performance Partner participation before creating an approval queue."
         defaultAmountCents={investors.reduce((total, investor) => total + investor.activeInvestmentBalanceCents, 0)}
         defaultPlatformFeePercent={commercialStructure.simulatorDefaults.platformFeePercent}
         defaultWeeklyReturnPercent={commercialStructure.simulatorDefaults.weeklyReturnPercent}
         lockPeriods={commercialStructure.lockPeriods}
         onSimulate={onSimulate}
       />
-      <Panel title="Investor Records">
+      <Panel title="Performance Partner Records">
         <div className="space-y-3">
           {investors.map((investor) => (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={investor.id}>
@@ -3958,15 +3958,15 @@ function AdminInvestorManagementView({
                   event.currentTarget.reset();
                 }}
               >
-                <input className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white" name="note" placeholder="Add investor note" />
+                <input className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white" name="note" placeholder="Add Performance Partner note" />
                 <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="submit">Add note</button>
               </form>
             </div>
           ))}
-          {!investors.length ? <p className="text-sm text-zinc-400">No investor accounts yet.</p> : null}
+          {!investors.length ? <p className="text-sm text-zinc-400">No Performance Partner accounts yet.</p> : null}
         </div>
       </Panel>
-      <Panel title="Investor Audit Trail">
+      <Panel title="Performance Partner Audit Trail">
         <CompactAuditList
           logs={(management?.auditTrail ?? []).map((log) => ({
             id: log.id,
@@ -3976,7 +3976,7 @@ function AdminInvestorManagementView({
             entityId: log.entityId,
             createdAt: log.createdAt,
           }))}
-          emptyLabel="No investor audit logs yet."
+          emptyLabel="No Performance Partner audit logs yet."
         />
       </Panel>
     </div>
@@ -4032,7 +4032,7 @@ function InvestorPortal({
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <Panel title="Executive Overview">
             <div className="grid gap-3 sm:grid-cols-2">
-              <MiniStat label="Investor tier" value={dashboard?.investorTier ?? "Founding Investor"} />
+              <MiniStat label="Partner tier" value={dashboard?.investorTier ?? "Founding Partner"} />
               <MiniStat label="Recognition level" value={investorLevelName(commercialStructure, dashboard?.balance.totalCapitalCents ?? 0)} />
               <MiniStat label="Account status" value={dashboard?.accountStatus ?? "ACTIVE"} />
               <MiniStat label="Distribution status" value={dashboard?.distributionStatus ?? "PENDING_CALCULATION"} />
@@ -4081,8 +4081,8 @@ function InvestorPortal({
       <div className="mt-6 space-y-4">
         <RiskDisclaimer />
         <InvestorSimulatorCalculator
-          title="Investor Simulator Calculator"
-          description="Simulate possible earnings before or after investing using safe placeholder assumptions."
+          title="Participation Simulator Calculator"
+          description="Simulate possible contractual distribution scenarios before or after joining a season using safe placeholder assumptions."
           defaultAmountCents={dashboard?.balance.totalCapitalCents || 100000}
           defaultPlatformFeePercent={commercialStructure.simulatorDefaults.platformFeePercent}
           defaultWeeklyReturnPercent={commercialStructure.simulatorDefaults.weeklyReturnPercent}
@@ -4095,7 +4095,7 @@ function InvestorPortal({
 
   if (activeView === "Reports") {
     return (
-      <Panel title="Investor Reports">
+      <Panel title="Performance Partner Reports">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {reports.map((report) => (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={report.id}>
@@ -4118,14 +4118,14 @@ function InvestorPortal({
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Panel title="Capital Summary">
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniStat label="Investment amount" value={money(profile?.account.investmentAmountCents ?? 0)} />
-            <MiniStat label="Investor level" value={investorLevelName(commercialStructure, profile?.balance.totalCapitalCents ?? 0)} />
-            <MiniStat label="Active investment balance" value={money(profile?.balance.activeInvestmentBalanceCents ?? 0)} />
+            <MiniStat label="Participation amount" value={money(profile?.account.investmentAmountCents ?? 0)} />
+            <MiniStat label="Partner level" value={investorLevelName(commercialStructure, profile?.balance.totalCapitalCents ?? 0)} />
+            <MiniStat label="Active participation balance" value={money(profile?.balance.activeInvestmentBalanceCents ?? 0)} />
             <MiniStat label="Start date" value={profile?.account.startDate ? new Date(profile.account.startDate).toLocaleDateString() : "Pending"} />
             <MiniStat label="Agreement" value={profile?.account.agreementStatus ?? "PENDING_SIGNATURE"} />
           </div>
         </Panel>
-        <Panel title="Investment History"><InvestmentList investments={dashboard?.investmentHistory ?? []} /></Panel>
+        <Panel title="Participation History"><InvestmentList investments={dashboard?.investmentHistory ?? []} /></Panel>
       </div>
     );
   }
@@ -4133,11 +4133,11 @@ function InvestorPortal({
   if (activeView === "Profile") {
     return (
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Panel title="Investor Profile">
+        <Panel title="Performance Partner Profile">
           <div className="space-y-2 text-sm text-zinc-300">
-            <p>Name: {profile?.account.name ?? "Investor"}</p>
+            <p>Name: {profile?.account.name ?? "Performance Partner"}</p>
             <p>Email: {profile?.account.email ?? "Pending"}</p>
-            <p>Tier: {profile?.account.tier ?? "Founding Investor"}</p>
+            <p>Tier: {profile?.account.tier ?? "Founding Partner"}</p>
             <p>Recognition level: {investorLevelName(commercialStructure, profile?.balance.totalCapitalCents ?? 0)}</p>
             <p>KYC: {profile?.account.kycStatus ?? "PENDING_REVIEW"}</p>
             <p>Account status: {profile?.account.accountStatus ?? "ACTIVE"}</p>
@@ -4147,7 +4147,7 @@ function InvestorPortal({
           <div className="space-y-2 text-sm text-zinc-300">
             <p>Payment method: {profile?.account.paymentMethod ?? "Placeholder - not connected"}</p>
             <p>Withdrawal method: {profile?.account.withdrawalMethod ?? "Placeholder - admin review required"}</p>
-            <p>Security: protected by authenticated investor-only API routes.</p>
+            <p>Security: protected by authenticated Performance Partner API routes.</p>
           </div>
         </Panel>
       </div>
@@ -4158,7 +4158,7 @@ function InvestorPortal({
     return (
       <Panel title="Documents">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {["Investor Agreement", "Risk Disclosure", "Weekly Statement", "Monthly Statement"].map((item) => (
+          {["Performance Partner Agreement", "Risk Disclosure", "Weekly Statement", "Monthly Statement"].map((item) => (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item}>
               <h3 className="font-semibold">{item}</h3>
               <p className="mt-2 text-sm text-zinc-400">Document generation placeholder. Secure downloads will be enabled later.</p>

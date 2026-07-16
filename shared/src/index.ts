@@ -56,7 +56,14 @@ export type FpfSeasonStatus =
   | "NEXT_REGISTRATION";
 
 export type ParticipationPlanCode = "HALF_SEASON" | "FULL_SEASON" | "REMAINING_SEASON";
-export type ParticipationAgreementStatus = "DRAFT" | "ACTIVE" | "SETTLEMENT" | "COMPLETED" | "EXPIRED" | "CANCELLED";
+export type ParticipationAgreementStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "SETTLEMENT"
+  | "COMPLETED"
+  | "RENEWAL_OPEN"
+  | "EXPIRED"
+  | "CANCELLED";
 export type FinancialConstitutionAllocationType =
   | "PERFORMANCE_PARTNER_DISTRIBUTION_POOL"
   | "ANALYST_PERFORMANCE_POOL"
@@ -96,6 +103,12 @@ export type PerformancePartnerParticipation = {
   remainingDistributions: number;
   contractualPayoutNotice: string;
   noRetroactiveDistribution: boolean;
+};
+
+export type ParticipationRenewalResult = {
+  participation: PerformancePartnerParticipation;
+  renewalStatus: "READY_FOR_NEXT_SEASON_REGISTRATION";
+  message: string;
 };
 
 export type FinancialConstitutionAllocation = {

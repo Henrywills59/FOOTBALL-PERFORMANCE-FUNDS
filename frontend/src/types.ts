@@ -183,6 +183,15 @@ export type ParticipationPlan = {
   requiresActiveSeason: boolean;
 };
 
+export type ParticipationAgreementStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "SETTLEMENT"
+  | "COMPLETED"
+  | "RENEWAL_OPEN"
+  | "EXPIRED"
+  | "CANCELLED";
+
 export type InvestorPackage = {
   id: string;
   name: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond" | string;

@@ -89,4 +89,45 @@ describe("season operating model routes", () => {
     expect(response.body.simulation.remainingDistributions).toBe(12);
     expect(response.body.simulation.notices.noRetroactiveDistribution).toContain("No retroactive distributions");
   });
+
+  it("creates, completes, and opens renewal for participation agreements", async () => {
+    const { app, users } = testApp();
+    const partnerToken = seedUser(users, "INVESTOR");
+    const adminToken = seedUser(users, "ADMIN");
+
+    const created = await request(app)
+      .post("/api/performance-partner/participations")
+      .set("Authorization", `Bearer ${partnerToken}`)
+      .send({
+        participationAmountCents: 150000,
+        planCode: "FULL_SEASON",
+      })
+      .expect(201);
+
+    expect(created.body.participation.status).toBe("ACTIVE");
+    expect(created.body.participation.remainingWeeks).toBeGreaterThan(0);
+
+    const listed = await request(app)
+      .get("/api/performance-partner/participations")
+      .set("Authorization", `Bearer ${partnerToken}`)
+      .expect(200);
+
+    expect(listed.body.participations).toHaveLength(1);
+
+    const completed = await request(app)
+      .post(`/api/admin/performance-partner/participations/${created.body.participation.id}/complete`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(completed.body.participation.status).toBe("COMPLETED");
+    expect(completed.body.participation.remainingDistributions).toBe(0);
+
+    const renewal = await request(app)
+      .post(`/api/performance-partner/participations/${created.body.participation.id}/renew`)
+      .set("Authorization", `Bearer ${partnerToken}`)
+      .expect(200);
+
+    expect(renewal.body.renewal.participation.status).toBe("RENEWAL_OPEN");
+    expect(renewal.body.renewal.message).toContain("No automatic renewal");
+  });
 });
