@@ -80,6 +80,7 @@ import { PrismaPredictionWorkflowRepository } from "./predictionWorkflow/predict
 import { createPredictionWorkflowRouter } from "./predictionWorkflow/predictionWorkflowRoutes.js";
 import { PredictionWorkflowService } from "./predictionWorkflow/predictionWorkflowService.js";
 import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js";
+import { createPreviewSeedRouter } from "./preview/previewSeedRoutes.js";
 import { createPublicExperienceRouter } from "./public/publicExperienceRoutes.js";
 import { PublicExperienceService } from "./public/publicExperienceService.js";
 import { createSeasonRouter } from "./season/seasonRoutes.js";
@@ -497,6 +498,12 @@ export function createApp(options?: {
     }),
   );
   app.use("/api", createAuthRouter(authService));
+  app.use(
+    "/api",
+    createPreviewSeedRouter({
+      authService,
+    }),
+  );
   app.use(
     "/api",
     createOperationsRouter({
