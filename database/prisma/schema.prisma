@@ -105,6 +105,36 @@ enum PaymentReconciliationStatus {
   RECONCILED
 }
 
+enum FpfSeasonStatus {
+  REGISTRATION
+  ACTIVE
+  SETTLEMENT
+  CLOSING
+  NEXT_REGISTRATION
+}
+
+enum ParticipationPlanCode {
+  HALF_SEASON
+  FULL_SEASON
+  REMAINING_SEASON
+}
+
+enum ParticipationAgreementStatus {
+  DRAFT
+  ACTIVE
+  SETTLEMENT
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum FinancialConstitutionAllocationType {
+  PERFORMANCE_PARTNER_DISTRIBUTION_POOL
+  ANALYST_PERFORMANCE_POOL
+  RISK_STABILITY_RESERVE
+  COMPANY_GROWTH_OPERATIONS_FUND
+}
+
 enum AnalystAssignmentStatus {
   ASSIGNED
   COMPLETED
@@ -142,6 +172,71 @@ model User {
   intelligenceSubmissions AnalystIntelligenceSubmission[]
   analystProfile AnalystProfile?
   globalPreference UserGlobalPreference?
+  performancePartnerParticipations PerformancePartnerParticipation[]
+}
+
+model FpfSeason {
+  id                       String                              @id @default(uuid())
+  name                     String                              @unique
+  status                   FpfSeasonStatus                     @default(REGISTRATION)
+  registrationOpensAt      DateTime
+  seasonStartsAt           DateTime
+  seasonEndsAt             DateTime
+  settlementStartsAt       DateTime
+  closingStartsAt          DateTime
+  nextRegistrationOpensAt  DateTime?
+  totalWeeks               Int                                 @default(38)
+  notes                    String?
+  createdAt                DateTime                            @default(now())
+  updatedAt                DateTime                            @updatedAt
+  participationAgreements  PerformancePartnerParticipation[]
+  financialConstitution    SeasonFinancialConstitution[]
+
+  @@index([status])
+  @@index([seasonStartsAt, seasonEndsAt])
+  @@map("fpf_seasons")
+}
+
+model PerformancePartnerParticipation {
+  id                         String                         @id @default(uuid())
+  userId                     String
+  seasonId                   String
+  planCode                   ParticipationPlanCode
+  status                     ParticipationAgreementStatus    @default(DRAFT)
+  participationAmountCents   Int
+  startsAt                   DateTime
+  expiresAt                  DateTime
+  remainingWeeks             Int                             @default(0)
+  remainingDistributions     Int                             @default(0)
+  noRetroactiveDistribution  Boolean                         @default(true)
+  contractualPayoutNotice    String                          @default("The contractual payout represents the complete financial obligation under the participation agreement. No additional capital repayment is due after completion.")
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
+  user                       User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season                     FpfSeason                       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([seasonId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("performance_partner_participations")
+}
+
+model SeasonFinancialConstitution {
+  id                String                                @id @default(uuid())
+  seasonId          String
+  allocationType    FinancialConstitutionAllocationType
+  label             String
+  percent           Float
+  distributable     Boolean                               @default(false)
+  purpose           String
+  effectiveFrom     DateTime                              @default(now())
+  createdAt         DateTime                              @default(now())
+  season            FpfSeason                             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, allocationType])
+  @@index([seasonId])
+  @@map("season_financial_constitution")
 }
 
 model PasswordResetToken {

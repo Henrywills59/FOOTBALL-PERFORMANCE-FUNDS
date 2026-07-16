@@ -176,6 +176,13 @@ export type InvestmentLockPeriod = {
   enabled: boolean;
 };
 
+export type ParticipationPlan = {
+  code: "HALF_SEASON" | "FULL_SEASON" | "REMAINING_SEASON";
+  label: string;
+  description: string;
+  requiresActiveSeason: boolean;
+};
+
 export type InvestorPackage = {
   id: string;
   name: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond" | string;
@@ -274,6 +281,7 @@ export type CommercialStructure = {
   subscriberPlans: SubscriberPlan[];
   investorLevels: InvestorLevel[];
   investorPackages: InvestorPackage[];
+  participationPlans: ParticipationPlan[];
   lockPeriods: InvestmentLockPeriod[];
   pricingRules: PricingRule[];
   minimumInvestmentCents: number;
@@ -285,6 +293,8 @@ export type CommercialStructure = {
     paymentPlaceholder: string;
     investmentRisk: string;
     simulationOnly: string;
+    performancePartnerCompatibility: string;
+    contractualPayout: string;
   };
 };
 

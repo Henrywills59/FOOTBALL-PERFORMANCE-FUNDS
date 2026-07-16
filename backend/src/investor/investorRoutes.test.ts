@@ -210,4 +210,22 @@ describe("investor routes", () => {
       .send(body)
       .expect(403);
   });
+
+  it("exposes Performance Partner aliases without changing legacy investor routes", async () => {
+    const { app, users } = testApp();
+    const investorToken = seedUser(users, "INVESTOR");
+    const adminToken = seedUser(users, "ADMIN");
+
+    const dashboard = await request(app)
+      .get("/api/performance-partner/dashboard")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .expect(200);
+
+    expect(dashboard.body.account.userId).toBe("investor-user");
+
+    await request(app)
+      .get("/api/admin/performance-partners")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+  });
 });

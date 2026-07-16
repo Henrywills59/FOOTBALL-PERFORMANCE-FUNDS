@@ -79,6 +79,11 @@ export const defaultCommercialStructure: CommercialStructure = {
     { id: "pkg_platinum", name: "Platinum", minimumAmountCents: 500000, maximumAmountCents: 999999, lockPeriodCode: "TWELVE_MONTHS", status: "ACTIVE", visible: true, projectedPerformanceNote: "Simulation only. No returns are guaranteed.", riskDisclosure: "Capital is at risk." },
     { id: "pkg_diamond", name: "Diamond", minimumAmountCents: 1000000, maximumAmountCents: null, lockPeriodCode: "TWELVE_MONTHS", status: "ACTIVE", visible: true, projectedPerformanceNote: "Simulation only. No returns are guaranteed.", riskDisclosure: "Capital is at risk." },
   ],
+  participationPlans: [
+    { code: "FULL_SEASON", label: "Full Season", description: "Participation from season start through season settlement.", requiresActiveSeason: false },
+    { code: "HALF_SEASON", label: "Half Season", description: "Participation for a defined half-season period.", requiresActiveSeason: false },
+    { code: "REMAINING_SEASON", label: "Remaining Season", description: "Mid-season participation from approval date through season settlement.", requiresActiveSeason: true },
+  ],
   pricingRules: [
     { id: "pricing_usd_default", name: "USD default pricing", countryCode: "US", currency: "USD", discountPercent: 0, couponCode: null, promotionType: "ADMIN_OVERRIDE", active: true },
     { id: "launch_placeholder", name: "Launch campaign placeholder", countryCode: null, currency: "USD", discountPercent: 10, couponCode: "FPF-LAUNCH", promotionType: "LAUNCH", active: false },
@@ -92,6 +97,8 @@ export const defaultCommercialStructure: CommercialStructure = {
     paymentPlaceholder: "Payment processing is not connected yet. These plans are commercial placeholders only.",
     investmentRisk: "Capital is at risk. Historical or simulated performance is not a guarantee of future results.",
     simulationOnly: "Simulation only. Returns are not guaranteed and actual results depend on real platform performance.",
+    performancePartnerCompatibility: "Performance Partner is the user-facing model. Legacy investor module names remain internal compatibility labels during migration.",
+    contractualPayout: "The contractual payout represents the complete financial obligation under the participation agreement. No additional capital repayment is due after completion.",
   },
 };
 

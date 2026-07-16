@@ -68,6 +68,8 @@ import { PredictionWorkflowService } from "./predictionWorkflow/predictionWorkfl
 import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js";
 import { createPublicExperienceRouter } from "./public/publicExperienceRoutes.js";
 import { PublicExperienceService } from "./public/publicExperienceService.js";
+import { createSeasonRouter } from "./season/seasonRoutes.js";
+import { SeasonService } from "./season/seasonService.js";
 import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
 import { createTreasuryRouter } from "./treasury/treasuryRoutes.js";
@@ -268,6 +270,7 @@ export function createApp(options?: {
   const analyticsService = new AnalyticsService();
   const infrastructureService = new InfrastructureService();
   const publicExperienceService = new PublicExperienceService();
+  const seasonService = new SeasonService();
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -400,6 +403,13 @@ export function createApp(options?: {
     createCommercialRouter({
       authService,
       commercialService,
+    }),
+  );
+  app.use(
+    "/api",
+    createSeasonRouter({
+      authService,
+      seasonService,
     }),
   );
   app.use(

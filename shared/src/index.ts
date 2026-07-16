@@ -6,9 +6,24 @@ export type HealthStatus = {
 
 export const USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST", "ADMIN"] as const;
 export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"] as const;
+export const INTERNAL_PLATFORM_NAME = "FPF OS";
+export const PUBLIC_BRAND_NAME = "Football Performance Fund";
+export const COMPANY_POSITIONING = "Global Football Performance Intelligence Company";
+export const PERFORMANCE_PARTNER_ROLE = "INVESTOR" as const;
+export const ROLE_DISPLAY_LABELS = {
+  SUBSCRIBER: "Subscriber",
+  INVESTOR: "Performance Partner",
+  ANALYST: "Analyst",
+  ADMIN: "Admin",
+} as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 export type PublicUserRole = (typeof PUBLIC_USER_ROLES)[number];
+export type PerformancePartnerRole = typeof PERFORMANCE_PARTNER_ROLE;
+
+export function isPerformancePartnerRole(role: UserRole): role is PerformancePartnerRole {
+  return role === PERFORMANCE_PARTNER_ROLE;
+}
 
 export type AccountStatus = "ACTIVE" | "DISABLED";
 
@@ -31,6 +46,98 @@ export type DashboardRoute = {
   role: UserRole;
   path: string;
   title: string;
+};
+
+export type FpfSeasonStatus =
+  | "REGISTRATION"
+  | "ACTIVE"
+  | "SETTLEMENT"
+  | "CLOSING"
+  | "NEXT_REGISTRATION";
+
+export type ParticipationPlanCode = "HALF_SEASON" | "FULL_SEASON" | "REMAINING_SEASON";
+export type ParticipationAgreementStatus = "DRAFT" | "ACTIVE" | "SETTLEMENT" | "COMPLETED" | "EXPIRED" | "CANCELLED";
+export type FinancialConstitutionAllocationType =
+  | "PERFORMANCE_PARTNER_DISTRIBUTION_POOL"
+  | "ANALYST_PERFORMANCE_POOL"
+  | "RISK_STABILITY_RESERVE"
+  | "COMPANY_GROWTH_OPERATIONS_FUND";
+
+export type FpfSeason = {
+  id: string;
+  name: string;
+  status: FpfSeasonStatus;
+  registrationOpensAt: string;
+  seasonStartsAt: string;
+  seasonEndsAt: string;
+  settlementStartsAt: string;
+  closingStartsAt: string;
+  nextRegistrationOpensAt: string | null;
+  totalWeeks: number;
+};
+
+export type ParticipationPlan = {
+  code: ParticipationPlanCode;
+  label: string;
+  description: string;
+  requiresActiveSeason: boolean;
+};
+
+export type PerformancePartnerParticipation = {
+  id: string;
+  userId: string;
+  seasonId: string;
+  planCode: ParticipationPlanCode;
+  status: ParticipationAgreementStatus;
+  participationAmountCents: number;
+  startsAt: string;
+  expiresAt: string;
+  remainingWeeks: number;
+  remainingDistributions: number;
+  contractualPayoutNotice: string;
+  noRetroactiveDistribution: boolean;
+};
+
+export type FinancialConstitutionAllocation = {
+  type: FinancialConstitutionAllocationType;
+  label: string;
+  percent: number;
+  distributable: boolean;
+  purpose: string;
+};
+
+export type SeasonOperatingModel = {
+  brand: typeof PUBLIC_BRAND_NAME;
+  platform: typeof INTERNAL_PLATFORM_NAME;
+  positioning: typeof COMPANY_POSITIONING;
+  currentSeason: FpfSeason;
+  participationPlans: ParticipationPlan[];
+  financialConstitution: FinancialConstitutionAllocation[];
+  notices: {
+    performancePartnerCompatibility: string;
+    contractualPayout: string;
+    noAutomaticRenewal: string;
+    noRetroactiveDistribution: string;
+  };
+};
+
+export type ParticipationSimulatorInput = {
+  participationAmountCents: number;
+  planCode: ParticipationPlanCode;
+  currentSeasonId?: string;
+  remainingWeeks?: number;
+};
+
+export type ParticipationSimulatorResult = {
+  input: ParticipationSimulatorInput;
+  plan: ParticipationPlan;
+  season: FpfSeason;
+  estimatedWeeklyDistributionCents: number;
+  estimatedTotalContractualPayoutCents: number;
+  contractExpiry: string;
+  remainingWeeks: number;
+  remainingDistributions: number;
+  notices: SeasonOperatingModel["notices"];
 };
 
 export type FootballFixtureStatus = "SCHEDULED" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED";
@@ -296,6 +403,7 @@ export type CommercialStructure = {
   subscriberPlans: SubscriberPlan[];
   investorLevels: InvestorLevel[];
   investorPackages: InvestorPackage[];
+  participationPlans: ParticipationPlan[];
   lockPeriods: InvestmentLockPeriod[];
   pricingRules: PricingRule[];
   minimumInvestmentCents: number;
@@ -307,6 +415,8 @@ export type CommercialStructure = {
     paymentPlaceholder: string;
     investmentRisk: string;
     simulationOnly: string;
+    performancePartnerCompatibility: string;
+    contractualPayout: string;
   };
 };
 

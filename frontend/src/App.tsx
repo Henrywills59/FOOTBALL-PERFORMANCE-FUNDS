@@ -151,13 +151,13 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, analyst, and admin platform." },
   { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How data, AI, analysts, and admin approval become FPF intelligence." },
   { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
-  { label: "Investors", path: "/investors", id: "investors", description: "Investor transparency, simulator, reports, and risk-first controls." },
+  { label: "Performance Partners", path: "/investors", id: "investors", description: "Performance Partner transparency, simulator, reports, and risk-first controls." },
   { label: "Analyst Applications", path: "/analyst-applications", id: "analyst-applications", description: "Professional internal analyst application journey." },
   { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
   { label: "AI Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Explainable football intelligence, confidence, risk, and value scores." },
   { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
   { label: "Pricing", path: "/pricing", id: "pricing", description: "Subscriber pricing and commercial structure." },
-  { label: "Investor Packages", path: "/investor-packages", id: "investor-packages", description: "Placeholder investor packages and lock-period education." },
+  { label: "Participation Plans", path: "/investor-packages", id: "investor-packages", description: "Placeholder Performance Partner participation plans and season education." },
   { label: "Security", path: "/security", id: "security", description: "Authentication, authorization, privacy, and risk controls." },
   { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and launch-stage insights." },
   { label: "Media", path: "/media", id: "media", description: "Media center, announcements, and press resources." },
@@ -216,10 +216,18 @@ function setMetaTag(name: string, content: string, attribute: "name" | "property
 
 const roleLabels: Record<PublicUserRole | "ADMIN", string> = {
   SUBSCRIBER: "Subscriber",
-  INVESTOR: "Investor",
+  INVESTOR: "Performance Partner",
   ANALYST: "Analyst",
   ADMIN: "Admin",
 };
+
+function displayNavigationLabel(label: string) {
+  return label
+    .replace(/\bInvestor Dashboard\b/g, "Partner Dashboard")
+    .replace(/\bInvestor Management\b/g, "Partner Management")
+    .replace(/\bInvestor\b/g, "Performance Partner")
+    .replace(/\binvestor\b/g, "performance partner");
+}
 
 function getStoredSession() {
   const rawSession = localStorage.getItem("fpf_session") ?? sessionStorage.getItem("fpf_session");
@@ -246,6 +254,7 @@ const defaultCommercialStructure: CommercialStructure = {
   subscriberPlans: [],
   investorLevels: [],
   investorPackages: [],
+  participationPlans: [],
   lockPeriods: [],
   pricingRules: [],
   minimumInvestmentCents: 10000,
@@ -254,6 +263,8 @@ const defaultCommercialStructure: CommercialStructure = {
     paymentPlaceholder: "Secure checkout is being activated.",
     investmentRisk: "Capital is at risk. Returns are not guaranteed.",
     simulationOnly: "Simulation only.",
+    performancePartnerCompatibility: "Performance Partner is the user-facing model while legacy investor internals are migrated safely.",
+    contractualPayout: "The contractual payout represents the complete financial obligation under the participation agreement.",
   },
 };
 
@@ -1297,7 +1308,7 @@ export default function App() {
         <aside className="flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
           <div className="shrink-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
-            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
+            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Performance Partner Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
           </div>
           <div className="mt-4 shrink-0">
             <ThemeSwitcher theme={themePreference} onChange={setThemePreference} />
@@ -1320,7 +1331,7 @@ export default function App() {
                 type="button"
                 onClick={() => activateTarget(item)}
               >
-                {item}
+                {displayNavigationLabel(item)}
               </button>
             ))}
           </nav>

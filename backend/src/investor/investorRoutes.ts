@@ -65,7 +65,23 @@ export function createInvestorRouter(input: {
     }
   });
 
+  router.get("/performance-partner/dashboard", ...investorOnly, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.investorService.dashboard(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/investor/profile", ...investorOnly, async (request, response, next) => {
+    try {
+      response.status(200).json(await input.investorService.profile(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/performance-partner/profile", ...investorOnly, async (request, response, next) => {
     try {
       response.status(200).json(await input.investorService.profile(request.user!.id));
     } catch (error) {
@@ -120,7 +136,24 @@ export function createInvestorRouter(input: {
     }
   });
 
+  router.get("/performance-partner/distributions", ...investorOnly, async (request, response, next) => {
+    try {
+      response.status(200).json({ distributions: await input.investorService.distributions(request.user!.id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/investor/simulator", ...investorOnly, async (request, response, next) => {
+    try {
+      const body = parseSimulatorInput(request.body);
+      response.status(200).json({ simulation: input.investorService.simulate(body) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/performance-partner/simulator", ...investorOnly, async (request, response, next) => {
     try {
       const body = parseSimulatorInput(request.body);
       response.status(200).json({ simulation: input.investorService.simulate(body) });
@@ -168,6 +201,14 @@ export function createInvestorRouter(input: {
   });
 
   router.get("/admin/investors", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json(await input.investorService.adminManagement());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/performance-partners", ...adminOnly, async (_request, response, next) => {
     try {
       response.status(200).json(await input.investorService.adminManagement());
     } catch (error) {
