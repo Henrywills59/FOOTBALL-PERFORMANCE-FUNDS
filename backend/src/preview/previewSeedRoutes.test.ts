@@ -14,7 +14,14 @@ function tokenFor(role: "ADMIN" | "SUBSCRIBER", id = `${role.toLowerCase()}-prev
   });
 }
 
-function testApp(seed = vi.fn(async () => ({ status: "ok", seeded: { users: 8 } }))) {
+function testApp(input?: {
+  seed?: ReturnType<typeof vi.fn>;
+  schemaStatus?: ReturnType<typeof vi.fn>;
+  syncSchema?: ReturnType<typeof vi.fn>;
+}) {
+  const seed = input?.seed ?? vi.fn(async () => ({ status: "ok", seeded: { users: 8 } }));
+  const schemaStatus = input?.schemaStatus ?? vi.fn(async () => ({ status: "schema_drift", missingTables: ["prediction_queue"] }));
+  const syncSchema = input?.syncSchema ?? vi.fn(async () => ({ status: "ok", after: { missingTables: [] } }));
   const users = new InMemoryUserRepository();
   users.seedUser({
     id: "admin-preview-user",
@@ -38,10 +45,10 @@ function testApp(seed = vi.fn(async () => ({ status: "ok", seeded: { users: 8 } 
   const authService = new AuthService(users, "test-secret");
   const app = express();
   app.use(express.json());
-  app.use("/api", createPreviewSeedRouter({ authService, seed }));
+  app.use("/api", createPreviewSeedRouter({ authService, seed, schemaStatus, syncSchema }));
   app.use(errorHandler);
 
-  return { app, seed };
+  return { app, seed, schemaStatus, syncSchema };
 }
 
 describe("preview seed routes", () => {
@@ -85,5 +92,35 @@ describe("preview seed routes", () => {
     expect(response.body.status).toBe("ok");
     expect(response.body.seeded.users).toBe(8);
     expect(seed).toHaveBeenCalledWith("admin-preview-user");
+  });
+
+  it("reports schema drift and synchronizes schema only for Preview admins", async () => {
+    process.env.VERCEL_ENV = "preview";
+    const { app, schemaStatus, syncSchema } = testApp();
+
+    const status = await request(app)
+      .get("/api/preview/schema-status")
+      .set("Authorization", `Bearer ${tokenFor("ADMIN", "admin-preview-user")}`)
+      .expect(200);
+    expect(status.body.missingTables).toEqual(["prediction_queue"]);
+
+    const sync = await request(app)
+      .post("/api/preview/sync-schema")
+      .set("Authorization", `Bearer ${tokenFor("ADMIN", "admin-preview-user")}`)
+      .expect(200);
+    expect(sync.body.status).toBe("ok");
+    expect(schemaStatus).toHaveBeenCalled();
+    expect(syncSchema).toHaveBeenCalledWith("admin-preview-user");
+  });
+
+  it("blocks schema synchronization outside Preview", async () => {
+    const { app, syncSchema } = testApp();
+
+    await request(app)
+      .post("/api/preview/sync-schema")
+      .set("Authorization", `Bearer ${tokenFor("ADMIN", "admin-preview-user")}`)
+      .expect(404);
+
+    expect(syncSchema).not.toHaveBeenCalled();
   });
 });
