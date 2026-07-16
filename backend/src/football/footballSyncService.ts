@@ -149,16 +149,15 @@ export class FootballSyncService {
       };
     }
     try {
-      const [competitions, odds] = await Promise.all([
-        this.oddsApi.soccerCompetitions(),
-        this.oddsApi.odds(),
-      ]);
+      const diagnostic = await this.oddsApi.diagnosticOdds();
       return {
         ok: true,
         provider: "The Odds API",
-        competitionsRead: Array.isArray(competitions.data) ? competitions.data.length : 0,
-        oddsRead: Array.isArray(odds.data) ? odds.data.length : 0,
+        competitionsRead: Array.isArray(diagnostic.competitions.data) ? diagnostic.competitions.data.length : 0,
+        oddsRead: Array.isArray(diagnostic.odds.data) ? diagnostic.odds.data.length : 0,
         supportedMarkets: this.oddsApi.supportedMarkets(),
+        ignoredMarkets: this.oddsApi.ignoredMarkets(),
+        diagnosticRequest: diagnostic.request,
         status: this.oddsProviderStatus(),
       };
     } catch (error) {
@@ -166,6 +165,13 @@ export class FootballSyncService {
         ok: false,
         provider: "The Odds API",
         message: error instanceof Error ? error.message : "Odds provider unavailable.",
+        safeFallback: {
+          competitionsRead: 0,
+          oddsRead: 0,
+          supportedMarkets: this.oddsApi.supportedMarkets(),
+          ignoredMarkets: this.oddsApi.ignoredMarkets(),
+          note: "Odds diagnostics use safe fallback when provider competition, market, or region is unavailable.",
+        },
         status: this.oddsProviderStatus(),
       };
     }
