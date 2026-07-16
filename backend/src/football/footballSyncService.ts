@@ -96,6 +96,10 @@ export class FootballSyncService {
     };
   }
 
+  oddsProviderStatus() {
+    return this.oddsApi.status();
+  }
+
   async probeProvider() {
     if (!this.apiFootball.isConfigured()) {
       return {
@@ -132,6 +136,34 @@ export class FootballSyncService {
       },
       providerStatus: this.providerStatus(),
     };
+  }
+
+  async diagnoseOddsProvider() {
+    const status = this.oddsProviderStatus();
+    if (!this.oddsApi.isConfigured()) {
+      return {
+        ok: false,
+        provider: "The Odds API",
+        message: "The Odds API is not configured.",
+        status,
+      };
+    }
+    try {
+      const result = await this.oddsApi.odds();
+      return {
+        ok: true,
+        provider: "The Odds API",
+        recordsRead: Array.isArray(result.data) ? result.data.length : 0,
+        status: this.oddsProviderStatus(),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: "The Odds API",
+        message: error instanceof Error ? error.message : "Odds provider unavailable.",
+        status: this.oddsProviderStatus(),
+      };
+    }
   }
 
   async syncFixtures(): Promise<FootballSyncResult> {
@@ -324,6 +356,7 @@ export class FootballSyncService {
       recordsRead = result.data.length;
       for (const raw of result.data) {
         const item = asRecord(raw);
+        const fixtureApiId = parseOddsFixtureId(item);
         const bookmakers = Array.isArray(item.bookmakers) ? item.bookmakers : [];
         for (const bookmakerRaw of bookmakers) {
           const bookmaker = asRecord(bookmakerRaw);
@@ -335,7 +368,7 @@ export class FootballSyncService {
               const outcome = asRecord(outcomeRaw);
               if (!outcome.name || !outcome.price) continue;
               await this.repository.upsertOdd({
-                fixtureApiId: item.fixture_id ? Number(item.fixture_id) : null,
+                fixtureApiId,
                 bookmaker: String(bookmaker.title ?? bookmaker.key ?? "Unknown bookmaker"),
                 market: String(market.key ?? "h2h"),
                 outcome: String(outcome.name),
@@ -415,4 +448,12 @@ function nextDateWindow(days: number) {
     dates.push(date.toISOString().slice(0, 10));
   }
   return dates;
+}
+
+function parseOddsFixtureId(item: Record<string, any>) {
+  const direct = item.fixture_id ?? item.fixtureId ?? item.apiFootballFixtureId;
+  if (direct && Number.isFinite(Number(direct))) return Number(direct);
+  const id = typeof item.id === "string" ? item.id : "";
+  const match = id.match(/\d{4,}/);
+  return match ? Number(match[0]) : null;
 }

@@ -6,6 +6,9 @@ export type FootballConfig = {
   oddsApiBaseUrl: string;
   oddsApiKey?: string;
   oddsApiSport: string;
+  oddsApiRegions: string;
+  oddsApiMarkets: string;
+  oddsApiBookmakers?: string;
   season: number;
   leagueIds: number[];
   jobsEnabled: boolean;
@@ -53,6 +56,9 @@ export function getFootballConfig(): FootballConfig {
     oddsApiBaseUrl: process.env.ODDS_API_BASE_URL ?? "https://api.the-odds-api.com",
     oddsApiKey: process.env.ODDS_API_KEY,
     oddsApiSport: process.env.ODDS_API_SPORT ?? "soccer_epl",
+    oddsApiRegions: process.env.ODDS_API_REGIONS ?? "us,uk,eu",
+    oddsApiMarkets: process.env.ODDS_API_MARKETS ?? "h2h,totals,btts",
+    oddsApiBookmakers: process.env.ODDS_API_BOOKMAKERS,
     season: Number(process.env.FOOTBALL_SEASON ?? new Date().getFullYear()),
     leagueIds: numberList(process.env.API_FOOTBALL_LEAGUE_IDS, [39]),
     jobsEnabled: process.env.ENABLE_FOOTBALL_JOBS === "true",

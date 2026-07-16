@@ -6,6 +6,7 @@ import type {
   UserRole,
 } from "@fpf/shared";
 import { checkPrismaConnection } from "../database/prismaClient.js";
+import type { DeliveryChannel, DeliveryRequest, NotificationDeliveryService } from "../integrations/notificationProviders.js";
 import { operationsProviderCatalog } from "./providers.js";
 import type {
   AnnouncementCreateInput,
@@ -31,7 +32,10 @@ const reportTitles: Record<OperationalReportType, string> = {
 };
 
 export class OperationsService {
-  constructor(private readonly repository: OperationsRepository) {}
+  constructor(
+    private readonly repository: OperationsRepository,
+    private readonly notificationDeliveryService?: NotificationDeliveryService,
+  ) {}
 
   listReports(user: { id: string; role: UserRole }, filters: ReportFilters) {
     return this.repository.listReports(user, filters);
@@ -96,6 +100,7 @@ export class OperationsService {
         { name: "Investor Engine health", status: "GREEN", message: "Investor distributions use placeholder calculation pending payment APIs.", lastCheckedAt: checkedAt },
         { name: "Notification health", status: "GREEN", message: "In-app notifications are stored internally.", lastCheckedAt: checkedAt },
         { name: "Provider placeholder health", status: "AMBER", message: "External notification and export providers are not connected yet.", lastCheckedAt: checkedAt },
+        { name: "External delivery providers", status: this.notificationProvidersConfigured() ? "GREEN" : "AMBER", message: this.notificationProvidersConfigured() ? "External notification providers are configured." : "One or more external notification providers are not configured.", lastCheckedAt: checkedAt },
       ],
       errorCounts: { lastHour: 0, lastDay: 0 },
       failedJobs: 0,
@@ -153,6 +158,28 @@ export class OperationsService {
     return this.repository.updateNotificationPreferences(userId, input);
   }
 
+  notificationDeliveryStatus() {
+    return this.notificationDeliveryService?.status() ?? {
+      email: { channel: "EMAIL", provider: "NONE", configured: false, missingVariables: ["EMAIL_API_KEY"] },
+      sms: { channel: "SMS", provider: "NONE", configured: false, missingVariables: ["TWILIO_ACCOUNT_SID"] },
+      push: { channel: "PUSH", provider: "NONE", configured: false, missingVariables: ["PUSH_API_URL"] },
+    };
+  }
+
+  sendNotificationTest(channel: DeliveryChannel, input: DeliveryRequest) {
+    if (!this.notificationDeliveryService) {
+      return Promise.resolve({
+        channel,
+        configured: false,
+        delivered: false,
+        provider: "NONE",
+        status: "SKIPPED" as const,
+        message: "Notification delivery service is not configured.",
+      });
+    }
+    return this.notificationDeliveryService.send(channel, input);
+  }
+
   listAnnouncements(): Promise<AdminAnnouncement[]> {
     return this.repository.listAnnouncements();
   }
@@ -163,5 +190,10 @@ export class OperationsService {
 
   updateAnnouncement(id: string, input: AnnouncementUpdateInput) {
     return this.repository.updateAnnouncement(id, input);
+  }
+
+  private notificationProvidersConfigured() {
+    const status = this.notificationDeliveryStatus();
+    return status.email.configured && status.sms.configured && status.push.configured;
   }
 }

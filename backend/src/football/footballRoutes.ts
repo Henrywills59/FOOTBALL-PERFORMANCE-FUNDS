@@ -30,6 +30,7 @@ export function createFootballRouter(input: {
       const sync = await input.repository.getSyncStatus(input.config.jobsEnabled, input.scheduler.isStarted());
       response.status(200).json({
         provider: input.syncService.providerStatus(),
+        oddsProvider: input.syncService.oddsProviderStatus(),
         sync,
         cacheStrategy: {
           countries: "long-lived",
@@ -242,6 +243,34 @@ export function createFootballRouter(input: {
         const result = await input.syncService.diagnoseProvider();
         const ok = result.diagnostics.status.ok && result.diagnostics.timezone.ok && result.diagnostics.fixture.ok;
         response.status(ok ? 200 : 503).json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
+    "/football/odds/diagnostics",
+    signedIn,
+    requireRole(["ADMIN"]),
+    async (_request, response, next) => {
+      try {
+        const result = await input.syncService.diagnoseOddsProvider();
+        response.status(result.ok ? 200 : 503).json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
+    "/football/sync/odds",
+    signedIn,
+    requireRole(["ANALYST", "ADMIN"]),
+    async (_request, response, next) => {
+      try {
+        await input.syncService.syncOdds();
+        response.status(202).json({ message: "Odds sync completed." });
       } catch (error) {
         next(error);
       }

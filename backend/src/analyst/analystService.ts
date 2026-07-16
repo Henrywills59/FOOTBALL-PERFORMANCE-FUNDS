@@ -12,6 +12,7 @@ import type {
 import { AuthError } from "../auth/authService.js";
 import type { FootballRepository } from "../football/types.js";
 import type { AdminService } from "../admin/adminService.js";
+import type { OpenAiProvider } from "../integrations/openAiProvider.js";
 import type { PredictionWorkflowService } from "../predictionWorkflow/predictionWorkflowService.js";
 import type {
   AnalystRepository,
@@ -152,6 +153,7 @@ export class AnalystService {
     private readonly footballRepository: FootballRepository,
     private readonly adminService?: AdminService,
     private readonly predictionWorkflowService?: PredictionWorkflowService,
+    private readonly openAiProvider?: OpenAiProvider,
   ) {}
 
   dashboard(analystId: string) {
@@ -490,7 +492,7 @@ export class AnalystService {
       .slice(0, 4)
       .map((odd) => `${odd.bookmaker} ${odd.market} ${odd.outcome} ${odd.price}`)
       .join("; ");
-    return {
+    const fallback = {
       teamFormSummary: standings || "No league standing or form data is available for this fixture yet.",
       headToHeadSummary: fixture.headToHeadRecords.length
         ? `${fixture.headToHeadRecords.length} head-to-head record(s) are available for analyst review.`
@@ -504,6 +506,16 @@ export class AnalystService {
       valueOpportunityNotes: fixture.odds.length
         ? "Compare the analyst probability estimate against the latest available bookmaker price."
         : "Value assessment should wait until odds are synchronized.",
+    };
+    const ai = await this.openAiProvider?.generateInsight({
+      task: "ANALYST_ASSISTANT",
+      prompt: "Prepare a concise private analyst assistant note for this fixture. Do not guarantee outcomes.",
+      context: { fixture, fallback },
+    });
+    if (!ai || ai.mode === "SAFE_FALLBACK") return fallback;
+    return {
+      ...fallback,
+      teamFormSummary: `${fallback.teamFormSummary}\nAI note: ${ai.text}`,
     };
   }
 

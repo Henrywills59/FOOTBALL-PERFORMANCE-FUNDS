@@ -44,6 +44,9 @@ import { createGlobalizationRouter } from "./globalization/routes.js";
 import { GlobalizationService } from "./globalization/service.js";
 import { createInfrastructureRouter } from "./infrastructure/infrastructureRoutes.js";
 import { InfrastructureService } from "./infrastructure/infrastructureService.js";
+import { OpenAiProvider } from "./integrations/openAiProvider.js";
+import { NotificationDeliveryService } from "./integrations/notificationProviders.js";
+import { createAiIntelligenceRouter } from "./intelligence/aiRoutes.js";
 import { MemoryCacheStore } from "./intelligence/cache.js";
 import { DecisionEngineService } from "./intelligence/decision/decisionService.js";
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
@@ -266,11 +269,14 @@ export function createApp(options?: {
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
   );
+  const openAiProvider = new OpenAiProvider();
+  const notificationDeliveryService = new NotificationDeliveryService();
   const analystService = new AnalystService(
     analystRepository,
     footballRepository,
     adminService,
     predictionWorkflowService,
+    openAiProvider,
   );
   const intelligenceWorkflowService = new IntelligenceWorkflowService(
     footballRepository,
@@ -282,7 +288,7 @@ export function createApp(options?: {
       ? new InMemoryOperationsRepository()
       : new PrismaOperationsRepository()
   );
-  const operationsService = new OperationsService(operationsRepository);
+  const operationsService = new OperationsService(operationsRepository, notificationDeliveryService);
   const mediaRepository = options?.mediaRepository ?? (
     process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
       ? new InMemoryMediaRepository()
@@ -413,6 +419,35 @@ export function createApp(options?: {
 
   app.get("/api/debug/config", (_request, response) => {
     response.status(200).json(getSafeConfigStatus());
+  });
+
+  app.get("/api/production/readiness", async (_request, response) => {
+    const database = await checkPrismaConnection();
+    const config = getSafeConfigStatus();
+    const providers = {
+      apiFootball: footballSyncService.providerStatus(),
+      odds: footballSyncService.oddsProviderStatus(),
+      openAi: openAiProvider.status(),
+      notifications: notificationDeliveryService.status(),
+      nowPayments: safeNowPaymentsConfigStatus(),
+    };
+    const required = [
+      config.requiredEnvironment.databaseUrl,
+      config.requiredEnvironment.jwtSecret,
+      database.ok,
+      providers.nowPayments.configured,
+    ];
+    response.status(required.every(Boolean) ? 200 : 503).json({
+      status: required.every(Boolean) ? "READY" : "ACTION_REQUIRED",
+      service: "football-performance-fund-api",
+      database,
+      config,
+      providers,
+      deployment: {
+        commitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
+      },
+    });
   });
 
   app.use(
@@ -550,6 +585,14 @@ export function createApp(options?: {
       intelligenceService,
       decisionEngineService,
       intelligenceWorkflowService,
+    }),
+  );
+  app.use(
+    "/api",
+    createAiIntelligenceRouter({
+      authService,
+      openAiProvider,
+      intelligenceService,
     }),
   );
   app.use(
