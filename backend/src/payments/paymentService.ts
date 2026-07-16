@@ -138,6 +138,7 @@ export class PaymentService {
         lockPeriodMonths: lockPeriod.months,
         riskDisclosure: investmentPackage.riskDisclosure,
         simulationNotice: "Funding is principal only. Simulator projections are not guaranteed returns.",
+        treasuryPaymentPurpose: "PERFORMANCE_PARTNER_CONTRIBUTION",
       },
     });
   }
@@ -293,6 +294,7 @@ export class PaymentService {
       payoutWalletReference: payoutWallet.reference,
       payoutWalletConfigured: payoutWallet.configured,
       paymentPurpose: input.purpose,
+      treasuryPaymentPurpose: input.metadata?.treasuryPaymentPurpose ?? treasuryPaymentPurpose(input.purpose),
     };
     const order = await this.repository.createOrder({
       userId,
@@ -349,6 +351,7 @@ export class PaymentService {
       paymentNetwork,
       payoutWalletReference: payoutWallet.reference,
       paymentPurpose: order.purpose,
+      treasuryPaymentPurpose: treasuryPaymentPurpose(order.purpose),
       transactionHash,
     };
     const amountMismatch = input.receivedAmountCents > 0 && input.receivedAmountCents < order.expectedAmountCents;
@@ -410,4 +413,12 @@ function extractTransactionHash(payload: Record<string, unknown>) {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return null;
+}
+
+function treasuryPaymentPurpose(purpose: PaymentOrder["purpose"]) {
+  if (purpose === "INVESTOR_FUNDING") return "PERFORMANCE_PARTNER_CONTRIBUTION";
+  if (purpose === "SUBSCRIPTION_UPGRADE") return "SUBSCRIBER_UPGRADE";
+  if (purpose === "SUBSCRIPTION" || purpose === "SUBSCRIPTION_RENEWAL") return "SUBSCRIBER_SUBSCRIPTION";
+  if (purpose === "OTHER_ADMIN_APPROVED") return "OTHER_APPROVED_COMPANY_REVENUE";
+  return purpose;
 }

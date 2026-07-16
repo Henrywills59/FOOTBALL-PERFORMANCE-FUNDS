@@ -269,23 +269,32 @@ export type AnalystTreasuryView = {
 
 export type TreasuryLedgerAccountCode =
   | "PERFORMANCE_PARTNER_CAPITAL"
+  | "SUBSCRIBER_REVENUE"
   | "COMPANY_TRADING_CAPITAL"
   | "PERFORMANCE_PARTNER_DISTRIBUTIONS"
   | "ANALYST_PERFORMANCE_POOL"
   | "RISK_STABILITY_RESERVE"
   | "COMPANY_GROWTH_OPERATIONS"
-  | "SUBSCRIBER_REVENUE";
+  | "PAYMENT_FEES_CLEARING"
+  | "TREASURY_SUSPENSE"
+  | "TREASURY_REVERSALS";
 
 export type TreasuryLedgerPurpose =
   | "PARTNER_CONTRIBUTION"
+  | "PARTNER_RENEWAL"
   | "COMPANY_CAPITALIZATION"
   | "SUBSCRIBER_REVENUE"
+  | "SUBSCRIBER_UPGRADE"
+  | "COMPANY_REVENUE"
+  | "PAYMENT_SUSPENSE"
   | "ELIGIBLE_PROFIT_ALLOCATION"
   | "PERFORMANCE_PARTNER_DISTRIBUTION"
   | "ANALYST_REWARD_ALLOCATION"
   | "RISK_RESERVE_ALLOCATION"
   | "COMPANY_GROWTH_ALLOCATION"
-  | "RECONCILIATION_ADJUSTMENT";
+  | "RECONCILIATION_ADJUSTMENT"
+  | "PAYMENT_FEE_CLEARING"
+  | "REVERSAL";
 
 export type TreasuryLedgerApprovalStatus = "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 export type TreasuryLedgerReconciliationStatus = "UNRECONCILED" | "MATCHED" | "DISPUTED" | "EXTERNAL_PENDING";
@@ -300,7 +309,7 @@ export type TreasuryMoney = {
 export type TreasuryLedgerAccount = {
   code: TreasuryLedgerAccountCode;
   name: string;
-  category: "PARTNER_CAPITAL" | "COMPANY_CAPITAL" | "LIABILITY" | "POOL" | "RESERVE" | "REVENUE";
+  category: "PARTNER_CAPITAL" | "COMPANY_CAPITAL" | "LIABILITY" | "POOL" | "RESERVE" | "REVENUE" | "CLEARING" | "SUSPENSE" | "REVERSAL";
   currencyBalances: Record<string, TreasuryMoney>;
 };
 
@@ -348,5 +357,139 @@ export type TreasuryLedgerOverview = {
     balanced: boolean;
     transactionCount: number;
     checkedAt: string;
+  };
+};
+
+export type TreasuryPaymentClassification =
+  | "PERFORMANCE_PARTNER_CAPITAL"
+  | "SUBSCRIBER_REVENUE"
+  | "COMPANY_REVENUE"
+  | "TREASURY_SUSPENSE";
+
+export type TreasuryPaymentRecord = {
+  id: string;
+  internalPaymentId: string;
+  nowPaymentsPaymentId: string | null;
+  orderId: string | null;
+  userId: string | null;
+  contractOrSubscriptionId: string | null;
+  paymentPurpose: string;
+  classification: TreasuryPaymentClassification;
+  originalAmount: TreasuryMoney;
+  payAmount: TreasuryMoney;
+  blockchainNetwork: "USDT_TRC20" | "USDT_ERC20" | "UNKNOWN";
+  payoutWalletReference: string | null;
+  transactionHash: string | null;
+  paymentStatus: string;
+  confirmationCount: number | null;
+  exchangeRateSnapshot: Record<string, unknown>;
+  networkFee: TreasuryMoney;
+  providerFee: TreasuryMoney;
+  createdAt: string;
+  confirmedAt: string | null;
+  reconciledAt: string | null;
+  treasuryTransactionId: string | null;
+  webhookReceiptId: string | null;
+  auditLogReference: string | null;
+  reconciliationStatus: "UNMATCHED" | "PARTIALLY_MATCHED" | "MATCHED" | "EXCEPTION" | "RESOLVED";
+  reconciliationAlert: string | null;
+};
+
+export type PartnerDistributionStatus =
+  | "PENDING_CALCULATION"
+  | "CALCULATED"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "ON_HOLD"
+  | "SCHEDULED"
+  | "PROCESSING"
+  | "PAID"
+  | "FAILED"
+  | "REVERSED";
+
+export type TreasuryPartnerDistribution = {
+  id: string;
+  userId: string;
+  participationId: string;
+  participationAmount: TreasuryMoney;
+  participationPlan: string;
+  activeFrom: string;
+  activeTo: string | null;
+  participationWeight: number;
+  distributionAmount: TreasuryMoney;
+  status: PartnerDistributionStatus;
+  holdReason: string | null;
+  adjustmentReason: string | null;
+  calculationVersion: string;
+  seasonId: string | null;
+  createdAt: string;
+};
+
+export type TreasuryAnalystPoolAllocation = {
+  id: string;
+  analystId: string;
+  eligiblePoints: number;
+  totalEligiblePoints: number;
+  rewardAmount: TreasuryMoney;
+  status: "CALCULATED" | "UNDER_REVIEW" | "APPROVED" | "ON_HOLD";
+  calculationVersion: string;
+  adjustmentReason: string | null;
+  createdAt: string;
+};
+
+export type TreasuryApprovalEvent = {
+  id: string;
+  entityType: string;
+  entityId: string;
+  actorUserId: string;
+  actorRole: string;
+  reason: string;
+  previousStatus: string;
+  newStatus: string;
+  auditReference: string;
+  createdAt: string;
+};
+
+export type TreasuryPayoutInstruction = {
+  id: string;
+  recipientUserId: string;
+  distributionId: string;
+  amount: TreasuryMoney;
+  network: "USDT_TRC20" | "USDT_ERC20";
+  recipientAddress: string;
+  status: "READY_FOR_APPROVAL" | "INVALID" | "DUPLICATE_BLOCKED";
+  validationErrors: string[];
+  idempotencyKey: string;
+};
+
+export type TreasuryPayoutBatch = {
+  id: string;
+  network: "USDT_TRC20" | "USDT_ERC20";
+  status: "DRAFT" | "READY_FOR_APPROVAL" | "APPROVED" | "BLOCKED";
+  instructions: TreasuryPayoutInstruction[];
+  totalAmount: TreasuryMoney;
+  providerFeeEstimate: TreasuryMoney;
+  idempotencyKey: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+export type TreasuryAutomationOverview = {
+  controlledAccounts: TreasuryLedgerAccountCode[];
+  paymentRecords: TreasuryPaymentRecord[];
+  partnerDistributions: TreasuryPartnerDistribution[];
+  analystPoolAllocations: TreasuryAnalystPoolAllocation[];
+  payoutBatches: TreasuryPayoutBatch[];
+  approvalEvents: TreasuryApprovalEvent[];
+  reconciliationQueue: TreasuryPaymentRecord[];
+  auditAlerts: FinancialException[];
+  dashboard: {
+    balanceByAccount: Record<string, Record<string, TreasuryMoney>>;
+    balanceByCurrency: Record<string, TreasuryMoney>;
+    balanceByNetwork: Record<string, TreasuryMoney>;
+    pendingConfirmations: number;
+    pendingReconciliation: number;
+    approvedPayoutBatches: number;
+    failedPayouts: number;
   };
 };

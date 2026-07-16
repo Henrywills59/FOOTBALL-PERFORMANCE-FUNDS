@@ -165,12 +165,15 @@ describe("treasury routes", () => {
     const overview = await request(app).get("/api/treasury/ledger").set("Authorization", `Bearer ${adminToken}`).expect(200);
     expect(overview.body.accounts.map((account: { code: string }) => account.code)).toEqual([
       "PERFORMANCE_PARTNER_CAPITAL",
+      "SUBSCRIBER_REVENUE",
       "COMPANY_TRADING_CAPITAL",
       "PERFORMANCE_PARTNER_DISTRIBUTIONS",
       "ANALYST_PERFORMANCE_POOL",
       "RISK_STABILITY_RESERVE",
       "COMPANY_GROWTH_OPERATIONS",
-      "SUBSCRIBER_REVENUE",
+      "PAYMENT_FEES_CLEARING",
+      "TREASURY_SUSPENSE",
+      "TREASURY_REVERSALS",
     ]);
 
     const pending = await request(app)
@@ -266,5 +269,195 @@ describe("treasury routes", () => {
     expect(byDestination.RISK_STABILITY_RESERVE).toBe("15000");
     expect(byDestination.COMPANY_GROWTH_OPERATIONS).toBe("35000");
     expect(allocated.body.transactions.every((transaction: { metadata: { eligibleProfitOnly: boolean } }) => transaction.metadata.eligibleProfitOnly)).toBe(true);
+  });
+
+  it("classifies Performance Partner and subscriber payments into controlled accounts", async () => {
+    const { app, adminToken } = testApp();
+
+    const partner = await request(app)
+      .post("/api/treasury/payments/classify")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        nowPaymentsPaymentId: "np-partner-1",
+        orderId: "order-partner-1",
+        userId: "partner-user",
+        contractOrSubscriptionId: "participation-1",
+        paymentPurpose: "PERFORMANCE_PARTNER_CONTRIBUTION",
+        originalAmount: "100.00",
+        payAmount: "100.00",
+        payCurrency: "USDTTRC20",
+        blockchainNetwork: "USDT_TRC20",
+        payoutWalletReference: "NOWPAYMENTS_USDT_TRC20_PAYOUT_WALLET",
+        transactionHash: "trc-hash-1",
+        confirmationCount: 30,
+      })
+      .expect(201);
+
+    const subscriber = await request(app)
+      .post("/api/treasury/payments/classify")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        nowPaymentsPaymentId: "np-sub-1",
+        orderId: "order-sub-1",
+        userId: "subscriber-user",
+        contractOrSubscriptionId: "subscription-1",
+        paymentPurpose: "SUBSCRIBER_SUBSCRIPTION",
+        originalAmount: "49.00",
+        payAmount: "49.00",
+        payCurrency: "USDTERC20",
+        blockchainNetwork: "USDT_ERC20",
+        payoutWalletReference: "NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET",
+        transactionHash: "erc-hash-1",
+      })
+      .expect(201);
+
+    expect(partner.body.paymentRecord.classification).toBe("PERFORMANCE_PARTNER_CAPITAL");
+    expect(subscriber.body.paymentRecord.classification).toBe("SUBSCRIBER_REVENUE");
+
+    const overview = await request(app).get("/api/treasury/automation").set("Authorization", `Bearer ${adminToken}`).expect(200);
+    expect(overview.body.paymentRecords).toHaveLength(2);
+    expect(JSON.stringify(overview.body)).not.toContain("private");
+  });
+
+  it("routes unrecognised payments to suspense and resolves reconciliation through audit", async () => {
+    const { app, adminToken } = testApp();
+
+    const suspense = await request(app)
+      .post("/api/treasury/payments/classify")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ paymentPurpose: "UNKNOWN", originalAmount: "10.00", payAmount: "10.00", payCurrency: "USDTTRC20", blockchainNetwork: "USDT_TRC20" })
+      .expect(201);
+
+    expect(suspense.body.paymentRecord.classification).toBe("TREASURY_SUSPENSE");
+    expect(suspense.body.paymentRecord.reconciliationStatus).toBe("EXCEPTION");
+
+    const resolved = await request(app)
+      .post("/api/treasury/reconciliation/resolve")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ paymentRecordId: suspense.body.paymentRecord.id, reason: "Matched manually with compensating evidence." })
+      .expect(200);
+
+    expect(resolved.body.paymentRecord.reconciliationStatus).toBe("RESOLVED");
+  });
+
+  it("calculates Performance Partner distributions only from approved pool and eligible seasonal contracts", async () => {
+    const { app, adminToken } = testApp();
+
+    const response = await request(app)
+      .post("/api/treasury/distributions/performance-partners/calculate")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        approvedPoolAmount: "100.00",
+        seasonId: "season-2026",
+        participations: [
+          { participationId: "p1", userId: "partner-1", participationAmount: "600.00", participationPlan: "FULL_SEASON", activeFrom: "2026-08-01T00:00:00.000Z" },
+          { participationId: "p2", userId: "partner-2", participationAmount: "400.00", participationPlan: "REMAINING_SEASON", activeFrom: "2026-10-01T00:00:00.000Z" },
+          { participationId: "p3", userId: "partner-3", participationAmount: "900.00", participationPlan: "FULL_SEASON", activeFrom: "2026-08-01T00:00:00.000Z", holdReason: "KYC hold" },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body.distributions).toHaveLength(2);
+    expect(response.body.distributions.map((item: { distributionAmount: { minorUnits: string } }) => item.distributionAmount.minorUnits)).toEqual(["6000", "4000"]);
+    expect(response.body.distributions.every((item: { status: string }) => item.status === "CALCULATED")).toBe(true);
+
+    const zero = await request(app)
+      .post("/api/treasury/distributions/performance-partners/calculate")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ approvedPoolAmount: "0", participations: [{ participationId: "p1", userId: "partner-1", participationAmount: "600.00", participationPlan: "FULL_SEASON", activeFrom: "2026-08-01T00:00:00.000Z" }] })
+      .expect(201);
+    expect(zero.body.distributions).toHaveLength(0);
+  });
+
+  it("allocates analyst pool by eligible points and prohibits equal-share fallback", async () => {
+    const { app, adminToken } = testApp();
+
+    const response = await request(app)
+      .post("/api/treasury/analyst-pool/calculate")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        approvedPoolAmount: "100.00",
+        analysts: [
+          { analystId: "analyst-1", eligiblePoints: 80 },
+          { analystId: "analyst-2", eligiblePoints: 20 },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body.allocations.map((item: { rewardAmount: { minorUnits: string } }) => item.rewardAmount.minorUnits)).toEqual(["8000", "2000"]);
+  });
+
+  it("records approval events and blocks incompatible same-actor stages", async () => {
+    const { app, adminToken } = testApp();
+
+    await request(app)
+      .post("/api/treasury/approvals")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ actorRole: "Finance Officer", entityType: "DISTRIBUTION_BATCH", entityId: "batch-1", previousStatus: "CALCULATED", newStatus: "UNDER_REVIEW", reason: "Finance review started." })
+      .expect(201);
+
+    await request(app)
+      .post("/api/treasury/approvals")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ actorRole: "Finance Officer", entityType: "DISTRIBUTION_BATCH", entityId: "batch-1", previousStatus: "UNDER_REVIEW", newStatus: "APPROVED", reason: "Same actor should not approve own stage." })
+      .expect(403);
+  });
+
+  it("prepares TRC20 and ERC20 payout batches, rejects invalid addresses, and prevents duplicates", async () => {
+    const { app, adminToken } = testApp();
+
+    const trc = await request(app)
+      .post("/api/treasury/payout-batches/prepare")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        network: "USDT_TRC20",
+        instructions: [{ distributionId: "dist-1", recipientUserId: "partner-1", recipientAddress: "TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE", amount: "10.00" }],
+      })
+      .expect(201);
+    expect(trc.body.batch.status).toBe("READY_FOR_APPROVAL");
+
+    const erc = await request(app)
+      .post("/api/treasury/payout-batches/prepare")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        network: "USDT_ERC20",
+        instructions: [{ distributionId: "dist-2", recipientUserId: "partner-2", recipientAddress: "0x1111111111111111111111111111111111111111", amount: "12.00" }],
+      })
+      .expect(201);
+    expect(erc.body.batch.status).toBe("READY_FOR_APPROVAL");
+
+    const invalid = await request(app)
+      .post("/api/treasury/payout-batches/prepare")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        network: "USDT_TRC20",
+        instructions: [{ distributionId: "dist-3", recipientUserId: "partner-3", recipientAddress: "0x1111111111111111111111111111111111111111", amount: "10.00" }],
+      })
+      .expect(201);
+    expect(invalid.body.batch.status).toBe("BLOCKED");
+    expect(invalid.body.batch.instructions[0].validationErrors[0]).toContain("TRC20");
+
+    const duplicate = await request(app)
+      .post("/api/treasury/payout-batches/prepare")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        network: "USDT_TRC20",
+        instructions: [{ distributionId: "dist-1", recipientUserId: "partner-1", recipientAddress: "TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE", amount: "10.00" }],
+      })
+      .expect(201);
+    expect(duplicate.body.batch.status).toBe("BLOCKED");
+  });
+
+  it("creates compensating reversal entries instead of deleting history", async () => {
+    const { app, adminToken } = testApp();
+
+    const reversal = await request(app)
+      .post("/api/treasury/reversals")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ originalTransactionId: "txn-original", reason: "Provider refund received.", amount: "20.00", currency: "USD" })
+      .expect(201);
+
+    expect(reversal.body.transaction.purpose).toBe("REVERSAL");
+    expect(reversal.body.transaction.lines).toHaveLength(2);
   });
 });

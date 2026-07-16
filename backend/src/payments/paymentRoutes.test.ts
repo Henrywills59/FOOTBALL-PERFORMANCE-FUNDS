@@ -226,6 +226,7 @@ describe("NOWPayments payment routes", () => {
     expect(order?.metadata.paymentNetwork).toBe("USDT_ERC20");
     expect(order?.metadata.payoutWalletReference).toBe("NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET");
     expect(order?.metadata.paymentPurpose).toBe("SUBSCRIPTION");
+    expect(order?.metadata.treasuryPaymentPurpose).toBe("SUBSCRIBER_SUBSCRIPTION");
     expect(order?.metadata.transactionHash).toBe("0xtesthash");
     expect(order?.metadata.treasuryLedgerTransactionId).toBe(`ledger_${checkout.body.order.id}`);
     expect(JSON.stringify(order)).not.toContain("test-erc20-wallet-address");

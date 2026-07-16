@@ -271,13 +271,13 @@ export class PrismaPaymentRepository implements PaymentRepository {
       });
       const ledger = await tx.treasuryLedger.create({
         data: {
-          account: "COMPANY_TREASURY",
+          account: "SUBSCRIBER_REVENUE",
           direction: "CREDIT",
           amountCents: input.order.receivedAmountCents,
           classification: "SUBSCRIPTION_REVENUE",
           referenceType: "PAYMENT_ORDER",
           referenceId: input.order.id,
-          notes: "NOWPayments subscription payment confirmed. Provider fee is tracked as placeholder unless supplied.",
+          notes: "NOWPayments subscriber payment confirmed. Subscriber revenue is recorded separately from Performance Partner capital.",
           createdBy: "NOWPAYMENTS_WEBHOOK",
         },
       });
@@ -347,13 +347,13 @@ export class PrismaPaymentRepository implements PaymentRepository {
       });
       const ledger = await tx.treasuryLedger.create({
         data: {
-          account: "INVESTOR_PRINCIPAL",
+          account: "PERFORMANCE_PARTNER_CAPITAL",
           direction: "CREDIT",
           amountCents: input.order.receivedAmountCents,
-          classification: "INVESTOR_PRINCIPAL",
+          classification: "PERFORMANCE_PARTNER_CONTRIBUTION",
           referenceType: "PAYMENT_ORDER",
           referenceId: input.order.id,
-          notes: "Investor principal recorded separately from company profit. No payout automation occurred.",
+          notes: "Performance Partner original contribution recorded separately from company profit and revenue. No payout automation occurred.",
           createdBy: "NOWPAYMENTS_WEBHOOK",
         },
       });
