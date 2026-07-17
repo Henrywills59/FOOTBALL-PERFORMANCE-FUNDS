@@ -158,12 +158,12 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Home", path: "/", id: "home", description: "Cinematic FPF homepage and launch gateway." },
   { label: "About", path: "/about", id: "about", description: "The Football Performance Fund mission and operating model." },
   { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, analyst, and admin platform." },
-  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How data, AI, analysts, and admin approval become FPF intelligence." },
+  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How football data, intelligence identification, professional review, and member publishing work." },
   { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
   { label: "Performance Partners", path: "/investors", id: "investors", description: "Performance Partner transparency, simulator, reports, and risk-first controls." },
   { label: "Analyst Applications", path: "/analyst-applications", id: "analyst-applications", description: "Professional internal analyst application journey." },
   { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
-  { label: "AI Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Explainable football intelligence, confidence, risk, and value scores." },
+  { label: "Advanced Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Advanced football intelligence, confidence context, risk context, and value signals." },
   { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
   { label: "Pricing", path: "/pricing", id: "pricing", description: "Subscriber pricing and commercial structure." },
   { label: "Participation Plans", path: "/investor-packages", id: "investor-packages", description: "Placeholder Performance Partner participation plans and season education." },
@@ -529,11 +529,19 @@ export default function App() {
 
   useEffect(() => {
     const publicPage = getCanonicalPublicPage(currentPath);
+    const isAuthRoute = ["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst", "/forgot-password", "/reset-password"].includes(currentPath);
+    const authTitle = ["/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst"].includes(currentPath)
+      ? "Register | Football Performance Fund"
+      : ["/forgot-password", "/reset-password"].includes(currentPath)
+        ? "Reset Password | Football Performance Fund"
+        : "Sign In | Football Performance Fund";
     const isPrivate = Boolean(session) || isLegacyPrivatePath(currentPath);
     document.title = isPrivate
       ? "FPF Operating System"
       : publicPage
         ? `${publicPage.label} | Football Performance Fund`
+        : isAuthRoute
+          ? authTitle
         : "Page Not Found | Football Performance Fund";
     setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, investor, analyst, treasury, and executive operating system.");
     setMetaTag("robots", isPrivate ? "noindex,nofollow" : "index,follow");
@@ -5113,14 +5121,11 @@ function PublicLaunchExperience({
     <Mission21PublicExperience
       authPanel={
         <AuthPanel
-          apiCheck={apiCheck}
-          apiUrl={apiUrl}
           currencies={currencies}
           error={error}
           languages={languages}
           message={message}
           mode={mode}
-          onApiTest={onApiTest}
           onForgot={onForgot}
           onLocalPreferenceChange={onLocalPreferenceChange}
           onLogin={onLogin}
@@ -5244,12 +5249,9 @@ function PublicNotFoundPage({ onNavigate }: { onNavigate: (path: string, id?: st
 }
 
 function AuthPanel({
-  apiCheck,
-  apiUrl,
   error,
   message,
   mode,
-  onApiTest,
   onForgot,
   onLogin,
   onRegister,
@@ -5259,14 +5261,11 @@ function AuthPanel({
   onLocalPreferenceChange,
   preferences,
 }: {
-  apiCheck: string;
-  apiUrl: string;
   currencies: CurrencySetting[];
   error: string;
   languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
-  onApiTest: () => void;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
   onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
@@ -5274,19 +5273,11 @@ function AuthPanel({
   preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
 }) {
+  const availableLanguages = Array.isArray(languages) ? languages : [];
+  const availableCurrencies = Array.isArray(currencies) ? currencies : [];
+
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">
-      <div className="mb-4 rounded-md border border-zinc-800 bg-zinc-950 p-3">
-        <p className="break-words text-xs text-zinc-400">API URL: {apiUrl}</p>
-        <p className="mt-2 break-words text-xs text-zinc-500">{apiCheck}</p>
-        <button
-          className="mt-3 w-full rounded-md border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
-          type="button"
-          onClick={onApiTest}
-        >
-          Test API connection
-        </button>
-      </div>
       <div className="grid grid-cols-3 rounded-md bg-zinc-950 p-1 text-sm">
         <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
         <ModeButton active={mode === "register"} onClick={() => setMode("register")}>Register</ModeButton>
@@ -5296,7 +5287,7 @@ function AuthPanel({
         <label className="block text-sm font-medium text-zinc-200">
           Language
           <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.language} onChange={(event) => onLocalPreferenceChange({ language: event.target.value as UserGlobalPreferences["language"] })}>
-            {(languages.length ? languages : [{ code: "en", name: "English", nativeName: "English", direction: "ltr", enabled: true } as LanguageSetting]).filter((item) => item.enabled).map((language) => (
+            {(availableLanguages.length ? availableLanguages : [{ code: "en", name: "English", nativeName: "English", direction: "ltr", enabled: true } as LanguageSetting]).filter((item) => item.enabled).map((language) => (
               <option key={language.code} value={language.code}>{language.nativeName}</option>
             ))}
           </select>
@@ -5304,7 +5295,7 @@ function AuthPanel({
         <label className="block text-sm font-medium text-zinc-200">
           Currency
           <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.currency} onChange={(event) => onLocalPreferenceChange({ currency: event.target.value as UserGlobalPreferences["currency"] })}>
-            {(currencies.length ? currencies : [{ code: "USD", name: "US Dollar", symbol: "$", placeholderRateFromUsd: 1, enabled: true } as CurrencySetting]).filter((item) => item.enabled).map((currency) => (
+            {(availableCurrencies.length ? availableCurrencies : [{ code: "USD", name: "US Dollar", symbol: "$", placeholderRateFromUsd: 1, enabled: true } as CurrencySetting]).filter((item) => item.enabled).map((currency) => (
               <option key={currency.code} value={currency.code}>{currency.code}</option>
             ))}
           </select>
