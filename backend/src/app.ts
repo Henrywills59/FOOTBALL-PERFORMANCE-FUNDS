@@ -23,6 +23,10 @@ import { createCompanyCapitalRouter } from "./companyCapital/companyCapitalRoute
 import type { CompanyCapitalRepository } from "./companyCapital/types.js";
 import { createCommercialRouter } from "./commercial/routes.js";
 import { CommercialService } from "./commercial/service.js";
+import { PrismaCountryPartnerRepository } from "./countryPartner/repository.js";
+import { createCountryPartnerRouter } from "./countryPartner/routes.js";
+import { CountryPartnerService } from "./countryPartner/service.js";
+import type { CountryPartnerRepository } from "./countryPartner/types.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
 import { checkPrismaConnection, isDatabaseUrlConfigured } from "./database/prismaClient.js";
@@ -252,6 +256,7 @@ export function createApp(options?: {
   financialRepository?: FinancialRepository;
   companyCapitalRepository?: CompanyCapitalRepository;
   paymentRepository?: PaymentRepository;
+  countryPartnerRepository?: CountryPartnerRepository;
   nowPaymentsProvider?: NowPaymentsProvider;
   jwtSecret?: string;
   startFootballJobs?: boolean;
@@ -356,6 +361,7 @@ export function createApp(options?: {
       : new PrismaCompanyCapitalRepository()
   );
   const companyCapitalService = new CompanyCapitalService(companyCapitalRepository, predictionWorkflowService);
+  const countryPartnerService = new CountryPartnerService(options?.countryPartnerRepository ?? new PrismaCountryPartnerRepository());
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -568,6 +574,13 @@ export function createApp(options?: {
     createGlobalizationRouter({
       authService,
       globalizationService,
+    }),
+  );
+  app.use(
+    "/api",
+    createCountryPartnerRouter({
+      authService,
+      countryPartnerService,
     }),
   );
   app.use(

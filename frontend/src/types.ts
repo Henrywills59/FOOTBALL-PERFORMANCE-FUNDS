@@ -9,7 +9,8 @@ export type UserRole =
   | "FINANCE"
   | "RISK_MANAGER"
   | "CAPITAL_MANAGER"
-  | "SUPER_ADMINISTRATOR";
+  | "SUPER_ADMINISTRATOR"
+  | "COUNTRY_PARTNER";
 export type PublicUserRole = (typeof PUBLIC_USER_ROLES)[number];
 export type AccountStatus = "ACTIVE" | "DISABLED";
 
@@ -526,6 +527,149 @@ export type MediaProviderStatus = {
   name: string;
   configured: boolean;
   mode: "PLACEHOLDER";
+};
+
+export type CountryPartnerLicenceStatus = "PENDING" | "ACTIVE" | "SUSPENDED" | "EXPIRED" | "RENEWAL_DUE" | "TERMINATED";
+export type CountryPartnerLevelName = "Emerging" | "Bronze" | "Silver" | "Gold" | "Platinum";
+export type CountryPartnerLeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "CONVERTED" | "LOST";
+export type CountryPartnerMarketingPlatform =
+  | "FACEBOOK"
+  | "INSTAGRAM"
+  | "TIKTOK"
+  | "LINKEDIN"
+  | "X"
+  | "TELEGRAM"
+  | "WHATSAPP"
+  | "YOUTUBE_SHORTS";
+export type CountryPartnerMarketingContentType = "POSTER" | "REEL" | "CAPTION" | "SHORT_VIDEO" | "VOICE_SCRIPT" | "CAMPAIGN";
+
+export type CountryPartnerProfile = {
+  id: string;
+  userId: string;
+  partnerName: string;
+  countryCode: string;
+  countryName: string;
+  region: string | null;
+  licenceStatus: CountryPartnerLicenceStatus;
+  licenceStartedAt: string | null;
+  licenceExpiresAt: string | null;
+  entryFeeCents: number;
+  renewalFeeCents: number;
+  currency: string;
+  level: CountryPartnerLevelName;
+  complianceScore: number;
+  localContactDetails: Record<string, unknown>;
+  allowedCustomFields: string[];
+};
+
+export type CountryPartnerCommissionRule = {
+  id: string;
+  ruleCode: string;
+  label: string;
+  revenueType: "NET_SUBSCRIPTION_REVENUE" | "ELIGIBLE_COMPANY_REVENUE" | "APPROVED_LOCAL_SERVICE";
+  percent: number;
+  active: boolean;
+  notes: string;
+};
+
+export type CountryPartnerLevelThreshold = {
+  level: CountryPartnerLevelName;
+  minimumCbvCents: number;
+  active: boolean;
+};
+
+export type CountryBusinessVolume = {
+  totalCents: number;
+  currency: string;
+  subscriptionRevenueCents: number;
+  performancePartnerBusinessCents: number;
+  renewalsCents: number;
+  approvedLocalServicesCents: number;
+  verifiedPaymentCount: number;
+  periodStart: string;
+  periodEnd: string;
+};
+
+export type CountryPartnerCommissionSummary = {
+  totalCommissionCents: number;
+  currency: string;
+  subscriptionCommissionCents: number;
+  eligibleCompanyRevenueCommissionCents: number;
+  localServicesCommissionCents: number;
+  rules: CountryPartnerCommissionRule[];
+};
+
+export type CountryPartnerLead = {
+  id: string;
+  partnerId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  countryCode: string;
+  interestType: string;
+  status: CountryPartnerLeadStatus;
+  estimatedValueCents: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CountryPartnerMarketingAsset = {
+  id: string;
+  partnerId: string | null;
+  countryCode: string;
+  language: string;
+  platform: CountryPartnerMarketingPlatform;
+  contentType: CountryPartnerMarketingContentType;
+  campaignType: string;
+  title: string;
+  body: string;
+  caption: string;
+  script: string | null;
+  localisation: Record<string, unknown>;
+  approvedByHq: boolean;
+  status: "DRAFT" | "APPROVED" | "LOCALIZED" | "PUBLISHED" | "ARCHIVED";
+  createdAt: string;
+};
+
+export type CountryPartnerDashboard = {
+  profile: CountryPartnerProfile;
+  cbv: CountryBusinessVolume;
+  commissionSummary: CountryPartnerCommissionSummary;
+  subscriberGrowth: Array<{ label: string; value: number }>;
+  performancePartnerActivity: Array<{ label: string; amountCents: number; status: string }>;
+  marketing: {
+    approvedAssets: CountryPartnerMarketingAsset[];
+    dailyContentStatus: string;
+    editableFields: string[];
+  };
+  leadSummary: {
+    total: number;
+    newLeads: number;
+    qualified: number;
+    converted: number;
+  };
+  compliance: {
+    score: number;
+    status: string;
+    reminders: string[];
+  };
+  licence: {
+    status: CountryPartnerLicenceStatus;
+    entryFeeNotice: string;
+    renewalDueAt: string | null;
+    territoryRights: string;
+  };
+  reports: Array<{ title: string; summary: string; generatedAt: string }>;
+};
+
+export type CountryPartnerAdminOverview = {
+  partners: CountryPartnerProfile[];
+  rules: CountryPartnerCommissionRule[];
+  levels: CountryPartnerLevelThreshold[];
+  totalCbvCents: number;
+  activePartners: number;
+  pendingRenewals: number;
 };
 
 export type MediaDashboard = {

@@ -21,6 +21,10 @@ import type {
   AuthUser,
   CommercialStructure,
   CommercialControlCenter,
+  CountryPartnerAdminOverview,
+  CountryPartnerDashboard,
+  CountryPartnerLead,
+  CountryPartnerMarketingAsset,
   DecisionEngineOutput,
   IntelligenceWorkflowRun,
   ExecutiveSituationRoom,
@@ -127,20 +131,22 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavBaseItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavBaseItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Country Partners", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const futureAdminNavItems = ["Global Command Wall"] as const;
 const adminNavItems = [...adminNavBaseItems, ...(enableExecutiveGlobalCommandWall ? futureAdminNavItems : [])] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Payments", "Investment Plans", "Portfolio", "Withdrawals"] as const;
 const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
+const countryPartnerNavItems = ["Country Partner Dashboard", "Territory Overview", "CBV", "Commissions", "Marketing Command", "Lead Management", "CRM", "Pipeline", "Support Centre", "Compliance", "Training Academy", "Renewal Centre", "Reports", "Analytics", "Settings"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
 type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
 type AnalystNavItem = (typeof analystNavItems)[number];
+type CountryPartnerNavItem = (typeof countryPartnerNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 type SearchResult = { category: string; title: string; description: string; target?: string };
-type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem | AnalystNavItem;
+type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem | AnalystNavItem | CountryPartnerNavItem;
 type PublicPageDefinition = {
   label: string;
   path: string;
@@ -227,6 +233,7 @@ const roleLabels: Record<UserRole, string> = {
   RISK_MANAGER: "Risk Manager",
   CAPITAL_MANAGER: "Capital Manager",
   SUPER_ADMINISTRATOR: "Super Administrator",
+  COUNTRY_PARTNER: "Country Partner",
 };
 
 function displayNavigationLabel(label: string) {
@@ -306,6 +313,7 @@ export default function App() {
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
   const [activeInvestorView, setActiveInvestorView] = useState<InvestorNavItem>("Investor Dashboard");
   const [activeAnalystView, setActiveAnalystView] = useState<AnalystNavItem>("Analyst Dashboard");
+  const [activeCountryPartnerView, setActiveCountryPartnerView] = useState<CountryPartnerNavItem>("Country Partner Dashboard");
   const [adminMode, setAdminMode] = useState(() => getStoredSession()?.user.role === "ADMIN");
   const [message, setMessage] = useState("");
   const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
@@ -384,6 +392,10 @@ export default function App() {
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null);
   const [adminAnnouncements, setAdminAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [mediaDashboard, setMediaDashboard] = useState<MediaDashboard | null>(null);
+  const [countryPartnerDashboard, setCountryPartnerDashboard] = useState<CountryPartnerDashboard | null>(null);
+  const [countryPartnerLeads, setCountryPartnerLeads] = useState<CountryPartnerLead[]>([]);
+  const [countryPartnerMarketingAssets, setCountryPartnerMarketingAssets] = useState<CountryPartnerMarketingAsset[]>([]);
+  const [adminCountryPartners, setAdminCountryPartners] = useState<CountryPartnerAdminOverview | null>(null);
   const [commercialControl, setCommercialControl] = useState<CommercialControlCenter | null>(null);
   const [infrastructureControl, setInfrastructureControl] = useState<InfrastructureControlCenter | null>(null);
   const [paymentCenter, setPaymentCenter] = useState<PaymentCenter | null>(null);
@@ -488,6 +500,7 @@ export default function App() {
       if (session.user.role === "SUBSCRIBER") await loadSubscriberData(session.token);
       if (session.user.role === "INVESTOR") await loadInvestorData(session.token);
       if (session.user.role === "ANALYST") await loadAnalystData(session.token);
+      if (session.user.role === "COUNTRY_PARTNER") await loadCountryPartnerData(session.token);
     };
 
     void loadSessionData();
@@ -645,6 +658,7 @@ export default function App() {
     setActiveAdminView("Admin Dashboard");
     setActiveInvestorView("Investor Dashboard");
     setActiveAnalystView("Analyst Dashboard");
+    setActiveCountryPartnerView("Country Partner Dashboard");
     setActiveView("Subscriber Home");
     setSession(nextSession);
     window.history.pushState(null, "", "/app");
@@ -801,6 +815,7 @@ export default function App() {
       const incidentsData = await apiGet<{ incidents: SystemIncident[] }>("/admin/monitoring/incidents", token);
       const announcementsData = await apiGet<{ announcements: AdminAnnouncement[] }>("/admin/announcements", token);
       const mediaData = await apiGet<MediaDashboard>("/admin/media/dashboard", token);
+      const countryPartnerData = await apiGet<CountryPartnerAdminOverview>("/admin/country-partners", token);
       const commercialControlData = await apiGet<CommercialControlCenter>("/admin/commercial/control", token);
       const infrastructureControlData = await apiGet<InfrastructureControlCenter>("/admin/infrastructure", token);
       const adminPaymentsData = await apiGet<PaymentCenter>("/admin/payments", token);
@@ -838,6 +853,7 @@ export default function App() {
       setSystemIncidents(incidentsData.incidents);
       setAdminAnnouncements(announcementsData.announcements);
       setMediaDashboard(mediaData);
+      setAdminCountryPartners(countryPartnerData);
       setCommercialControl(commercialControlData);
       setInfrastructureControl(infrastructureControlData);
       setAdminPaymentCenter(adminPaymentsData);
@@ -877,6 +893,21 @@ export default function App() {
       setPaymentCenter(paymentsData);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load investor portal");
+    }
+  }
+
+  async function loadCountryPartnerData(token: string) {
+    try {
+      const [dashboard, leadsData, marketingData] = await Promise.all([
+        apiGet<CountryPartnerDashboard>("/country-partner/dashboard", token),
+        apiGet<{ leads: CountryPartnerLead[] }>("/country-partner/leads", token),
+        apiGet<{ assets: CountryPartnerMarketingAsset[] }>("/country-partner/marketing", token),
+      ]);
+      setCountryPartnerDashboard(dashboard);
+      setCountryPartnerLeads(leadsData.leads);
+      setCountryPartnerMarketingAssets(marketingData.assets);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load Country Partner portal");
     }
   }
 
@@ -952,6 +983,13 @@ export default function App() {
     await loadOperationsData(session.token);
   }
 
+  async function countryPartnerAction(path: string, body?: object) {
+    if (!session) return;
+    await apiPost(path, session.token, body);
+    await loadCountryPartnerData(session.token);
+    await loadOperationsData(session.token);
+  }
+
   async function investorSimulate(body: InvestorSimulatorInput) {
     if (!session) throw new Error("Login required");
     return apiPost<{ simulation: InvestorSimulatorResult }>("/investor/simulator", session.token, body);
@@ -988,7 +1026,9 @@ export default function App() {
 
   async function adminAction(path: string, body?: object) {
     if (!session) return;
-    const method = path.includes("/settings") ||
+    const method = path.includes("/admin/country-partners/settings")
+      ? "PUT"
+      : path.includes("/settings") ||
       path.includes("/notes") ||
       path.includes("/admin/monitoring/incidents/") ||
       path.includes("/admin/announcements/") ||
@@ -1161,6 +1201,7 @@ export default function App() {
     setActiveAdminView("Admin Dashboard");
     setActiveInvestorView("Investor Dashboard");
     setActiveAnalystView("Analyst Dashboard");
+    setActiveCountryPartnerView("Country Partner Dashboard");
     setGlobalSearch("");
     setFavoriteModules([]);
     setRecentPages([]);
@@ -1214,6 +1255,10 @@ export default function App() {
     setNotificationPreferences(null);
     setAdminAnnouncements([]);
     setMediaDashboard(null);
+    setCountryPartnerDashboard(null);
+    setCountryPartnerLeads([]);
+    setCountryPartnerMarketingAssets([]);
+    setAdminCountryPartners(null);
     setCommercialControl(null);
     setInfrastructureControl(null);
     setPaymentCenter(null);
@@ -1246,6 +1291,7 @@ export default function App() {
     if (adminMode) return activeAdminView;
     if (session?.user.role === "INVESTOR") return activeInvestorView;
     if (session?.user.role === "ANALYST") return activeAnalystView;
+    if (session?.user.role === "COUNTRY_PARTNER") return activeCountryPartnerView;
     return activeView;
   }
 
@@ -1275,6 +1321,8 @@ export default function App() {
       setActiveInvestorView(label as InvestorNavItem);
     } else if (session?.user.role === "ANALYST" && (analystNavItems as readonly string[]).includes(label)) {
       setActiveAnalystView(label as AnalystNavItem);
+    } else if (session?.user.role === "COUNTRY_PARTNER" && (countryPartnerNavItems as readonly string[]).includes(label)) {
+      setActiveCountryPartnerView(label as CountryPartnerNavItem);
     } else if ((navItems as readonly string[]).includes(label)) {
       setActiveView(label as NavItem);
     } else if ((adminNavItems as readonly string[]).includes(label) && session?.user.role === "ADMIN") {
@@ -1324,6 +1372,8 @@ export default function App() {
       ? investorNavItemsWithWallet
       : session.user.role === "ANALYST"
         ? analystNavItems
+        : session.user.role === "COUNTRY_PARTNER"
+          ? countryPartnerNavItems
       : navItems;
 
   return (
@@ -1332,7 +1382,7 @@ export default function App() {
         <aside className="flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
           <div className="shrink-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
-            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Performance Partner Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
+            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Performance Partner Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : session.user.role === "COUNTRY_PARTNER" ? "Country Partner Portal" : "Subscriber Platform"}</h1>
           </div>
           <div className="mt-4 shrink-0">
             <ThemeSwitcher theme={themePreference} onChange={setThemePreference} />
@@ -1347,6 +1397,8 @@ export default function App() {
                       ? activeInvestorView === item
                       : session.user.role === "ANALYST"
                         ? activeAnalystView === item
+                        : session.user.role === "COUNTRY_PARTNER"
+                          ? activeCountryPartnerView === item
                       : activeView === item)
                     ? "bg-emerald-300 text-zinc-950"
                     : "bg-zinc-900 text-zinc-300 hover:text-white"
@@ -1426,6 +1478,7 @@ export default function App() {
               if (session.user.role === "SUBSCRIBER") setActiveView("Notifications");
               else if (session.user.role === "INVESTOR") setActiveInvestorView("Support");
               else if (session.user.role === "ANALYST") setActiveAnalystView("Analyst Dashboard");
+              else if (session.user.role === "COUNTRY_PARTNER") setActiveCountryPartnerView("Support Centre");
               else setActiveAdminView("Monitoring");
             }}
             onQuery={setGlobalSearch}
@@ -1438,6 +1491,7 @@ export default function App() {
               else if (session.user.role === "SUBSCRIBER") setActiveView("Settings");
               else if (session.user.role === "INVESTOR") setActiveInvestorView("Settings");
               else if (session.user.role === "ANALYST") setActiveAnalystView("Settings");
+              else if (session.user.role === "COUNTRY_PARTNER") setActiveCountryPartnerView("Settings");
             }}
           />
           <UnifiedOperatingSystemStrip
@@ -1491,6 +1545,7 @@ export default function App() {
               analystControl={adminAnalystControl}
               analystCommandCentre={analystCommandCentre}
               mediaDashboard={mediaDashboard}
+              countryPartnerOverview={adminCountryPartners}
               commercialControl={commercialControl}
               infrastructureControl={infrastructureControl}
               paymentCenter={adminPaymentCenter}
@@ -1585,7 +1640,33 @@ export default function App() {
             />
           ) : null}
 
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Subscriber Home" ? (
+          {!adminMode && session.user.role === "COUNTRY_PARTNER" && activeCountryPartnerView === "Settings" ? (
+            <SettingsCenterView
+              currencies={currencies}
+              languages={languages}
+              notificationPreferences={notificationPreferences}
+              notifications={operationalNotifications}
+              onSignOut={signOut}
+              onPasswordChange={safelySubmit(handlePasswordChange)}
+              onPreferences={saveGlobalPreferences}
+              onSaveNotificationPreferences={saveNotificationPreferences}
+              preferences={globalPreferences}
+              session={session}
+              timezones={timezones}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role === "COUNTRY_PARTNER" && activeCountryPartnerView !== "Settings" ? (
+            <CountryPartnerPortal
+              activeView={activeCountryPartnerView}
+              dashboard={countryPartnerDashboard}
+              leads={countryPartnerLeads}
+              marketingAssets={countryPartnerMarketingAssets}
+              onAction={countryPartnerAction}
+            />
+          ) : null}
+
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Subscriber Home" ? (
             <DashboardView
               commandCenter={subscriberCommandCenter}
               decisions={decisionOutputs}
@@ -1601,7 +1682,7 @@ export default function App() {
               onRefreshFixtures={() => void loadSubscriberData(session.token)}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Opportunity Center" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Opportunity Center" ? (
             <OpportunityCenterView
               commandCenter={subscriberCommandCenter}
               decisions={decisionOutputs}
@@ -1618,13 +1699,13 @@ export default function App() {
               onSelectPrediction={setSelectedPrediction}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Live Intelligence Feed" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Live Intelligence Feed" ? (
             <LiveIntelligenceFeedView feed={subscriberCommandCenter?.liveIntelligenceFeed ?? []} />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Performance Center" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Performance Center" ? (
             <PerformanceView commandCenter={subscriberCommandCenter} predictions={predictions} intelligence={publishedIntelligence} fixtures={fixtures} />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Live Match Center" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Live Match Center" ? (
             <LiveMatchCenter
               fixtures={liveFixtures}
               predictions={predictions}
@@ -1633,10 +1714,10 @@ export default function App() {
               onRefresh={() => void loadLiveFixtures(session.token)}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Intelligence Reports" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Intelligence Reports" ? (
             <ReportsView operationalReports={operationalReports} reports={subscriberCommandCenter?.reports ?? []} />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Profile" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Profile" ? (
             <ProfileView
               currencies={currencies}
               languages={languages}
@@ -1648,7 +1729,7 @@ export default function App() {
               timezones={timezones}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Settings" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Settings" ? (
             <SettingsCenterView
               currencies={currencies}
               languages={languages}
@@ -1663,7 +1744,7 @@ export default function App() {
               timezones={timezones}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Notifications" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Notifications" ? (
             <NotificationCenterView
               legacyNotifications={subscriberCommandCenter?.notifications ?? []}
               notifications={operationalNotifications}
@@ -1672,11 +1753,11 @@ export default function App() {
               onSavePreferences={saveNotificationPreferences}
             />
           ) : null}
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Referral Program" ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Referral Program" ? (
             <ReferralView referral={subscriberCommandCenter?.referral ?? null} />
           ) : null}
 
-          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && ["Opportunity Center", "Live Match Center"].includes(activeView) ? (
+          {!adminMode && session.user.role === "SUBSCRIBER" && ["Opportunity Center", "Live Match Center"].includes(activeView) ? (
             <PredictionDetail prediction={selectedPrediction} onAdd={addToSlip} />
           ) : null}
         </section>
@@ -1703,6 +1784,7 @@ function AdminPortal({
   systemIncidents,
   adminAnnouncements,
   mediaDashboard,
+  countryPartnerOverview,
   commercialControl,
   infrastructureControl,
   paymentCenter,
@@ -1742,6 +1824,7 @@ function AdminPortal({
   systemIncidents: SystemIncident[];
   adminAnnouncements: AdminAnnouncement[];
   mediaDashboard: MediaDashboard | null;
+  countryPartnerOverview: CountryPartnerAdminOverview | null;
   commercialControl: CommercialControlCenter | null;
   infrastructureControl: InfrastructureControlCenter | null;
   paymentCenter: PaymentCenter | null;
@@ -1839,6 +1922,10 @@ function AdminPortal({
 
   if (activeView === "Investor Management") {
     return <AdminInvestorManagementView commercialStructure={commercialStructure} management={investorManagement} onAction={onAction} onSimulate={onSimulate} />;
+  }
+
+  if (activeView === "Country Partners") {
+    return <AdminCountryPartnerView overview={countryPartnerOverview} onAction={onAction} />;
   }
 
   if (activeView === "Business Control") {
@@ -4059,6 +4146,299 @@ function AdminInvestorManagementView({
         />
       </Panel>
     </div>
+  );
+}
+
+function AdminCountryPartnerView({ overview, onAction }: { overview: CountryPartnerAdminOverview | null; onAction: (path: string, body?: object) => Promise<void> }) {
+  const rules = overview?.rules ?? [];
+  const levels = overview?.levels ?? [];
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Active partners" value={String(overview?.activePartners ?? 0)} />
+        <Metric label="Total CBV" value={money(overview?.totalCbvCents ?? 0)} />
+        <Metric label="Pending renewals" value={String(overview?.pendingRenewals ?? 0)} />
+        <Metric label="Configured rules" value={String(rules.length)} />
+      </div>
+      <Panel title="Country Partner Network">
+        <p className="rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">
+          HQ retains full control of technology, treasury, football intelligence, financial governance, provider secrets, and global operations. Country Partner licence fees are not investments and have no ROI entitlement.
+        </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {(overview?.partners ?? []).map((partner) => (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={partner.id}>
+              <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{partner.licenceStatus}</p>
+              <h3 className="mt-2 font-semibold">{partner.partnerName}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{partner.countryName} | {partner.level} | Compliance {partner.complianceScore}%</p>
+              <p className="mt-2 text-sm text-zinc-500">Territory rights are performance-based and subject to HQ approval.</p>
+            </div>
+          ))}
+          {!(overview?.partners.length) ? <EmptyState message="Country Partner profiles appear here after HQ assigns approved users to territories." /> : null}
+        </div>
+      </Panel>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Commission Rules">
+          <div className="space-y-3">
+            {rules.map((rule) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={rule.id}>
+                <p className="font-semibold">{rule.label}</p>
+                <p className="text-sm text-zinc-400">{rule.revenueType} | {rule.percent}% | {rule.active ? "Active" : "Disabled"}</p>
+                <p className="mt-1 text-xs text-zinc-500">{rule.notes}</p>
+              </div>
+            ))}
+          </div>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/admin/country-partners/settings", {
+                rules: [{
+                  ruleCode: String(form.get("ruleCode")),
+                  label: String(form.get("label")),
+                  revenueType: String(form.get("revenueType")),
+                  percent: Number(form.get("percent")),
+                  active: true,
+                  notes: String(form.get("notes") ?? ""),
+                }],
+              });
+            }}
+          >
+            <TextField label="Rule code" name="ruleCode" type="text" />
+            <TextField label="Label" name="label" type="text" />
+            <SelectField
+              label="Revenue type"
+              name="revenueType"
+              value="NET_SUBSCRIPTION_REVENUE"
+              options={["NET_SUBSCRIPTION_REVENUE", "ELIGIBLE_COMPANY_REVENUE", "APPROVED_LOCAL_SERVICE"].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))}
+            />
+            <TextField label="Percent" name="percent" type="number" />
+            <TextField label="Notes" name="notes" type="text" />
+            <SubmitButton>Save configurable rule</SubmitButton>
+          </form>
+        </Panel>
+        <Panel title="CBV Levels">
+          <div className="space-y-3">
+            {levels.map((level) => (
+              <div className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-950 p-3" key={level.level}>
+                <div>
+                  <p className="font-semibold">{level.level}</p>
+                  <p className="text-sm text-zinc-400">Minimum CBV {money(level.minimumCbvCents)}</p>
+                </div>
+                <StatusPill status={level.active ? "ACTIVE" : "DISABLED"} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-sm text-zinc-400">Thresholds are configurable without code changes. Only verified payments and approved local services contribute to CBV.</p>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function CountryPartnerPortal({
+  activeView,
+  dashboard,
+  leads,
+  marketingAssets,
+  onAction,
+}: {
+  activeView: CountryPartnerNavItem;
+  dashboard: CountryPartnerDashboard | null;
+  leads: CountryPartnerLead[];
+  marketingAssets: CountryPartnerMarketingAsset[];
+  onAction: (path: string, body?: object) => Promise<void>;
+}) {
+  if (!dashboard) return <LoadingSkeleton label="Preparing Country Partner Portal" />;
+  const profile = dashboard.profile;
+  const cbv = dashboard.cbv;
+
+  if (activeView === "Marketing Command") {
+    return (
+      <div className="mt-6 space-y-4">
+        <Panel title="AI Marketing Command Centre">
+          <p className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-100">
+            HQ branding is locked. Country Partners may customise only approved local fields: {dashboard.marketing.editableFields.join(", ") || "none"}.
+          </p>
+          <form
+            className="mt-4 grid gap-3 lg:grid-cols-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/country-partner/marketing/daily-content", {
+                language: form.get("language"),
+                campaignType: form.get("campaignType"),
+                localContactDetails: {
+                  phone: form.get("phone"),
+                  email: form.get("email"),
+                },
+              });
+            }}
+          >
+            <TextField label="Language" name="language" type="text" />
+            <SelectField
+              label="Campaign type"
+              name="campaignType"
+              value="Educational Campaign"
+              options={["Promotional Campaign", "Educational Campaign", "Subscriber Campaign", "Performance Partner Campaign", "Seasonal Campaign"].map((item) => ({ value: item, label: item }))}
+            />
+            <TextField label="Local phone" name="phone" type="text" />
+            <TextField label="Local email" name="email" type="email" />
+            <div className="lg:col-span-4"><SubmitButton>Generate approved daily content</SubmitButton></div>
+          </form>
+        </Panel>
+        <MarketingAssetGrid assets={marketingAssets.length ? marketingAssets : dashboard.marketing.approvedAssets} />
+      </div>
+    );
+  }
+
+  if (activeView === "Lead Management" || activeView === "CRM" || activeView === "Pipeline") {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-[360px_1fr]">
+        <Panel title="Capture Lead">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction("/country-partner/leads", {
+                name: form.get("name"),
+                email: form.get("email"),
+                phone: form.get("phone"),
+                interestType: form.get("interestType"),
+                estimatedValueCents: Math.round(Number(form.get("estimatedValue")) * 100),
+                notes: form.get("notes"),
+              });
+              event.currentTarget.reset();
+            }}
+          >
+            <TextField label="Name" name="name" type="text" />
+            <TextField label="Email" name="email" type="email" />
+            <TextField label="Phone" name="phone" type="text" />
+            <SelectField
+              label="Interest"
+              name="interestType"
+              value="SUBSCRIPTION"
+              options={["SUBSCRIPTION", "PERFORMANCE_PARTNER", "LOCAL_SERVICE"].map((item) => ({ value: item, label: item.replaceAll("_", " ") }))}
+            />
+            <TextField label="Estimated value USD" name="estimatedValue" type="number" />
+            <TextField label="Notes" name="notes" type="text" />
+            <SubmitButton>Add lead</SubmitButton>
+          </form>
+        </Panel>
+        <Panel title={activeView}>
+          <div className="grid gap-3">
+            {leads.map((lead) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={lead.id}>
+                <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{lead.status}</p>
+                <h3 className="mt-1 font-semibold">{lead.name}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{lead.email ?? "No email"} | {lead.phone ?? "No phone"} | {lead.interestType}</p>
+                <p className="mt-1 text-sm text-zinc-300">Estimated value {money(lead.estimatedValueCents)}</p>
+                <p className="mt-1 text-xs text-zinc-500">{lead.notes ?? "No notes"}</p>
+              </div>
+            ))}
+            {!leads.length ? <EmptyState message="Leads captured inside your territory appear here." /> : null}
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  if (["Support Centre", "Compliance", "Training Academy", "Renewal Centre", "Reports", "Analytics"].includes(activeView)) {
+    return (
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Panel title={activeView}>
+          <div className="space-y-3 text-sm text-zinc-300">
+            <MiniStat label="Licence status" value={dashboard.licence.status} />
+            <MiniStat label="Compliance score" value={`${dashboard.compliance.score}%`} />
+            <MiniStat label="Renewal due" value={dashboard.licence.renewalDueAt ? new Date(dashboard.licence.renewalDueAt).toLocaleDateString() : "Pending activation"} />
+            <p className="rounded-md bg-amber-500/10 p-3 text-amber-100">{dashboard.licence.entryFeeNotice}</p>
+            {dashboard.compliance.reminders.map((item) => <p className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={item}>{item}</p>)}
+          </div>
+        </Panel>
+        <Panel title="Reports & Analytics">
+          <div className="space-y-3">
+            {dashboard.reports.map((report) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={report.title}>
+                <p className="font-semibold">{report.title}</p>
+                <p className="mt-1 text-sm text-zinc-400">{report.summary}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Territory" value={profile.countryName} />
+        <Metric label="Licence" value={profile.licenceStatus} />
+        <Metric label="CBV" value={money(cbv.totalCents)} />
+        <Metric label="Commission" value={money(dashboard.commissionSummary.totalCommissionCents)} />
+        <Metric label="Level" value={profile.level} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <Panel title={activeView === "Commissions" ? "Commission Summary" : activeView === "CBV" ? "Country Business Volume" : "Territory Overview"}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MiniStat label="Subscription revenue" value={money(cbv.subscriptionRevenueCents)} />
+            <MiniStat label="Renewals" value={money(cbv.renewalsCents)} />
+            <MiniStat label="Eligible company revenue" value={money(cbv.performancePartnerBusinessCents)} />
+            <MiniStat label="Approved local services" value={money(cbv.approvedLocalServicesCents)} />
+            <MiniStat label="Verified payments" value={String(cbv.verifiedPaymentCount)} />
+            <MiniStat label="Compliance" value={`${profile.complianceScore}%`} />
+          </div>
+          <p className="mt-4 rounded-md bg-zinc-900 p-3 text-sm text-zinc-300">
+            Performance Partner contributed capital is excluded from commissions. Only verified eligible company revenue can contribute to partner earnings.
+          </p>
+        </Panel>
+        <Panel title="Licence & Governance">
+          <div className="space-y-3 text-sm text-zinc-300">
+            <p>Entry fee: {money(profile.entryFeeCents)} USD | Initial licence: 12 months</p>
+            <p>Annual renewal: {money(profile.renewalFeeCents)} USD configurable by HQ</p>
+            <p>{dashboard.licence.territoryRights}</p>
+            <p className="rounded-md bg-amber-500/10 p-3 text-amber-100">{dashboard.licence.entryFeeNotice}</p>
+          </div>
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Subscriber Growth">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {dashboard.subscriberGrowth.map((item) => <MiniStat key={item.label} label={item.label} value={String(item.value)} />)}
+          </div>
+        </Panel>
+        <Panel title="Performance Partner Activity">
+          <div className="space-y-3">
+            {dashboard.performancePartnerActivity.map((item) => (
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={item.label}>
+                <p className="font-semibold">{item.label}: {money(item.amountCents)}</p>
+                <p className="mt-1 text-sm text-zinc-400">{item.status}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function MarketingAssetGrid({ assets }: { assets: CountryPartnerMarketingAsset[] }) {
+  return (
+    <Panel title="Approved Local Marketing Assets">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {assets.map((asset) => (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={asset.id}>
+            <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">{asset.platform} | {asset.contentType}</p>
+            <h3 className="mt-2 font-semibold">{asset.title}</h3>
+            <p className="mt-2 text-sm text-zinc-400">{asset.caption}</p>
+            {asset.script ? <p className="mt-2 rounded-md bg-zinc-900 p-3 text-xs text-zinc-300">Script: {asset.script}</p> : null}
+            <p className="mt-2 text-xs text-zinc-500">HQ approved: {asset.approvedByHq ? "Yes" : "No"} | Status: {asset.status}</p>
+          </div>
+        ))}
+        {!assets.length ? <EmptyState message="Generate daily approved content to populate Facebook, Instagram, TikTok, LinkedIn, X, Telegram, WhatsApp, and YouTube Shorts placeholders." /> : null}
+      </div>
+    </Panel>
   );
 }
 

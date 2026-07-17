@@ -233,6 +233,15 @@ export function createAuthRouter(authService: AuthService) {
     },
   );
 
+  router.get(
+    "/dashboards/country-partner",
+    requireSignedIn,
+    requireRole(["COUNTRY_PARTNER", "ADMIN"]),
+    (_request, response) => {
+      response.status(200).json({ title: "Country Partner Portal" });
+    },
+  );
+
   return router;
 }
 

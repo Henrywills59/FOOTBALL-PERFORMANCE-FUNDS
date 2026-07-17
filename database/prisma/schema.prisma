@@ -18,6 +18,7 @@ enum UserRole {
   RISK_MANAGER
   CAPITAL_MANAGER
   SUPER_ADMINISTRATOR
+  COUNTRY_PARTNER
 }
 
 enum AccountStatus {
@@ -179,6 +180,7 @@ model User {
   analystProfile AnalystProfile?
   globalPreference UserGlobalPreference?
   performancePartnerParticipations PerformancePartnerParticipation[]
+  countryPartnerProfile CountryPartnerProfile?
 }
 
 model FpfSeason {
@@ -1418,6 +1420,167 @@ model CampaignReport {
 
   @@index([campaignId])
   @@map("campaign_reports")
+}
+
+model CountryPartnerProfile {
+  id                    String                    @id @default(uuid())
+  userId                String                    @unique
+  partnerName           String
+  countryCode           String
+  countryName           String
+  region                String?
+  licenceStatus         String                    @default("PENDING")
+  licenceStartedAt      DateTime?
+  licenceExpiresAt      DateTime?
+  entryFeeCents         Int                       @default(300000)
+  renewalFeeCents       Int                       @default(300000)
+  currency              String                    @default("USD")
+  level                 String                    @default("Emerging")
+  complianceScore       Int                       @default(80)
+  localContactDetails   Json                      @default("{}")
+  allowedCustomFields   Json                      @default("[\"contactDetails\",\"language\",\"currency\"]")
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads                 CountryPartnerLead[]
+  commissions           CountryPartnerCommission[]
+  marketingAssets       CountryPartnerMarketingAsset[]
+  localServices         CountryPartnerLocalService[]
+
+  @@index([countryCode])
+  @@index([licenceStatus])
+  @@index([level])
+  @@map("country_partner_profiles")
+}
+
+model CountryPartnerCommissionRule {
+  id          String   @id @default(uuid())
+  ruleCode    String   @unique
+  label       String
+  revenueType String
+  percent     Float
+  active      Boolean  @default(true)
+  notes       String   @default("")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+  @@index([revenueType])
+  @@map("country_partner_commission_rules")
+}
+
+model CountryPartnerLevelThreshold {
+  level           String   @id
+  minimumCbvCents Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active])
+  @@map("country_partner_level_thresholds")
+}
+
+model CountryPartnerLead {
+  id                  String                @id @default(uuid())
+  partnerId           String
+  name                String
+  email               String?
+  phone               String?
+  countryCode         String
+  interestType        String                @default("SUBSCRIPTION")
+  status              String                @default("NEW")
+  estimatedValueCents Int                   @default(0)
+  notes               String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  partner             CountryPartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([countryCode])
+  @@index([status])
+  @@map("country_partner_leads")
+}
+
+model CountryPartnerCommission {
+  id               String                @id @default(uuid())
+  partnerId        String
+  sourceType       String
+  sourceId         String?
+  baseRevenueCents Int
+  commissionCents  Int
+  currency         String                @default("USD")
+  status           String                @default("PENDING_APPROVAL")
+  calculatedAt     DateTime              @default(now())
+  approvedAt       DateTime?
+  paidAt           DateTime?
+  metadata         Json                  @default("{}")
+  partner          CountryPartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([sourceType])
+  @@index([status])
+  @@map("country_partner_commissions")
+}
+
+model CountryPartnerLocalService {
+  id             String                @id @default(uuid())
+  partnerId      String
+  serviceName    String
+  revenueCents   Int
+  currency       String                @default("USD")
+  status         String                @default("PENDING")
+  verifiedAt     DateTime?
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  partner        CountryPartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([status])
+  @@map("country_partner_local_services")
+}
+
+model CountryPartnerMarketingAsset {
+  id             String                 @id @default(uuid())
+  partnerId      String?
+  countryCode    String
+  language       String                 @default("en")
+  platform       String
+  contentType    String
+  campaignType   String
+  title          String
+  body           String
+  caption        String
+  script         String?
+  localisation   Json                   @default("{}")
+  approvedByHq   Boolean                @default(true)
+  status         String                 @default("APPROVED")
+  createdAt      DateTime               @default(now())
+  partner        CountryPartnerProfile? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId])
+  @@index([countryCode])
+  @@index([platform])
+  @@index([status])
+  @@map("country_partner_marketing_assets")
+}
+
+model CountryPartnerAuditLog {
+  id          String   @id @default(uuid())
+  partnerId   String?
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([partnerId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("country_partner_audit_logs")
 }
 
 model MonitoringEvent {

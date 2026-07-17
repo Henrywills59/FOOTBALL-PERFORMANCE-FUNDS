@@ -46,6 +46,11 @@ const dashboardRoutes: Record<UserRole, DashboardRoute> = {
     path: "/dashboard/company-capital",
     title: "Company Capital Desk",
   },
+  COUNTRY_PARTNER: {
+    role: "COUNTRY_PARTNER",
+    path: "/dashboard/country-partner",
+    title: "Country Partner Portal",
+  },
 };
 
 export function getDashboardRoute(role: UserRole) {
