@@ -1,73 +1,65 @@
 {
-  "version": 2,
-  "installCommand": "npm install",
-  "buildCommand": "npm run build -w shared && npm run db:deploy -w database && npm run prisma:generate -w database && npm run build -w backend",
-  "builds": [
+  "installCommand": "npm install --ignore-scripts",
+  "buildCommand": "npm run build -w frontend",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
     {
-      "src": "api/health.ts",
-      "use": "@vercel/node@latest"
+      "source": "/api/(.*)",
+      "destination": "https://football-performance-funds-backend.vercel.app/api/$1"
     },
     {
-      "src": "api/health/db.ts",
-      "use": "@vercel/node@latest"
+      "source": "/health",
+      "destination": "https://football-performance-funds-backend.vercel.app/health"
     },
     {
-      "src": "api/debug/config.ts",
-      "use": "@vercel/node@latest"
+      "source": "/health/db",
+      "destination": "https://football-performance-funds-backend.vercel.app/health/db"
     },
     {
-      "src": "api/debug/login.ts",
-      "use": "@vercel/node@latest"
-    },
-    {
-      "src": "api/auth/login.ts",
-      "use": "@vercel/node@latest"
-    },
-    {
-      "src": "api/admin/seed-default-admin.ts",
-      "use": "@vercel/node@latest"
-    },
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node@latest"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
-  "routes": [
+  "headers": [
     {
-      "src": "/health",
-      "dest": "/api/health.ts"
+      "source": "/app",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
-      "src": "/api/health",
-      "dest": "/api/health.ts"
+      "source": "/app/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
-      "src": "/health/db",
-      "dest": "/api/health/db.ts"
+      "source": "/dashboard/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
-      "src": "/api/health/db",
-      "dest": "/api/health/db.ts"
-    },
-    {
-      "src": "/api/debug/config",
-      "dest": "/api/debug/config.ts"
-    },
-    {
-      "src": "/api/debug/login",
-      "dest": "/api/debug/login.ts"
-    },
-    {
-      "src": "/api/auth/login",
-      "dest": "/api/auth/login.ts"
-    },
-    {
-      "src": "/api/admin/seed-default-admin",
-      "dest": "/api/admin/seed-default-admin.ts"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.ts"
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
     }
   ]
 }

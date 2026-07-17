@@ -12,6 +12,7 @@ docs/latest-deploy-result.txt
 
 .vercel
 .env*
+.vercel-cli-data/
 
 .vercel
 .env*

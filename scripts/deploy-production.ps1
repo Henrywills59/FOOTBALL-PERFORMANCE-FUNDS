@@ -810,7 +810,7 @@ try {
   Write-Step "Deploying backend"
   Invoke-VercelDeploy `
     -Name "backend" `
-    -Path $root `
+    -Path (Join-Path $root "backend") `
     -Project $BackendProject `
     -Environment @{ ADMIN_SEED_TOKEN = $script:AdminSeedToken }
 
