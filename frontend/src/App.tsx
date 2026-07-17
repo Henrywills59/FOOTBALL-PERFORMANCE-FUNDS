@@ -1474,9 +1474,9 @@ export default function App() {
       : navItems;
 
   return (
-    <main className="min-h-dvh bg-zinc-950 text-white">
-      <div className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
-        <aside className="flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
+    <main className="fpf-app-shell min-h-dvh bg-zinc-950 text-white">
+      <div className="fpf-app-frame mx-auto flex min-h-dvh w-full max-w-7xl flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
+        <aside className="fpf-sidebar flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
           <div className="shrink-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
             <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Performance Partner Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : session.user.role === "COUNTRY_PARTNER" ? "Country Partner Portal" : "Subscriber Platform"}</h1>
@@ -1487,7 +1487,7 @@ export default function App() {
           <nav className="mt-4 grid min-h-0 max-h-[48vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-5 lg:max-h-none lg:flex-1 lg:grid-cols-1 lg:pr-2" aria-label="Unified FPF navigation">
             {navigationItems.map((item) => (
               <button
-                className={`rounded-md px-3 py-3 text-left text-sm font-medium transition ${
+                className={`fpf-nav-button rounded-md px-3 py-3 text-left text-sm font-medium transition ${
                   (adminMode
                     ? activeAdminView === item
                     : session.user.role === "INVESTOR"
@@ -1497,7 +1497,7 @@ export default function App() {
                         : session.user.role === "COUNTRY_PARTNER"
                           ? activeCountryPartnerView === item
                       : activeView === item)
-                    ? "bg-emerald-300 text-zinc-950"
+                    ? "is-active bg-emerald-300 text-zinc-950"
                     : "bg-zinc-900 text-zinc-300 hover:text-white"
                 }`}
                 key={item}
@@ -1509,7 +1509,7 @@ export default function App() {
             ))}
           </nav>
           <div className="mt-4 shrink-0 border-t border-zinc-800 pt-4">
-            <div className="rounded-md border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
+            <div className="fpf-user-card rounded-md border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
               <p className="font-semibold text-white">{session.user.name}</p>
               <p className="mt-1 truncate text-xs text-zinc-400">{session.user.email}</p>
               <p className="mt-1 text-xs uppercase tracking-[0.12em] text-emerald-300">{roleLabels[session.user.role]}</p>
@@ -1534,8 +1534,8 @@ export default function App() {
           </div>
         </aside>
 
-        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:h-dvh lg:px-8">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <section className="fpf-workspace min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:h-dvh lg:px-8">
+          <div className="fpf-topbar flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-sm text-emerald-300">{loadingLabel} | {roleLabels[session.user.role]} workspace</p>
               <h2 className="mt-1 text-3xl font-bold tracking-normal">Welcome, {session.user.name}</h2>
@@ -7061,8 +7061,8 @@ function formatDateTime(value: string | Date) {
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl shadow-black/10">
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <section className="fpf-panel mt-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl shadow-black/10">
+      <h2 className="fpf-panel-title text-lg font-semibold">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -7070,7 +7070,7 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+    <div className="fpf-metric rounded-lg border border-zinc-800 bg-zinc-900 p-4">
       <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">{label}</p>
       <p className="mt-2 text-xl font-semibold text-white">{value}</p>
     </div>
@@ -7079,7 +7079,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-zinc-900 p-2">
+    <div className="fpf-mini-stat rounded-md bg-zinc-900 p-2">
       <p className="text-zinc-500">{label}</p>
       <p className="font-semibold text-white">{value}</p>
     </div>

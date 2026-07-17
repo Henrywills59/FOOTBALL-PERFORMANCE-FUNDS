@@ -254,6 +254,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
           </p>
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/how-fpf-works", "how-fpf-works")}>Explore Intelligence</button>
+            <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
             <button className="secondary" type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
             <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
           </div>
@@ -266,6 +267,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
           </div>
         </div>
         <aside className="hero-intelligence-card" aria-label="FPF intelligence preview">
+          <div className="hero-globe" aria-hidden="true"><span /><span /><span /></div>
           <StatusPill>Public Preview</StatusPill>
           <strong>Institutional match intelligence, reviewed before publication.</strong>
           <div className="preview-lines" aria-hidden="true"><i /><i /><i /></div>
@@ -276,6 +278,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
             <div><span>Access</span><strong>Member-only</strong></div>
           </div>
           <p>No public page exposes private selections, provider keys, treasury data or analyst identities.</p>
+          <p className="preview-note">3-Day Preview UI is ready. Backend activation can be connected when the trial endpoint is approved.</p>
         </aside>
       </div>
     </section>
@@ -401,6 +404,9 @@ function PerformancePartnerProgramme({
             Performance Partners can explore participation options, reporting and simulator tools after account access. Licence fees, contributions and subscriber revenue are treated separately by the internal platform.
           </p>
           <p className="policy-note">Simulation only. Returns are not guaranteed. Final payment and payout workflows remain controlled inside protected systems.</p>
+          <div className="partner-benefit-row">
+            {["Season-based participation", "Private reporting", "Capital separation", "No guaranteed returns"].map((item) => <span key={item}>{item}</span>)}
+          </div>
           <button className="inline-public-action" type="button" onClick={() => onNavigate("/register", "auth")}>Explore Performance Partnership</button>
         </div>
         <div className="signal-grid">
