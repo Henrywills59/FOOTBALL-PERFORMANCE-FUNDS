@@ -183,13 +183,70 @@ const publicPageDefinitions: PublicPageDefinition[] = [
 const publicPathAliases: Record<string, string> = {
   "/for-subscribers": "/subscribers",
   "/for-investors": "/investors",
+  "/partners": "/investors",
+  "/performance-partners": "/investors",
   "/for-analysts": "/analyst-applications",
   "/legal": "/terms-and-conditions",
   "/privacy": "/privacy-policy",
   "/terms": "/terms-and-conditions",
 };
 
-const legacyPrivatePaths = ["/app", "/dashboard", "/dashboard/admin", "/dashboard/subscriber", "/dashboard/investor", "/dashboard/analyst"];
+const investorRouteAliases: Record<string, InvestorNavItem> = {
+  "/partner": "Investor Dashboard",
+  "/partner/dashboard": "Investor Dashboard",
+  "/partner/current-season": "Capital",
+  "/partner/participation-plan": "Investment Plans",
+  "/partner/participation-plans": "Investment Plans",
+  "/partner/participation-simulator": "Simulator",
+  "/partner/distribution-history": "Earnings",
+  "/partner/distributions": "Earnings",
+  "/partner/contract-progress": "Capital",
+  "/partner/season-reports": "Reports",
+  "/partner/renewal": "Investment Plans",
+  "/partner/wallet": "Wallet",
+  "/partner/payments": "Payments",
+  "/partner/portfolio": "Portfolio",
+  "/partner/withdrawals": "Withdrawals",
+  "/partner/profile": "Profile",
+  "/partner/settings": "Settings",
+  "/partner/documents": "Documents",
+  "/partner/support": "Support",
+  "/investor": "Investor Dashboard",
+  "/investor/dashboard": "Investor Dashboard",
+  "/investor/simulator": "Simulator",
+  "/investor/earnings": "Earnings",
+  "/investor/reports": "Reports",
+  "/investor/capital": "Capital",
+  "/investor/profile": "Profile",
+  "/investor/settings": "Settings",
+  "/investor/documents": "Documents",
+  "/investor/support": "Support",
+  "/investor/wallet": "Wallet",
+  "/investor/payments": "Payments",
+  "/investor/plans": "Investment Plans",
+  "/investor/investment-plans": "Investment Plans",
+  "/investor/portfolio": "Portfolio",
+  "/investor/withdrawals": "Withdrawals",
+};
+
+const investorViewRoutes: Record<InvestorNavItem, string> = {
+  "Investor Dashboard": "/partner/dashboard",
+  Simulator: "/partner/participation-simulator",
+  Earnings: "/partner/distribution-history",
+  Reports: "/partner/season-reports",
+  Capital: "/partner/current-season",
+  Profile: "/partner/profile",
+  Settings: "/partner/settings",
+  Documents: "/partner/documents",
+  Support: "/partner/support",
+  Wallet: "/partner/wallet",
+  Payments: "/partner/payments",
+  "Investment Plans": "/partner/participation-plans",
+  Portfolio: "/partner/portfolio",
+  Withdrawals: "/partner/withdrawals",
+};
+
+const legacyPrivatePaths = ["/app", "/dashboard", "/dashboard/admin", "/dashboard/subscriber", "/dashboard/investor", "/dashboard/analyst", "/dashboard/partner", "/investor", "/partner"];
 
 function normalizedPathname(pathname = window.location.pathname) {
   const clean = pathname.replace(/\/+$/, "");
@@ -205,6 +262,11 @@ function getCanonicalPublicPage(pathname = window.location.pathname) {
 function isLegacyPrivatePath(pathname = window.location.pathname) {
   const normalized = normalizedPathname(pathname);
   return legacyPrivatePaths.some((path) => normalized === path || normalized.startsWith(`${path}/`));
+}
+
+function getInvestorViewFromPath(pathname = window.location.pathname) {
+  const normalized = normalizedPathname(pathname);
+  return investorRouteAliases[normalized] ?? null;
 }
 
 function scrollPublicSection(id: string) {
@@ -435,6 +497,27 @@ export default function App() {
     if (!session && ["/login", "/signin", "/sign-in"].includes(currentPath)) setMode("login");
     if (!session && ["/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst"].includes(currentPath)) setMode("register");
     if (!session && ["/forgot-password", "/reset-password"].includes(currentPath)) setMode("forgot");
+  }, [currentPath, session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const investorView = getInvestorViewFromPath(currentPath);
+    if (!investorView) return;
+
+    if (session.user.role !== "INVESTOR") {
+      setError("Performance Partner portal access requires a Performance Partner account.");
+      window.history.replaceState(null, "", "/app");
+      setCurrentPath("/app");
+      return;
+    }
+
+    setActiveInvestorView(investorView);
+    setAdminMode(false);
+    const canonicalPath = investorViewRoutes[investorView];
+    if (currentPath !== canonicalPath) {
+      window.history.replaceState(null, "", canonicalPath);
+      setCurrentPath(canonicalPath);
+    }
   }, [currentPath, session]);
 
   useEffect(() => {
@@ -1318,7 +1401,13 @@ export default function App() {
     if (adminMode && (adminNavItems as readonly string[]).includes(label)) {
       setActiveAdminView(label as AdminNavItem);
     } else if (session?.user.role === "INVESTOR" && (investorNavItemsWithWallet as readonly string[]).includes(label)) {
-      setActiveInvestorView(label as InvestorNavItem);
+      const investorView = label as InvestorNavItem;
+      setActiveInvestorView(investorView);
+      const nextPath = investorViewRoutes[investorView];
+      if (nextPath && currentPath !== nextPath) {
+        window.history.pushState(null, "", nextPath);
+        setCurrentPath(nextPath);
+      }
     } else if (session?.user.role === "ANALYST" && (analystNavItems as readonly string[]).includes(label)) {
       setActiveAnalystView(label as AnalystNavItem);
     } else if (session?.user.role === "COUNTRY_PARTNER" && (countryPartnerNavItems as readonly string[]).includes(label)) {
