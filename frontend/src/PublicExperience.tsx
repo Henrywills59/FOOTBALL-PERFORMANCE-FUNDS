@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { CommercialStructure, PublicExperience, ThemePreference } from "./types";
+import { historicalOperatingBaseline } from "./historicalOperatingBaseline";
 
 type PublicPageDefinition = {
   label: string;
@@ -183,7 +184,7 @@ export function Mission21PublicExperience({
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="public-nav">
         <button className="brand-block brand-button" type="button" onClick={() => navigate("/", "home")} aria-label="Football Performance Fund home">
-          <img className="brand-logo" src="/fpf-logo.svg" alt="" width="44" height="44" />
+          <img className="brand-logo official-logo-image" src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="64" height="64" />
           <span className="brand-copy">
             <span>Football Performance Fund</span>
             <strong>FPF Global Intelligence</strong>
@@ -229,6 +230,7 @@ export function Mission21PublicExperience({
       ) : (
         <>
           <Hero activeSlide={activeSlide} onNavigate={navigate} />
+          <HistoricalBaselineSection experience={experience} />
           <PublicSignalBar experience={experience} />
           <PublicDashboardPreview experience={experience} onNavigate={navigate} />
           <HowItWorks />
@@ -327,15 +329,19 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
 function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
   const results = experience?.performance?.liveVerifiedResults ?? [];
   const signals = [
-    { label: "Win rate", value: results.length ? `${Math.round((results.filter((item) => item.netResultUnit > 0).length / results.length) * 100)}%` : "Awaiting verified data" },
-    { label: "Monthly performance", value: "Awaiting verified data" },
-    { label: "Active subscribers", value: "Available after audit" },
+    { label: "Current verified-cycle win rate", value: results.length ? `${Math.round((results.filter((item) => item.netResultUnit > 0).length / results.length) * 100)}%` : "No settled digital results yet" },
+    { label: "Current verified performance", value: "Awaiting first verified cycle" },
+    { label: "Platform members", value: "Member count syncing" },
     { label: "System status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Ready" : "Preparing" },
-    { label: "Average odds", value: results.length ? (results.reduce((total, item) => total + item.publishedOdds, 0) / results.length).toFixed(2) : "Pending" },
-    { label: "Model accuracy", value: "Verified records only" },
+    { label: "Matches scanned today", value: experience?.activity?.fixturesMonitored ? String(experience.activity.fixturesMonitored) : "Launch monitoring active" },
+    { label: "Verified reports", value: experience?.activity?.reportsPending ? String(experience.activity.reportsPending) : "Available after verification" },
   ];
   return (
-    <section className="activity-bar public-signal-bar" aria-label="FPF public signal summary">
+    <section className="activity-bar public-signal-bar" aria-label="Live digital platform metrics">
+      <div className="metric-layer-heading">
+        <span>Layer B</span>
+        <strong>Live Digital Platform</strong>
+      </div>
       <div className="activity-track">
         {signals.map((signal) => (
           <article key={signal.label}>
@@ -343,6 +349,82 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
             <strong>{signal.value}</strong>
           </article>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function HistoricalBaselineSection({ experience }: { experience: PublicExperience | null }) {
+  const baseline = historicalOperatingBaseline;
+  const liveCycle = experience?.activity?.platformStatus === "OPERATIONAL" ? "Monitoring" : "Preparing";
+  const liveReports = experience?.activity?.reportsPending ? String(experience.activity.reportsPending) : "Available after verification";
+
+  return (
+    <section className="historical-baseline-section" aria-labelledby="historical-baseline-title">
+      <div className="metric-layer-heading">
+        <span>Layer A</span>
+        <strong>Historical FPF Legacy</strong>
+      </div>
+      <div className="historical-baseline-grid">
+        <article className="baseline-copy-card">
+          <p className="eyebrow">FPF Since {baseline.operationsStartedYear}</p>
+          <h2 id="historical-baseline-title">From manual intelligence community to secure digital performance OS.</h2>
+          <p>From a manually operated football intelligence community to a secure digital performance operating system.</p>
+          <p className="baseline-transparency-note">
+            These figures represent the founder-supplied historical record of FPF's manual operations before the digital platform launch. Live platform performance is tracked separately from the first verified digital cycle.
+          </p>
+        </article>
+        <div className="baseline-metric-grid">
+          <article><span>{baseline.operationsStartedYear}</span><strong>FPF operations began</strong></article>
+          <article><span>{baseline.historicalSubscribersDisplay}</span><strong>Historical subscribers reached</strong></article>
+          <article className="baseline-win-rate">
+            <span>{baseline.founderReportedHistoricalWinRate}%</span>
+            <strong>Founder-reported historical winning rate</strong>
+            <em>Based on the founder's manual operating records from the pre-platform period beginning in 2024. Subject to formal digital verification and migration.</em>
+          </article>
+          <article><span>{baseline.digitalPlatformLaunchYear}</span><strong>Digital FPF Intelligence Platform launched</strong></article>
+        </div>
+      </div>
+      <div className="growth-pulse-grid">
+        <article className="growth-journey-card">
+          <div className="panel-title-row">
+            <strong>FPF Growth Journey</strong>
+            <span>Milestone-based</span>
+          </div>
+          <div className="growth-timeline" aria-label="FPF milestone growth journey">
+            <div className="growth-node">
+              <span>{baseline.operationsStartedYear}</span>
+              <strong>Manual FPF operations began</strong>
+              <small>Historical manual record starts</small>
+            </div>
+            <div className="growth-line" aria-hidden="true"><i /></div>
+            <div className="growth-node">
+              <span>{baseline.historicalSubscribersDisplay}</span>
+              <strong>Founder-supplied cumulative historical reach</strong>
+              <small>Pre-platform baseline, pending formal migration</small>
+            </div>
+            <div className="growth-line verified" aria-hidden="true"><i /></div>
+            <div className="growth-node live">
+              <span>{baseline.digitalPlatformLaunchYear}</span>
+              <strong>Verified digital tracking begins</strong>
+              <small>Live metrics extend from production system data</small>
+            </div>
+          </div>
+        </article>
+        <article className="platform-pulse-card">
+          <div className="panel-title-row">
+            <strong>Platform Pulse</strong>
+            <span className="pulse-dot">Live layer</span>
+          </div>
+          <div className="pulse-grid">
+            <span><b>{baseline.historicalSubscribersDisplay}</b>Historical community</span>
+            <span><b>{baseline.operationsStartedYear}</b>Manual operations since</span>
+            <span><b>Active</b>Digital system</span>
+            <span><b>{liveCycle}</b>Current cycle</span>
+            <span><b>Protected</b>Member intelligence</span>
+            <span><b>{liveReports}</b>Reports</span>
+          </div>
+        </article>
       </div>
     </section>
   );
@@ -599,7 +681,7 @@ function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string
           <article><strong>Members</strong><span>Use Sign In</span></article>
           <article><strong>New users</strong><span>Register Interest</span></article>
           <article><strong>Partners</strong><span>Performance Partnership</span></article>
-          <article><strong>Questions</strong><span>FAQ first</span></article>
+          <article><strong>Questions</strong><span>Review the FAQ first</span></article>
         </div>
       </div>
       <div className="section-actions">
@@ -613,9 +695,12 @@ function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string
 function PublicFooter({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
   return (
     <footer className="public-footer">
-      <div>
-        <strong>Football Performance Fund</strong>
-        <span>Global football intelligence, built for disciplined performance.</span>
+      <div className="public-footer-brand">
+        <img src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="48" height="48" />
+        <span>
+          <strong>Football Performance Fund</strong>
+          <span>Global football intelligence, built for disciplined performance.</span>
+        </span>
       </div>
       <div>
         <button type="button" onClick={() => onNavigate("/privacy-policy", "security")}>Privacy</button>

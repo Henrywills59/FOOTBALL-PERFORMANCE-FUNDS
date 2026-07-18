@@ -1501,9 +1501,12 @@ export default function App() {
     <main className="fpf-app-shell min-h-dvh bg-zinc-950 text-white">
       <div className="fpf-app-frame mx-auto flex min-h-dvh w-full max-w-7xl flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
         <aside className="fpf-sidebar flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
-          <div className="shrink-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
-            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Performance Partner Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : session.user.role === "COUNTRY_PARTNER" ? "Country Partner Portal" : "Subscriber Platform"}</h1>
+          <div className="protected-brand-lockup shrink-0">
+            <img className="protected-brand-logo" src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="96" height="96" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
+              <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Performance Partner Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : session.user.role === "COUNTRY_PARTNER" ? "Country Partner Portal" : "Subscriber Platform"}</h1>
+            </div>
           </div>
           <div className="mt-4 shrink-0">
             <ThemeSwitcher theme={themePreference} onChange={setThemePreference} />
@@ -7037,7 +7040,10 @@ function RiskDisclaimer() {
 function LoadingSkeleton({ label }: { label: string }) {
   return (
     <div className="mt-6 space-y-3">
-      <p className="text-sm text-zinc-400">{label}</p>
+      <div className="loading-brand-row">
+        <img src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="40" height="40" />
+        <p className="text-sm text-zinc-400">{label}</p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-3">
         {[0, 1, 2].map((item) => (
           <div className="h-24 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900" key={item} />
