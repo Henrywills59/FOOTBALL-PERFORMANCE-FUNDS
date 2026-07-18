@@ -158,10 +158,10 @@ export function Mission21PublicExperience({
       <header className="public-nav">
         <button className="brand-block brand-button" type="button" onClick={() => navigate("/", "home")} aria-label="Football Performance Fund home">
           <span>Football Performance Fund</span>
-          <strong>FPF</strong>
+          <strong>FPF Global Intelligence</strong>
         </button>
         <nav className="public-nav-links" aria-label="Public website navigation">
-          {mobileNavItems.slice(0, 7).map(([label, path, id]) => (
+          {mobileNavItems.slice(0, 6).map(([label, path, id]) => (
             <button key={path} type="button" onClick={() => navigate(path, id)}>
               {label}
             </button>
@@ -200,26 +200,12 @@ export function Mission21PublicExperience({
         <>
           <Hero activeSlide={activeSlide} onNavigate={navigate} />
           <PublicSignalBar experience={experience} />
-          <PublicSection id="what-fpf-is" eyebrow="What FPF Is" title="A football intelligence platform built for disciplined members.">
-            <div className="split-layout premium-split">
-              <div className="feature-panel">
-                <p>
-                  Football Performance Fund combines advanced football intelligence, professional analyst review and disciplined operational controls to produce verified football insights.
-                </p>
-                <p>
-                  The public website explains the model simply. Protected member workspaces remain behind authentication.
-                </p>
-              </div>
-              <div className="value-grid compact">
-                {["Advanced football intelligence", "Professional review", "Risk-aware publishing", "Member-only insights"].map((item) => <article key={item}>{item}</article>)}
-              </div>
-            </div>
-          </PublicSection>
+          <WhatFpfIs />
           <HowItWorks />
           <SubscriberMembership plans={plans} onNavigate={navigate} />
           <PerformancePartnerProgramme commercialStructure={{ ...publicCommercialFallback, ...publicCommercial }} experience={experience} onNavigate={navigate} />
-          <TrustSection />
           <PerformancePreview experience={experience} />
+          <TrustSection />
           <FAQSection />
           <ContactSection onNavigate={navigate} />
           <PublicFooter onNavigate={navigate} />
@@ -253,8 +239,8 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
             FPF combines advanced football intelligence, professional analyst review and disciplined operational controls to produce verified football insights.
           </p>
           <div className="hero-actions">
-            <button type="button" onClick={() => onNavigate("/how-fpf-works", "how-fpf-works")}>Explore Intelligence</button>
             <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
+            <button type="button" onClick={() => onNavigate("/how-fpf-works", "how-fpf-works")}>Explore Intelligence</button>
             <button className="secondary" type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
             <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
           </div>
@@ -268,7 +254,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
         </div>
         <aside className="hero-intelligence-card" aria-label="FPF intelligence preview">
           <div className="hero-globe" aria-hidden="true"><span /><span /><span /></div>
-          <StatusPill>Public Preview</StatusPill>
+          <StatusPill>Live Operating Layer</StatusPill>
           <strong>Institutional match intelligence, reviewed before publication.</strong>
           <div className="preview-lines" aria-hidden="true"><i /><i /><i /></div>
           <div className="hero-card-grid">
@@ -313,11 +299,13 @@ function PublicAuthPage({ authPanel }: { authPanel: ReactNode }) {
     <section className="public-auth-page" id="main-content">
       <div>
         <p className="eyebrow">Secure Access</p>
-        <h1>Access your FPF workspace.</h1>
-        <p>Login, register, or reset your password from one dedicated account page. Public diagnostics stay inside authorised portals.</p>
+        <h1>Enter the FPF operating system.</h1>
+        <p>One secure account routes subscribers, Performance Partners, analysts, Country Partners and administrators into the correct protected workspace.</p>
         <div className="auth-benefit-grid">
           <article><strong>One account</strong><span>Role-based routing after login</span></article>
           <article><strong>Protected access</strong><span>Private workspaces stay private</span></article>
+          <article><strong>Global preferences</strong><span>Language, currency and timezone support</span></article>
+          <article><strong>Preview ready</strong><span>3-Day Preview flow prepared for activation</span></article>
         </div>
       </div>
       <div className="public-auth-card" id="auth">{authPanel}</div>
@@ -339,6 +327,37 @@ function PublicSection({ children, eyebrow, id, title }: { children: ReactNode; 
 
 function StatusPill({ children }: { children: ReactNode }) {
   return <span className="status-pill">{children}</span>;
+}
+
+function WhatFpfIs() {
+  return (
+    <PublicSection id="what-fpf-is" eyebrow="What FPF Is" title="A private football intelligence operating system.">
+      <div className="split-layout premium-split">
+        <div className="feature-panel feature-panel-lead">
+          <StatusPill>Not a tips site</StatusPill>
+          <p>
+            Football Performance Fund turns football data, analyst review and disciplined publishing rules into member-ready intelligence.
+          </p>
+          <p>
+            Public pages explain the model. The protected platform handles subscriptions, partner workspaces, reporting and operational controls.
+          </p>
+        </div>
+        <div className="intelligence-stack" aria-label="FPF intelligence operating layers">
+          {[
+            ["01", "Football context", "Fixtures, form, markets and match signals are normalised."],
+            ["02", "Intelligence review", "Confidence, risk and value are assessed before publication."],
+            ["03", "Member workspace", "Only approved information reaches eligible authenticated users."],
+          ].map(([step, title, body]) => (
+            <article key={title}>
+              <span>{step}</span>
+              <strong>{title}</strong>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </PublicSection>
+  );
 }
 
 function HowItWorks() {
@@ -378,7 +397,7 @@ function SubscriberMembership({ onNavigate, plans }: { onNavigate: (path: string
             <span>{plan.name}</span>
             <strong>{money(plan.monthlyPriceCents)}<small>/month</small></strong>
             <ul>{plan.features.slice(0, 5).map((feature) => <li key={feature}>{feature}</li>)}</ul>
-            <button type="button" onClick={() => onNavigate("/register", "auth")}>Register Interest</button>
+            <button type="button" onClick={() => onNavigate("/register", "auth")}>{plan.highlighted ? "Start 3-Day Preview" : "Register Interest"}</button>
           </article>
         ))}
       </div>
@@ -422,7 +441,7 @@ function PerformancePartnerProgramme({
 
 function TrustSection() {
   return (
-    <PublicSection id="security" eyebrow="Why Trust FPF" title="Built around discipline, privacy and clear member boundaries.">
+    <PublicSection id="security" eyebrow="Security and Transparency" title="Premium intelligence with strict operating boundaries.">
       <div className="trust-grid public-trust-grid">
         {[
           ["Controlled publication", "Only approved intelligence reaches eligible members."],

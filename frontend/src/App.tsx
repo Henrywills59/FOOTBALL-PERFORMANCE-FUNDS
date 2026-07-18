@@ -357,7 +357,7 @@ function getStoredPreferences() {
 
 function getStoredThemePreference(): ThemePreference {
   const stored = localStorage.getItem("fpf_theme_preference");
-  return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+  return stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
 }
 
 function resolveThemePreference(theme: ThemePreference) {
