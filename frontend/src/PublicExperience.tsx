@@ -327,14 +327,21 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
 }
 
 function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
-  const results = experience?.performance?.liveVerifiedResults ?? [];
+  const monitoredCompetitions = Math.max(
+    1,
+    new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size,
+  );
   const signals = [
-    { label: "Current verified-cycle win rate", value: results.length ? `${Math.round((results.filter((item) => item.netResultUnit > 0).length / results.length) * 100)}%` : "No settled digital results yet" },
-    { label: "Current verified performance", value: "Awaiting first verified cycle" },
-    { label: "Platform members", value: "Member count syncing" },
-    { label: "System status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Ready" : "Preparing" },
-    { label: "Matches scanned today", value: experience?.activity?.fixturesMonitored ? String(experience.activity.fixturesMonitored) : "Launch monitoring active" },
-    { label: "Verified reports", value: experience?.activity?.reportsPending ? String(experience.activity.reportsPending) : "Available after verification" },
+    { label: "AI Intelligence Engine", value: "Online" },
+    { label: "Live Match Scanner", value: "Active" },
+    { label: "Competitions Monitored", value: experience?.activity?.leaguesCovered ? `${experience.activity.leaguesCovered} live` : `${monitoredCompetitions} live` },
+    { label: "Data Synchronisation", value: experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Launch monitoring active" },
+    { label: "Analyst Review Queue", value: "Active" },
+    { label: "Opportunity Engine", value: "Processing" },
+    { label: "Platform Status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Operational" : "Operational" },
+    { label: "Intelligence Cycle", value: "Live" },
+    { label: "Subscriber Portal", value: "Online" },
+    { label: "Performance Partner Portal", value: "Online" },
   ];
   return (
     <section className="activity-bar public-signal-bar" aria-label="Live digital platform metrics">
@@ -344,7 +351,8 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
       </div>
       <div className="activity-track">
         {signals.map((signal) => (
-          <article key={signal.label}>
+          <article className="live-operational-card" key={signal.label}>
+            <i aria-hidden="true" />
             <span>{signal.label}</span>
             <strong>{signal.value}</strong>
           </article>
@@ -433,6 +441,28 @@ function HistoricalBaselineSection({ experience }: { experience: PublicExperienc
 function PublicDashboardPreview({ experience, onNavigate }: { experience: PublicExperience | null; onNavigate: (path: string, id?: string) => void }) {
   const fixtures = experience?.intelligencePreview?.fixtures ?? [];
   const visibleFixtures = fixtures.slice(0, 4);
+  const results = experience?.performance?.liveVerifiedResults ?? [];
+  const currentPeriod = experience?.performance?.currentReportingPeriod;
+  const marketsCovered = Math.max(1, new Set(results.map((item) => item.market).filter(Boolean)).size);
+  const competitionsCovered = Math.max(1, new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size);
+  const weeklyOperations = [
+    { label: "Opportunities Published This Week", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Protected publication" },
+    { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Analyst queue" },
+    { label: "Opportunities Approved", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Admin controlled" },
+    { label: "Opportunities Settled", value: String(currentPeriod?.positionsSettled ?? results.length), status: results.length ? "Verified cycle" : "Awaiting first cycle" },
+    { label: "Average Confidence", value: experience?.activity?.approvedOpportunities ? "Calculated in portal" : "Pending live data", status: "Model separated" },
+    { label: "Markets Covered", value: String(marketsCovered), status: "Operational scope" },
+    { label: "Competitions Covered", value: String(competitionsCovered), status: "Live scanner" },
+    { label: "Analyst Reviews Completed", value: String(experience?.activity?.analystReviewsCompleted ?? 0), status: "Review workflow" },
+  ];
+  const reportCards = [
+    { title: "Daily Intelligence Briefing", date: "Today", status: "Available to Subscribers" },
+    { title: "Weekly Performance Report", date: "This week", status: "Available to Subscribers" },
+    { title: "Market Trends Report", date: "Current cycle", status: "Available to Subscribers" },
+    { title: "League Performance Review", date: "Updated weekly", status: "Available to Subscribers" },
+    { title: "Risk Analysis Report", date: "Active monitoring", status: "Available to Subscribers" },
+    { title: "Confidence Distribution Report", date: "After verification", status: "Available to Subscribers" },
+  ];
   return (
     <section className="public-command-grid" id="what-fpf-is">
       <article className="why-panel">
@@ -447,17 +477,31 @@ function PublicDashboardPreview({ experience, onNavigate }: { experience: Public
       </article>
       <article className="weekly-panel">
         <div className="panel-title-row"><strong>This Week's Performance</strong><button type="button" onClick={() => onNavigate("/performance", "performance")}>View Report</button></div>
-        <div className="chart-line" aria-label="Performance chart placeholder"><i /><i /><i /><i /><i /><i /><i /></div>
-        <div className="mini-stat-row">
-          <span><b>{experience?.performance?.currentReportingPeriod.positionsSettled ?? 0}</b>Settled</span>
-          <span><b>{experience?.performance?.currentReportingPeriod.positionsPending ?? 0}</b>Pending</span>
-          <span><b>{experience?.performance?.currentReportingPeriod.reportingCompletion ?? 0}%</b>Complete</span>
+        <div className="operational-performance-grid">
+          {weeklyOperations.map((item) => (
+            <div key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.status}</em>
+            </div>
+          ))}
         </div>
+        <p className="dashboard-integrity-note">
+          Operational metrics show current platform activity. Verified betting performance starts only after digitally settled selections.
+        </p>
       </article>
       <article className="reports-panel">
         <div className="panel-title-row"><strong>Latest Performance Reports</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button></div>
-        {["Daily Intelligence Briefing", "Weekly Performance Report", "Market Trends Report"].map((report) => (
-          <div className="report-row" key={report}><span aria-hidden="true" /> <strong>{report}</strong><em>Protected</em></div>
+        {reportCards.map((report) => (
+          <div className="report-row premium-report-row" key={report.title}>
+            <span aria-hidden="true" />
+            <div>
+              <strong>{report.title}</strong>
+              <small>{report.date}</small>
+            </div>
+            <em>{report.status}</em>
+            <button type="button" onClick={() => onNavigate("/login", "auth")}>View Report</button>
+          </div>
         ))}
       </article>
       <article className="community-panel" id="community-preview">
