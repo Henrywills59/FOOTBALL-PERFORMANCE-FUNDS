@@ -138,7 +138,7 @@ const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings
 const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
 const countryPartnerNavItems = ["Country Partner Dashboard", "Territory Overview", "CBV", "Commissions", "Marketing Command", "Lead Management", "CRM", "Pipeline", "Support Centre", "Compliance", "Training Academy", "Renewal Centre", "Reports", "Analytics", "Settings"] as const;
 
-type AuthMode = "login" | "register" | "forgot";
+type AuthMode = "login" | "register" | "forgot" | "reset";
 type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
 type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
@@ -496,7 +496,8 @@ export default function App() {
     if (!session && isLegacyPrivatePath(currentPath)) setMode("login");
     if (!session && ["/login", "/signin", "/sign-in"].includes(currentPath)) setMode("login");
     if (!session && ["/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst"].includes(currentPath)) setMode("register");
-    if (!session && ["/forgot-password", "/reset-password"].includes(currentPath)) setMode("forgot");
+    if (!session && currentPath === "/forgot-password") setMode("forgot");
+    if (!session && currentPath === "/reset-password") setMode("reset");
   }, [currentPath, session]);
 
   useEffect(() => {
@@ -766,6 +767,12 @@ export default function App() {
       },
       sameOriginApiEndpoint(path),
     );
+  }
+
+  function getFormString(form: FormData, key: string, options: { trim?: boolean } = {}) {
+    const value = form.get(key);
+    if (typeof value !== "string") return "";
+    return options.trim === false ? value : value.trim();
   }
 
   async function testApiConnection() {
@@ -1229,9 +1236,11 @@ export default function App() {
     setMessage("");
     const form = new FormData(event.currentTarget);
     const rememberMe = form.get("rememberMe") === "on";
+    const email = getFormString(form, "email").toLowerCase();
+    const password = getFormString(form, "password", { trim: false });
     const data = (await postPublic("/auth/login", {
-      email: form.get("email"),
-      password: form.get("password"),
+      email,
+      password,
       rememberMe,
     })) as AuthResponse;
     storeSession(data, rememberMe);
@@ -1242,11 +1251,12 @@ export default function App() {
     setError("");
     setMessage("");
     const form = new FormData(event.currentTarget);
+    const selectedRole = getFormString(form, "role");
     const data = (await postPublic("/auth/register", {
-      name: form.get("name"),
-      email: form.get("email"),
-      password: form.get("password"),
-      role: form.get("role"),
+      name: getFormString(form, "name"),
+      email: getFormString(form, "email").toLowerCase(),
+      password: getFormString(form, "password", { trim: false }),
+      role: PUBLIC_USER_ROLES.includes(selectedRole as (typeof PUBLIC_USER_ROLES)[number]) ? selectedRole : "SUBSCRIBER",
     })) as AuthResponse;
     storeSession(data, false);
   }
@@ -1257,9 +1267,22 @@ export default function App() {
     setMessage("");
     const form = new FormData(event.currentTarget);
     const data = (await postPublic("/auth/forgot-password", {
-      email: form.get("email"),
+      email: getFormString(form, "email").toLowerCase(),
     })) as { message: string; resetToken?: string };
     setMessage(data.resetToken ? `${data.message} Temporary reset token: ${data.resetToken}` : data.message);
+  }
+
+  async function handleResetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    const form = new FormData(event.currentTarget);
+    const data = (await postPublic("/auth/reset-password", {
+      token: getFormString(form, "token"),
+      password: getFormString(form, "password", { trim: false }),
+    })) as { message: string };
+    setMessage(data.message || "Password reset complete. You can sign in with the new password.");
+    setMode("login");
   }
 
   async function handlePasswordChange(event: FormEvent<HTMLFormElement>) {
@@ -1452,6 +1475,7 @@ export default function App() {
         }}
         onLogin={safelySubmit(handleLogin)}
         onRegister={safelySubmit(handleRegister)}
+        onReset={safelySubmit(handleResetPassword)}
         onThemeChange={setThemePreference}
         preferences={globalPreferences}
         setMode={setMode}
@@ -5086,6 +5110,7 @@ function PublicLaunchExperience({
   onLogin,
   onNavigate,
   onRegister,
+  onReset,
   onThemeChange,
   preferences,
   setMode,
@@ -5107,6 +5132,7 @@ function PublicLaunchExperience({
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onNavigate: (path: string, id?: string) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
+  onReset: (event: FormEvent<HTMLFormElement>) => void;
   onThemeChange: (theme: ThemePreference) => void;
   preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
@@ -5130,6 +5156,7 @@ function PublicLaunchExperience({
           onLocalPreferenceChange={onLocalPreferenceChange}
           onLogin={onLogin}
           onRegister={onRegister}
+          onReset={onReset}
           preferences={preferences}
           setMode={setMode}
         />
@@ -5255,6 +5282,7 @@ function AuthPanel({
   onForgot,
   onLogin,
   onRegister,
+  onReset,
   setMode,
   currencies,
   languages,
@@ -5270,6 +5298,7 @@ function AuthPanel({
   onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
+  onReset: (event: FormEvent<HTMLFormElement>) => void;
   preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
 }) {
@@ -5278,10 +5307,11 @@ function AuthPanel({
 
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">
-      <div className="grid grid-cols-3 rounded-md bg-zinc-950 p-1 text-sm">
+      <div className="grid grid-cols-4 rounded-md bg-zinc-950 p-1 text-sm">
         <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
         <ModeButton active={mode === "register"} onClick={() => setMode("register")}>Register</ModeButton>
-        <ModeButton active={mode === "forgot"} onClick={() => setMode("forgot")}>Reset</ModeButton>
+        <ModeButton active={mode === "forgot"} onClick={() => setMode("forgot")}>Forgot</ModeButton>
+        <ModeButton active={mode === "reset"} onClick={() => setMode("reset")}>Reset</ModeButton>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-medium text-zinc-200">
@@ -5334,6 +5364,13 @@ function AuthPanel({
         <form className="mt-6 space-y-4" onSubmit={onForgot}>
           <TextField label="Email" name="email" type="email" />
           <SubmitButton>Send reset link</SubmitButton>
+        </form>
+      ) : null}
+      {mode === "reset" ? (
+        <form className="mt-6 space-y-4" onSubmit={onReset}>
+          <TextField label="Reset token" name="token" type="text" />
+          <TextField label="New password" name="password" type="password" />
+          <SubmitButton>Reset password</SubmitButton>
         </form>
       ) : null}
     </section>

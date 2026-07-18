@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { CommercialStructure, PublicExperience, ThemePreference } from "./types";
 
 type PublicPageDefinition = {
@@ -106,19 +106,45 @@ function formatPublicDate(value: string | null | undefined) {
 }
 
 export function ThemeSwitcher({ onChange, theme }: { onChange: (theme: ThemePreference) => void; theme: ThemePreference }) {
+  const [open, setOpen] = useState(false);
+  const activeLabel = theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light";
+
+  function selectTheme(nextTheme: ThemePreference) {
+    onChange(nextTheme);
+    setOpen(false);
+  }
+
   return (
-    <div className="theme-switcher" role="group" aria-label="Theme preference">
-      {(["dark", "light", "system"] as ThemePreference[]).map((option) => (
-        <button
-          aria-pressed={theme === option}
-          className={theme === option ? "active" : ""}
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-        >
-          {option === "system" ? "System" : option === "dark" ? "Dark" : "Light"}
-        </button>
-      ))}
+    <div className="theme-switcher" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={`Theme preference: ${activeLabel}`}
+        className="theme-toggle-button"
+        title={`Theme: ${activeLabel}`}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span aria-hidden="true">☾</span>
+      </button>
+      {open ? (
+        <div className="theme-menu" role="menu" aria-label="Theme preference">
+          {(["dark", "light", "system"] as ThemePreference[]).map((option) => (
+            <button
+              aria-pressed={theme === option}
+              className={theme === option ? "active" : ""}
+              key={option}
+              role="menuitemradio"
+              type="button"
+              onClick={() => selectTheme(option)}
+            >
+              {option === "system" ? "System" : option === "dark" ? "Dark" : "Light"}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -157,8 +183,11 @@ export function Mission21PublicExperience({
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="public-nav">
         <button className="brand-block brand-button" type="button" onClick={() => navigate("/", "home")} aria-label="Football Performance Fund home">
-          <span>Football Performance Fund</span>
-          <strong>FPF Global Intelligence</strong>
+          <img className="brand-logo" src="/fpf-logo.svg" alt="" width="44" height="44" />
+          <span className="brand-copy">
+            <span>Football Performance Fund</span>
+            <strong>FPF Global Intelligence</strong>
+          </span>
         </button>
         <nav className="public-nav-links" aria-label="Public website navigation">
           {mobileNavItems.slice(0, 4).map(([label, path, id]) => (
@@ -255,14 +284,22 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
         </div>
         <aside className="hero-intelligence-card" aria-label="FPF intelligence preview">
           <div className="hero-globe" aria-hidden="true"><span /><span /><span /></div>
-          <StatusPill>Live Operating Layer</StatusPill>
-          <strong>Institutional match intelligence, reviewed before publication.</strong>
-          <div className="preview-lines" aria-hidden="true"><i /><i /><i /></div>
+          <StatusPill>Intelligence Dashboard</StatusPill>
+          <strong>Live football signals, reviewed through institutional controls.</strong>
+          <div className="intelligence-visual" aria-hidden="true">
+            <div className="signal-radar"><span /><span /><span /></div>
+            <div className="intelligence-bars">
+              <i style={{ "--bar": "82%" } as CSSProperties} />
+              <i style={{ "--bar": "66%" } as CSSProperties} />
+              <i style={{ "--bar": "74%" } as CSSProperties} />
+              <i style={{ "--bar": "48%" } as CSSProperties} />
+            </div>
+          </div>
           <div className="hero-card-grid">
-            <div><span>Confidence</span><strong>Context-led</strong></div>
-            <div><span>Risk</span><strong>Visible</strong></div>
-            <div><span>Publishing</span><strong>Approved</strong></div>
-            <div><span>Access</span><strong>Member-only</strong></div>
+            <div><span>Match scan</span><strong>Active</strong></div>
+            <div><span>Confidence</span><strong>Measured</strong></div>
+            <div><span>Risk grade</span><strong>Visible</strong></div>
+            <div><span>Publication</span><strong>Approved</strong></div>
           </div>
           <p>No public page exposes private selections, provider keys, treasury data or analyst identities.</p>
           <p className="preview-note">3-Day Preview UI is ready. Backend activation can be connected when the trial endpoint is approved.</p>
