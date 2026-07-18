@@ -22,7 +22,7 @@ type Props = {
 const heroSlides = [
   {
     title: "Matchday Intelligence",
-    image: "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?auto=format&fit=crop&w=1800&q=82",
+    image: "https://images.unsplash.com/photo-1517747614396-d21a78b850e8?auto=format&fit=crop&w=1800&q=82",
     caption: "Matchday Intelligence",
   },
   {
@@ -82,14 +82,14 @@ const publicCommercialFallback: CommercialStructure = {
 
 const mobileNavItems = [
   ["Home", "/", "home"],
-  ["How FPF Works", "/how-fpf-works", "how-fpf-works"],
-  ["Subscribers", "/subscribers", "subscribers"],
-  ["Performance Partners", "/investors", "performance-partners"],
+  ["Intelligence", "/how-fpf-works", "how-fpf-works"],
+  ["Live In-Play", "/live-in-play", "war-room-preview"],
+  ["Performance", "/performance", "performance"],
+  ["Pricing", "/pricing", "subscribers"],
   ["About", "/about", "what-fpf-is"],
-  ["FAQ", "/faq", "faq"],
-  ["Contact", "/contact", "contact"],
+  ["Community", "/community", "community-preview"],
   ["Sign In", "/login", "auth"],
-  ["Register", "/register", "auth"],
+  ["Start 3-Day Preview", "/register", "auth"],
 ] as const;
 
 function isAuthPath(path: string) {
@@ -230,7 +230,7 @@ export function Mission21PublicExperience({
         <>
           <Hero activeSlide={activeSlide} onNavigate={navigate} />
           <PublicSignalBar experience={experience} />
-          <WhatFpfIs />
+          <PublicDashboardPreview experience={experience} onNavigate={navigate} />
           <HowItWorks />
           <SubscriberMembership plans={plans} onNavigate={navigate} />
           <PerformancePartnerProgramme commercialStructure={{ ...publicCommercialFallback, ...publicCommercial }} experience={experience} onNavigate={navigate} />
@@ -263,10 +263,10 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
       <div className="hero-overlay" />
       <div className="hero-grid public-hero-grid" id="main-content">
         <div className="hero-copy">
-          <p className="eyebrow">Football Performance Intelligence</p>
+          <p className="eyebrow hero-kicker">AI-Powered Football Intelligence</p>
           <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
           <p className="hero-support">
-            FPF combines advanced football intelligence, professional analyst review and disciplined operational controls to produce verified football insights.
+            AI-powered predictions, live in-play intelligence and professional analyst insight in one disciplined football operating system.
           </p>
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
@@ -275,48 +275,64 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
             <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
           </div>
           <div className="hero-controls" aria-label="Hero slide indicators">
-            {heroSlides.map((slide, index) => (
-              <span className={index === activeSlide ? "active" : ""} key={slide.title}>
-                {slide.caption}
-              </span>
-            ))}
+            <span className="active">AI Verified<small>Every insight reviewed</small></span>
+            <span>Performance Focused<small>Data over emotion</small></span>
+            <span>Secure & Transparent<small>Role-protected access</small></span>
           </div>
         </div>
-        <aside className="hero-intelligence-card" aria-label="FPF intelligence preview">
-          <div className="hero-globe" aria-hidden="true"><span /><span /><span /></div>
-          <StatusPill>Intelligence Dashboard</StatusPill>
-          <strong>Live football signals, reviewed through institutional controls.</strong>
-          <div className="intelligence-visual" aria-hidden="true">
-            <div className="signal-radar"><span /><span /><span /></div>
-            <div className="intelligence-bars">
-              <i style={{ "--bar": "82%" } as CSSProperties} />
-              <i style={{ "--bar": "66%" } as CSSProperties} />
-              <i style={{ "--bar": "74%" } as CSSProperties} />
-              <i style={{ "--bar": "48%" } as CSSProperties} />
-            </div>
-          </div>
-          <div className="hero-card-grid">
-            <div><span>Match scan</span><strong>Active</strong></div>
-            <div><span>Confidence</span><strong>Measured</strong></div>
-            <div><span>Risk grade</span><strong>Visible</strong></div>
-            <div><span>Publication</span><strong>Approved</strong></div>
-          </div>
-          <p>No public page exposes private selections, provider keys, treasury data or analyst identities.</p>
-          <p className="preview-note">3-Day Preview UI is ready. Backend activation can be connected when the trial endpoint is approved.</p>
-        </aside>
+        <HeroOpportunityPanel onNavigate={onNavigate} />
       </div>
     </section>
+  );
+}
+
+function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
+  const rows = [
+    ["Member intelligence", "Protected", "After login", "Review"],
+    ["Live opportunities", "Pending", "Provider data", "Queued"],
+    ["Verified reports", "Available", "Eligible users", "Secure"],
+  ];
+  return (
+    <aside className="hero-intelligence-card hero-opportunity-panel" aria-label="FPF intelligence preview">
+      <div className="panel-title-row">
+        <strong>Today's Top Opportunities</strong>
+        <button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button>
+      </div>
+      <div className="opportunity-preview-list">
+        {rows.map(([match, status, kickoff, grade]) => (
+          <article key={match}>
+            <div className="club-mark" aria-hidden="true"><span /></div>
+            <div>
+              <strong>{match}</strong>
+              <span>{kickoff}</span>
+            </div>
+            <b>{status}</b>
+            <em>{grade}</em>
+          </article>
+        ))}
+      </div>
+      <button className="panel-action" type="button" onClick={() => onNavigate("/register", "auth")}>See All Intelligence</button>
+      <div className="war-room-mini" id="war-room-preview">
+        <div className="war-room-screen" aria-hidden="true"><i /><i /><i /><i /></div>
+        <div>
+          <span>FPF Intelligence War Room</span>
+          <strong>Real-time match analysis and internal review workspace.</strong>
+          <button type="button" onClick={() => onNavigate("/login", "auth")}>Enter War Room</button>
+        </div>
+      </div>
+    </aside>
   );
 }
 
 function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
   const results = experience?.performance?.liveVerifiedResults ?? [];
   const signals = [
-    { label: "Public results", value: results.length ? `${results.length} verified` : "Awaiting first cycle" },
-    { label: "Member intelligence", value: "Approved only" },
-    { label: "Analyst model", value: "Private review" },
-    { label: "Risk language", value: "No guarantees" },
-    { label: "Updated", value: formatPublicDate(experience?.generatedAt) },
+    { label: "Win rate", value: results.length ? `${Math.round((results.filter((item) => item.netResultUnit > 0).length / results.length) * 100)}%` : "Awaiting verified data" },
+    { label: "Monthly performance", value: "Awaiting verified data" },
+    { label: "Active subscribers", value: "Available after audit" },
+    { label: "System status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Ready" : "Preparing" },
+    { label: "Average odds", value: results.length ? (results.reduce((total, item) => total + item.publishedOdds, 0) / results.length).toFixed(2) : "Pending" },
+    { label: "Model accuracy", value: "Verified records only" },
   ];
   return (
     <section className="activity-bar public-signal-bar" aria-label="FPF public signal summary">
@@ -328,6 +344,53 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function PublicDashboardPreview({ experience, onNavigate }: { experience: PublicExperience | null; onNavigate: (path: string, id?: string) => void }) {
+  const fixtures = experience?.intelligencePreview?.fixtures ?? [];
+  const visibleFixtures = fixtures.slice(0, 4);
+  return (
+    <section className="public-command-grid" id="what-fpf-is">
+      <article className="why-panel">
+        <div className="panel-title-row"><strong>Why FPF?</strong><button type="button" onClick={() => onNavigate("/about", "what-fpf-is")}>Learn More</button></div>
+        {[
+          ["AI + Analyst Verification", "Every published opportunity is reviewed before member access."],
+          ["Live In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
+          ["Performance Transparency", "Results and reports stay tied to verified records."],
+        ].map(([title, body]) => (
+          <div className="why-line" key={title}><span aria-hidden="true" /><div><strong>{title}</strong><p>{body}</p></div></div>
+        ))}
+      </article>
+      <article className="weekly-panel">
+        <div className="panel-title-row"><strong>This Week's Performance</strong><button type="button" onClick={() => onNavigate("/performance", "performance")}>View Report</button></div>
+        <div className="chart-line" aria-label="Performance chart placeholder"><i /><i /><i /><i /><i /><i /><i /></div>
+        <div className="mini-stat-row">
+          <span><b>{experience?.performance?.currentReportingPeriod.positionsSettled ?? 0}</b>Settled</span>
+          <span><b>{experience?.performance?.currentReportingPeriod.positionsPending ?? 0}</b>Pending</span>
+          <span><b>{experience?.performance?.currentReportingPeriod.reportingCompletion ?? 0}%</b>Complete</span>
+        </div>
+      </article>
+      <article className="reports-panel">
+        <div className="panel-title-row"><strong>Latest Performance Reports</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button></div>
+        {["Daily Intelligence Briefing", "Weekly Performance Report", "Market Trends Report"].map((report) => (
+          <div className="report-row" key={report}><span aria-hidden="true" /> <strong>{report}</strong><em>Protected</em></div>
+        ))}
+      </article>
+      <article className="community-panel" id="community-preview">
+        <div className="panel-title-row"><strong>Community</strong><span>Coming Soon</span></div>
+        <p>Community highlights stay hidden until the feature is active and approved for public display.</p>
+      </article>
+      <article className="fixtures-panel">
+        <div className="panel-title-row"><strong>Upcoming Intelligence</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>Protected</button></div>
+        {visibleFixtures.length ? visibleFixtures.map((fixture) => (
+          <div className="fixture-row" key={`${fixture.match}-${fixture.kickoffTime}`}>
+            <div><strong>{fixture.match}</strong><span>{fixture.league} · {fixture.country}</span></div>
+            <em>{fixture.publicationStatus}</em>
+          </div>
+        )) : <p className="empty-state">No public live fixtures are available yet. Member intelligence appears after verified publication.</p>}
+      </article>
     </section>
   );
 }
