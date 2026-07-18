@@ -4,7 +4,10 @@ import type {
   ParticipationPlan,
   SeasonOperatingModel,
 } from "@fpf/shared";
-import { COMPANY_POSITIONING, INTERNAL_PLATFORM_NAME, PUBLIC_BRAND_NAME } from "@fpf/shared";
+
+const INTERNAL_PLATFORM_NAME = "FPF OS";
+const PUBLIC_BRAND_NAME = "Football Performance Fund";
+const COMPANY_POSITIONING = "Global Football Performance Intelligence Company";
 
 export const defaultFpfSeason: FpfSeason = {
   id: "fpf-season-2026-27",

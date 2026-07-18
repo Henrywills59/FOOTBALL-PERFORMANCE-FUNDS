@@ -1,11 +1,23 @@
 import { Router } from "express";
 import { z } from "zod";
-import { USER_ROLES } from "@fpf/shared";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { FootballJobScheduler } from "../football/footballJobs.js";
 import type { FootballRepository } from "../football/types.js";
 import type { AdminService } from "./adminService.js";
+
+const USER_ROLES = [
+  "SUBSCRIBER",
+  "INVESTOR",
+  "ANALYST",
+  "ADMIN",
+  "CEO",
+  "FINANCE",
+  "RISK_MANAGER",
+  "CAPITAL_MANAGER",
+  "SUPER_ADMINISTRATOR",
+  "COUNTRY_PARTNER",
+] as const;
 
 const roleSchema = z.object({ role: z.enum(USER_ROLES) });
 const settingsSchema = z.object({
