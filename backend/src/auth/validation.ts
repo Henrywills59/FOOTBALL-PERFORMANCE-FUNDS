@@ -1,5 +1,6 @@
-import { PUBLIC_USER_ROLES } from "@fpf/shared";
 import { z } from "zod";
+
+const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"] as const;
 
 const passwordSchema = z
   .string()

@@ -483,6 +483,7 @@ function Invoke-VercelDeploy {
     [string]$Name,
     [string]$Path,
     [string]$Project,
+    [string]$LocalConfig = $null,
     [hashtable]$Environment = @{}
   )
 
@@ -491,6 +492,10 @@ function Invoke-VercelDeploy {
   Push-Location $Path
   try {
     $arguments = @("vercel", "--prod")
+    if (-not [string]::IsNullOrWhiteSpace($LocalConfig)) {
+      $arguments += "--local-config"
+      $arguments += $LocalConfig
+    }
     foreach ($key in $Environment.Keys) {
       $arguments += "--env"
       $arguments += "$key=$($Environment[$key])"
@@ -812,6 +817,7 @@ try {
     -Name "backend" `
     -Path $root `
     -Project $BackendProject `
+    -LocalConfig (Join-Path $root "vercel.backend.json") `
     -Environment @{ ADMIN_SEED_TOKEN = $script:AdminSeedToken }
 
   Write-Step "Synchronizing production admin password hash"
