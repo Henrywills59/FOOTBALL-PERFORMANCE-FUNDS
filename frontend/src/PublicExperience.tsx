@@ -161,7 +161,7 @@ export function Mission21PublicExperience({
           <strong>FPF Global Intelligence</strong>
         </button>
         <nav className="public-nav-links" aria-label="Public website navigation">
-          {mobileNavItems.slice(0, 6).map(([label, path, id]) => (
+          {mobileNavItems.slice(0, 4).map(([label, path, id]) => (
             <button key={path} type="button" onClick={() => navigate(path, id)}>
               {label}
             </button>
@@ -170,6 +170,7 @@ export function Mission21PublicExperience({
         <div className="public-nav-actions">
           <ThemeSwitcher theme={theme} onChange={onThemeChange} />
           <button className="ghost-action desktop-auth-action" type="button" onClick={() => navigate("/login", "auth")}>Sign In</button>
+          <button className="preview-nav-action" type="button" onClick={() => navigate("/register", "auth")}>Start 3-Day Preview</button>
           <button
             aria-controls="mobile-public-menu"
             aria-expanded={mobileMenuOpen}
