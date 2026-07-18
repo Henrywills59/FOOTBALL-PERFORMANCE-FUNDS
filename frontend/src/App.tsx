@@ -122,10 +122,13 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackUrl?: strin
 const navItems = [
   "Subscriber Home",
   "Opportunity Center",
+  "AI Coach",
+  "Bankroll Manager",
   "Live Intelligence Feed",
   "Performance Center",
   "Live Match Center",
   "Intelligence Reports",
+  "Learning Centre",
   "Profile",
   "Settings",
   "Notifications",
@@ -147,6 +150,72 @@ type CountryPartnerNavItem = (typeof countryPartnerNavItems)[number];
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 type SearchResult = { category: string; title: string; description: string; target?: string };
 type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem | AnalystNavItem | CountryPartnerNavItem;
+type AiCoachMode = "Match Intelligence" | "Bankroll Coach" | "Performance Analyst" | "Learning Coach" | "Daily Briefing";
+type RiskProfile = "Conservative" | "Balanced" | "Aggressive";
+type BankrollRecordResult = "WIN" | "LOSS" | "VOID" | "AWAITING_RESULT";
+type BankrollVerificationStatus = "Subscriber entered" | "FPF-linked selection" | "System verified" | "Awaiting result" | "Settled" | "Void";
+type BankrollRecord = {
+  id: string;
+  date: string;
+  match: string;
+  league: string;
+  market: string;
+  odds: number;
+  stakeCents: number;
+  returnCents: number;
+  result: BankrollRecordResult;
+  notes: string;
+  source: "Subscriber" | "FPF opportunity";
+  verificationStatus: BankrollVerificationStatus;
+};
+type BankrollSettings = {
+  startingBankrollCents: number;
+  currentBankrollCents: number;
+  currency: string;
+  riskProfile: RiskProfile;
+  dailyStopLossCents: number;
+  weeklyStopLossCents: number;
+  maxDrawdownPercent: number;
+  maxDailySelections: number;
+  maxOpenExposurePercent: number;
+};
+type BankrollState = {
+  settings: BankrollSettings;
+  records: BankrollRecord[];
+  activeSelections: BankrollRecord[];
+};
+type BankrollAnalysis = {
+  totalStakedCents: number;
+  totalReturnsCents: number;
+  netProfitCents: number;
+  roi: number;
+  wins: number;
+  losses: number;
+  voids: number;
+  awaiting: number;
+  totalSelections: number;
+  winRate: number;
+  averageOdds: number;
+  averageStakeCents: number;
+  largestWinCents: number;
+  largestLossCents: number;
+  currentWinningStreak: number;
+  currentLosingStreak: number;
+  maximumDrawdownPercent: number;
+  dailyExposureCents: number;
+  dailyExposureLimitCents: number;
+  remainingDailyExposureCents: number;
+  openExposureCents: number;
+  riskLevel: "LOW" | "MODERATE" | "ELEVATED" | "HIGH";
+  leagueExposure: Array<{ label: string; amountCents: number; percent: number }>;
+  marketExposure: Array<{ label: string; amountCents: number; percent: number }>;
+  bestLeague: string;
+  weakestLeague: string;
+  bestMarket: string;
+  weakestMarket: string;
+  warnings: string[];
+  insight: string;
+};
 type PublicPageDefinition = {
   label: string;
   path: string;
@@ -367,6 +436,185 @@ function resolveThemePreference(theme: ThemePreference) {
   return theme;
 }
 
+function bankrollStorageKey(userId: string) {
+  return `fpf_bankroll_intelligence_${userId}`;
+}
+
+function defaultBankrollState(currency = "USD"): BankrollState {
+  return {
+    settings: {
+      startingBankrollCents: 100000,
+      currentBankrollCents: 100000,
+      currency,
+      riskProfile: "Balanced",
+      dailyStopLossCents: 5000,
+      weeklyStopLossCents: 15000,
+      maxDrawdownPercent: 12,
+      maxDailySelections: 5,
+      maxOpenExposurePercent: 8,
+    },
+    records: [],
+    activeSelections: [],
+  };
+}
+
+function getStoredBankrollState(userId: string, currency: string) {
+  try {
+    const stored = localStorage.getItem(bankrollStorageKey(userId));
+    if (!stored) return defaultBankrollState(currency);
+    const parsed = JSON.parse(stored) as BankrollState;
+    return {
+      ...defaultBankrollState(currency),
+      ...parsed,
+      settings: { ...defaultBankrollState(currency).settings, ...parsed.settings },
+      records: parsed.records ?? [],
+      activeSelections: parsed.activeSelections ?? [],
+    };
+  } catch {
+    return defaultBankrollState(currency);
+  }
+}
+
+function riskProfileConfig(profile: RiskProfile) {
+  const configs: Record<RiskProfile, { dailyExposurePercent: number; baseStakePercent: number; maxStakePercent: number; label: string }> = {
+    Conservative: { dailyExposurePercent: 4, baseStakePercent: 1, maxStakePercent: 1.5, label: "Capital preservation with stronger exposure limits." },
+    Balanced: { dailyExposurePercent: 6, baseStakePercent: 1.5, maxStakePercent: 2.25, label: "Controlled growth with moderate stake sizing." },
+    Aggressive: { dailyExposurePercent: 8, baseStakePercent: 2, maxStakePercent: 3, label: "Higher-risk profile with strict maximum exposure controls." },
+  };
+  return configs[profile];
+}
+
+function centsFromInput(value: FormDataEntryValue | null) {
+  return Math.round(Number(value ?? 0) * 100);
+}
+
+function analyzeBankroll(state: BankrollState): BankrollAnalysis {
+  const settled = state.records.filter((record) => record.result !== "AWAITING_RESULT");
+  const wins = settled.filter((record) => record.result === "WIN").length;
+  const losses = settled.filter((record) => record.result === "LOSS").length;
+  const voids = settled.filter((record) => record.result === "VOID").length;
+  const awaiting = state.records.filter((record) => record.result === "AWAITING_RESULT").length + state.activeSelections.length;
+  const totalStakedCents = settled.reduce((total, record) => total + record.stakeCents, 0);
+  const totalReturnsCents = settled.reduce((total, record) => total + record.returnCents, 0);
+  const netProfitCents = totalReturnsCents - totalStakedCents;
+  const roi = totalStakedCents > 0 ? (netProfitCents / totalStakedCents) * 100 : 0;
+  const winRate = wins + losses > 0 ? (wins / (wins + losses)) * 100 : 0;
+  const averageOdds = settled.length ? settled.reduce((total, record) => total + record.odds, 0) / settled.length : 0;
+  const averageStakeCents = settled.length ? Math.round(totalStakedCents / settled.length) : 0;
+  const largestWinCents = Math.max(0, ...settled.map((record) => record.returnCents - record.stakeCents));
+  const largestLossCents = Math.min(0, ...settled.map((record) => record.returnCents - record.stakeCents));
+  const dailyExposureCents = state.activeSelections.reduce((total, record) => total + record.stakeCents, 0);
+  const profile = riskProfileConfig(state.settings.riskProfile);
+  const dailyExposureLimitCents = Math.round(state.settings.currentBankrollCents * (profile.dailyExposurePercent / 100));
+  const remainingDailyExposureCents = Math.max(0, dailyExposureLimitCents - dailyExposureCents);
+  const openExposureCents = dailyExposureCents;
+
+  let runningBankroll = state.settings.startingBankrollCents;
+  let peakBankroll = runningBankroll;
+  let maximumDrawdownPercent = 0;
+  for (const record of [...settled].sort((a, b) => a.date.localeCompare(b.date))) {
+    runningBankroll += record.returnCents - record.stakeCents;
+    peakBankroll = Math.max(peakBankroll, runningBankroll);
+    const drawdown = peakBankroll > 0 ? ((peakBankroll - runningBankroll) / peakBankroll) * 100 : 0;
+    maximumDrawdownPercent = Math.max(maximumDrawdownPercent, drawdown);
+  }
+
+  function concentration(items: BankrollRecord[], key: "league" | "market") {
+    const totals = new Map<string, number>();
+    for (const item of items) totals.set(item[key] || "Unclassified", (totals.get(item[key] || "Unclassified") ?? 0) + item.stakeCents);
+    return [...totals.entries()].map(([label, amountCents]) => ({
+      label,
+      amountCents,
+      percent: dailyExposureCents > 0 ? Math.round((amountCents / dailyExposureCents) * 100) : 0,
+    })).sort((a, b) => b.amountCents - a.amountCents);
+  }
+
+  function performanceBy(items: BankrollRecord[], key: "league" | "market") {
+    const totals = new Map<string, number>();
+    for (const item of items) totals.set(item[key] || "Unclassified", (totals.get(item[key] || "Unclassified") ?? 0) + item.returnCents - item.stakeCents);
+    const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    return { best: ranked[0]?.[0] ?? "More data required", weakest: ranked.at(-1)?.[0] ?? "More data required" };
+  }
+
+  const leagueExposure = concentration(state.activeSelections, "league");
+  const marketExposure = concentration(state.activeSelections, "market");
+  const leaguePerformance = performanceBy(settled, "league");
+  const marketPerformance = performanceBy(settled, "market");
+  const warnings: string[] = [];
+  if (dailyExposureCents >= dailyExposureLimitCents) warnings.push("Daily exposure limit reached. Pause before adding another position.");
+  else if (dailyExposureCents >= dailyExposureLimitCents * 0.8) warnings.push("Daily exposure is nearly reached. Consider reducing new stake sizes.");
+  if (state.activeSelections.length > state.settings.maxDailySelections) warnings.push("Too many active selections for your selected limits.");
+  if (leagueExposure[0]?.percent >= 55) warnings.push("League concentration is elevated. Exposure is too concentrated in one league.");
+  if (marketExposure[0]?.percent >= 55) warnings.push("Market concentration is elevated. Exposure is too concentrated in one market.");
+  if (maximumDrawdownPercent >= state.settings.maxDrawdownPercent) warnings.push("You have reached your selected drawdown tolerance. The FPF Bankroll Coach recommends stopping and reviewing performance.");
+  if (netProfitCents < -state.settings.dailyStopLossCents) warnings.push("You have reached your selected daily loss limit. Pause when you reach your selected loss limit.");
+
+  const riskLevel = warnings.length >= 3 ? "HIGH" : warnings.length === 2 ? "ELEVATED" : warnings.length === 1 ? "MODERATE" : "LOW";
+  const recent = [...settled].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const currentLosingStreak = recent.findIndex((record) => record.result !== "LOSS");
+  const currentWinningStreak = recent.findIndex((record) => record.result !== "WIN");
+  const insight = settled.length < 5
+    ? "More personal performance data is required before the AI Coach can generate a reliable analysis."
+    : warnings[0] ?? `Your strongest results are currently coming from ${leaguePerformance.best} and ${marketPerformance.best}.`;
+
+  return {
+    totalStakedCents,
+    totalReturnsCents,
+    netProfitCents,
+    roi,
+    wins,
+    losses,
+    voids,
+    awaiting,
+    totalSelections: state.records.length + state.activeSelections.length,
+    winRate,
+    averageOdds,
+    averageStakeCents,
+    largestWinCents,
+    largestLossCents,
+    currentWinningStreak: currentWinningStreak === -1 ? recent.length : currentWinningStreak,
+    currentLosingStreak: currentLosingStreak === -1 ? recent.length : currentLosingStreak,
+    maximumDrawdownPercent,
+    dailyExposureCents,
+    dailyExposureLimitCents,
+    remainingDailyExposureCents,
+    openExposureCents,
+    riskLevel,
+    leagueExposure,
+    marketExposure,
+    bestLeague: leaguePerformance.best,
+    weakestLeague: leaguePerformance.weakest,
+    bestMarket: marketPerformance.best,
+    weakestMarket: marketPerformance.weakest,
+    warnings,
+    insight,
+  };
+}
+
+function recommendStake(
+  state: BankrollState,
+  analysis: BankrollAnalysis,
+  opportunity?: { confidenceScore?: number; riskScore?: number; league?: string; market?: string },
+) {
+  const confidence = opportunity?.confidenceScore ?? 72;
+  const risk = opportunity?.riskScore ?? 45;
+  const profile = riskProfileConfig(state.settings.riskProfile);
+  let stakePercent = profile.baseStakePercent;
+  if (confidence < 62 || risk >= 70) stakePercent = Math.min(1, profile.maxStakePercent);
+  else if (confidence >= 78 && risk <= 45) stakePercent = Math.min(3, profile.maxStakePercent);
+  else stakePercent = Math.min(2, profile.maxStakePercent);
+  if (analysis.riskLevel === "ELEVATED") stakePercent *= 0.65;
+  if (analysis.riskLevel === "HIGH") stakePercent = 0;
+  const suggestedStakeCents = Math.min(
+    Math.round(state.settings.currentBankrollCents * (stakePercent / 100)),
+    analysis.remainingDailyExposureCents,
+  );
+  const reason = suggestedStakeCents === 0
+    ? "Suggested stake: 0% of bankroll. Current exposure or stop-loss settings indicate a pause is safer."
+    : `Suggested stake: ${stakePercent.toFixed(2)}% of bankroll. This reflects ${confidence >= 78 ? "strong" : confidence >= 62 ? "moderate" : "low"} confidence, ${risk >= 70 ? "high" : risk >= 45 ? "moderate" : "controlled"} risk and ${analysis.riskLevel.toLowerCase()} current exposure.`;
+  return { stakePercent, suggestedStakeCents, reason };
+}
+
 export default function App() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [currentPath, setCurrentPath] = useState(() => normalizedPathname());
@@ -403,6 +651,9 @@ export default function App() {
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionWithFixture | null>(null);
   const [slip, setSlip] = useState<PredictionWithFixture[]>([]);
   const [filters, setFilters] = useState({ search: "", league: "", country: "", date: "" });
+  const [aiCoachMode, setAiCoachMode] = useState<AiCoachMode>("Daily Briefing");
+  const [aiCoachQuestion, setAiCoachQuestion] = useState("");
+  const [bankrollState, setBankrollState] = useState<BankrollState>(() => getStoredBankrollState(getStoredSession()?.user.id ?? "guest", defaultGlobalPreferences.currency));
   const [loadingLabel, setLoadingLabel] = useState("Loading");
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
   const [adminPredictions, setAdminPredictions] = useState<PredictionResult[]>([]);
@@ -499,6 +750,16 @@ export default function App() {
     if (!session && currentPath === "/forgot-password") setMode("forgot");
     if (!session && currentPath === "/reset-password") setMode("reset");
   }, [currentPath, session]);
+
+  useEffect(() => {
+    if (!session) return;
+    setBankrollState(getStoredBankrollState(session.user.id, globalPreferences.currency));
+  }, [session?.user.id, globalPreferences.currency]);
+
+  useEffect(() => {
+    if (!session || session.user.role !== "SUBSCRIBER") return;
+    localStorage.setItem(bankrollStorageKey(session.user.id), JSON.stringify(bankrollState));
+  }, [bankrollState, session]);
 
   useEffect(() => {
     if (!session) return;
@@ -1230,6 +1491,84 @@ export default function App() {
     setSlip((current) => current.filter((item) => item.id !== id));
   }
 
+  function saveBankrollSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const nextProfile = String(form.get("riskProfile")) as RiskProfile;
+    const previousProfile = bankrollState.settings.riskProfile;
+    const profileOrder: RiskProfile[] = ["Conservative", "Balanced", "Aggressive"];
+    if (profileOrder.indexOf(nextProfile) > profileOrder.indexOf(previousProfile)) {
+      setMessage("Risk profile increased. Review exposure limits carefully before adding new selections.");
+    }
+    setBankrollState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        startingBankrollCents: centsFromInput(form.get("startingBankroll")),
+        currentBankrollCents: centsFromInput(form.get("currentBankroll")),
+        currency: String(form.get("currency") || current.settings.currency),
+        riskProfile: nextProfile,
+        dailyStopLossCents: centsFromInput(form.get("dailyStopLoss")),
+        weeklyStopLossCents: centsFromInput(form.get("weeklyStopLoss")),
+        maxDrawdownPercent: Number(form.get("maxDrawdownPercent") ?? current.settings.maxDrawdownPercent),
+        maxDailySelections: Number(form.get("maxDailySelections") ?? current.settings.maxDailySelections),
+        maxOpenExposurePercent: Number(form.get("maxOpenExposurePercent") ?? current.settings.maxOpenExposurePercent),
+      },
+    }));
+  }
+
+  function addBankrollRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const result = String(form.get("result")) as BankrollRecordResult;
+    const stakeCents = centsFromInput(form.get("stake"));
+    const returnCents = result === "VOID" ? stakeCents : centsFromInput(form.get("return"));
+    const record: BankrollRecord = {
+      id: crypto.randomUUID(),
+      date: String(form.get("date") || new Date().toISOString().slice(0, 10)),
+      match: String(form.get("match") || "Subscriber-entered selection"),
+      league: String(form.get("league") || "Unclassified"),
+      market: String(form.get("market") || "Unclassified"),
+      odds: Number(form.get("odds") || 0),
+      stakeCents,
+      returnCents,
+      result,
+      notes: String(form.get("notes") || ""),
+      source: "Subscriber",
+      verificationStatus: result === "AWAITING_RESULT" ? "Awaiting result" : result === "VOID" ? "Void" : "Subscriber entered",
+    };
+    setBankrollState((current) => ({
+      ...current,
+      records: [record, ...current.records],
+      settings: {
+        ...current.settings,
+        currentBankrollCents: result === "AWAITING_RESULT" ? current.settings.currentBankrollCents : current.settings.currentBankrollCents + returnCents - stakeCents,
+      },
+    }));
+  }
+
+  function addActiveBankrollSelection(input: { match: string; league: string; market: string; odds: number; stakeCents: number }) {
+    const selection: BankrollRecord = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().slice(0, 10),
+      match: input.match,
+      league: input.league,
+      market: input.market,
+      odds: input.odds,
+      stakeCents: input.stakeCents,
+      returnCents: 0,
+      result: "AWAITING_RESULT",
+      notes: "Subscriber-added active selection. This is not an automatic bet.",
+      source: "FPF opportunity",
+      verificationStatus: "Awaiting result",
+    };
+    setBankrollState((current) => ({ ...current, activeSelections: [selection, ...current.activeSelections] }));
+  }
+
+  function removeActiveBankrollSelection(id: string) {
+    setBankrollState((current) => ({ ...current, activeSelections: current.activeSelections.filter((selection) => selection.id !== id) }));
+  }
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -1487,6 +1826,8 @@ export default function App() {
   const featured = predictions.slice(0, 3);
   const daily = [...predictions].sort((a, b) => b.confidenceScore - a.confidenceScore);
   const recent = predictions.slice(0, 5);
+  const bankrollAnalysis = analyzeBankroll(bankrollState);
+  const stakeRecommendation = recommendStake(bankrollState, bankrollAnalysis, daily[0]);
   const navigationItems = adminMode
     ? adminNavItems
     : session.user.role === "INVESTOR"
@@ -1804,6 +2145,10 @@ export default function App() {
               upcomingFixtures={upcomingFixtures}
               onAdd={addToSlip}
               onRefreshFixtures={() => void loadSubscriberData(session.token)}
+              bankrollAnalysis={bankrollAnalysis}
+              bankrollState={bankrollState}
+              stakeRecommendation={stakeRecommendation}
+              onCoachMode={setAiCoachMode}
             />
           ) : null}
           {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Opportunity Center" ? (
@@ -1821,6 +2166,36 @@ export default function App() {
               onFilter={loadFilteredFixtures}
               onSelectFixture={(id) => void loadFixtureDetail(id)}
               onSelectPrediction={setSelectedPrediction}
+              bankrollAnalysis={bankrollAnalysis}
+              bankrollState={bankrollState}
+              onAddActiveSelection={addActiveBankrollSelection}
+            />
+          ) : null}
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "AI Coach" ? (
+            <AiCoachSuiteView
+              analysis={bankrollAnalysis}
+              commandCenter={subscriberCommandCenter}
+              decisions={decisionOutputs}
+              intelligence={publishedIntelligence}
+              mode={aiCoachMode}
+              onMode={setAiCoachMode}
+              onQuestion={setAiCoachQuestion}
+              question={aiCoachQuestion}
+              recommendation={stakeRecommendation}
+              reports={operationalReports}
+              state={bankrollState}
+              workflowPredictions={publishedWorkflowPredictions}
+            />
+          ) : null}
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Bankroll Manager" ? (
+            <BankrollManagerView
+              analysis={bankrollAnalysis}
+              currencies={currencies}
+              onAddRecord={addBankrollRecord}
+              onRemoveActive={removeActiveBankrollSelection}
+              onSaveSettings={saveBankrollSettings}
+              recommendation={stakeRecommendation}
+              state={bankrollState}
             />
           ) : null}
           {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Live Intelligence Feed" ? (
@@ -1839,7 +2214,10 @@ export default function App() {
             />
           ) : null}
           {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Intelligence Reports" ? (
-            <ReportsView operationalReports={operationalReports} reports={subscriberCommandCenter?.reports ?? []} />
+            <ReportsView analysis={bankrollAnalysis} operationalReports={operationalReports} reports={subscriberCommandCenter?.reports ?? []} />
+          ) : null}
+          {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Learning Centre" ? (
+            <LearningCentreView onCoachMode={setAiCoachMode} />
           ) : null}
           {!adminMode && session.user.role === "SUBSCRIBER" && activeView === "Profile" ? (
             <ProfileView
@@ -5381,6 +5759,8 @@ function AuthPanel({
 }
 
 function DashboardView({
+  bankrollAnalysis,
+  bankrollState,
   commandCenter,
   decisions,
   featured,
@@ -5388,12 +5768,16 @@ function DashboardView({
   liveFixtures,
   notifications,
   onAdd,
+  onCoachMode,
   onRefreshFixtures,
   predictions,
   recent,
+  stakeRecommendation,
   upcomingFixtures,
   workflowPredictions,
 }: {
+  bankrollAnalysis: BankrollAnalysis;
+  bankrollState: BankrollState;
   commandCenter: SubscriberCommandCenter | null;
   decisions: DecisionEngineOutput[];
   featured: PredictionWithFixture[];
@@ -5401,9 +5785,11 @@ function DashboardView({
   liveFixtures: FootballFixtureSummary[];
   notifications: string[];
   onAdd: (prediction: PredictionWithFixture) => void;
+  onCoachMode: (mode: AiCoachMode) => void;
   onRefreshFixtures: () => void;
   predictions: PredictionWithFixture[];
   recent: PredictionWithFixture[];
+  stakeRecommendation: ReturnType<typeof recommendStake>;
   upcomingFixtures: FootballFixtureSummary[];
   workflowPredictions: PredictionQueueItem[];
 }) {
@@ -5437,6 +5823,15 @@ function DashboardView({
         <Metric label="AI Intelligence" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
         <Metric label="Performance" value={overview?.performanceSummary ?? "Monitoring"} />
         <Metric label="Subscription" value={overview?.subscriptionStatus ?? "Active"} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <AiCoachCompactPanel
+          analysis={bankrollAnalysis}
+          mode="Daily Briefing"
+          onMode={onCoachMode}
+          recommendation={stakeRecommendation}
+        />
+        <BankrollCompactPanel analysis={bankrollAnalysis} state={bankrollState} />
       </div>
       <Panel title="Today's Opportunities">
         <DecisionOutputCards decisions={decisions} />
@@ -5480,6 +5875,416 @@ function DashboardView({
         {commandCenter ? <NotificationCenterView legacyNotifications={commandCenter.notifications} notifications={[]} compact /> : <NotificationList notifications={notifications} />}
       </Panel>
     </div>
+  );
+}
+
+const aiCoachModes: AiCoachMode[] = ["Match Intelligence", "Bankroll Coach", "Performance Analyst", "Learning Coach", "Daily Briefing"];
+
+function AiCoachCompactPanel({
+  analysis,
+  mode,
+  onMode,
+  recommendation,
+}: {
+  analysis: BankrollAnalysis;
+  mode: AiCoachMode;
+  onMode: (mode: AiCoachMode) => void;
+  recommendation: ReturnType<typeof recommendStake>;
+}) {
+  return (
+    <Panel title="FPF AI Coach">
+      <div className="ai-coach-card">
+        <p className="text-sm leading-6 text-slate-300">
+          Welcome to your FPF AI Coach. I am here to help you understand today's football intelligence, explain opportunities, manage risk responsibly and use the platform effectively.
+        </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {aiCoachModes.map((item) => (
+            <button className={item === mode ? "ai-mode-button active" : "ai-mode-button"} key={item} type="button" onClick={() => onMode(item)}>
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-950/20 p-3 text-sm leading-6 text-emerald-50">
+          <p>{recommendation.reason}</p>
+          <p className="mt-2 text-emerald-100">{analysis.insight}</p>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-400">
+          AI service status: integration-ready. Responses are generated from current FPF platform and subscriber-entered data only; no fixture, injury, odds or probability is invented.
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
+function BankrollCompactPanel({ analysis, state }: { analysis: BankrollAnalysis; state: BankrollState }) {
+  const exposurePercent = analysis.dailyExposureLimitCents > 0 ? Math.min(100, Math.round((analysis.dailyExposureCents / analysis.dailyExposureLimitCents) * 100)) : 0;
+  return (
+    <Panel title="Bankroll Intelligence Manager">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MiniStat label="Current bankroll" value={money(state.settings.currentBankrollCents)} />
+        <MiniStat label="P/L" value={money(analysis.netProfitCents)} />
+        <MiniStat label="ROI" value={`${analysis.roi.toFixed(1)}%`} />
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span>Daily exposure</span>
+          <span>{money(analysis.dailyExposureCents)} / {money(analysis.dailyExposureLimitCents)}</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+          <i className="block h-full rounded-full bg-emerald-300" style={{ width: `${exposurePercent}%` }} />
+        </div>
+      </div>
+      <p className="mt-4 rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+        Suggested stakes are risk-management guidance, not guarantees. You remain responsible for every betting decision.
+      </p>
+    </Panel>
+  );
+}
+
+function AiCoachSuiteView({
+  analysis,
+  commandCenter,
+  decisions,
+  intelligence,
+  mode,
+  onMode,
+  onQuestion,
+  question,
+  recommendation,
+  reports,
+  state,
+  workflowPredictions,
+}: {
+  analysis: BankrollAnalysis;
+  commandCenter: SubscriberCommandCenter | null;
+  decisions: DecisionEngineOutput[];
+  intelligence: PublishedIntelligence[];
+  mode: AiCoachMode;
+  onMode: (mode: AiCoachMode) => void;
+  onQuestion: (value: string) => void;
+  question: string;
+  recommendation: ReturnType<typeof recommendStake>;
+  reports: OperationalReport[];
+  state: BankrollState;
+  workflowPredictions: PredictionQueueItem[];
+}) {
+  const dailyOpportunities = commandCenter?.opportunities ?? [];
+  const contextLine = {
+    "Match Intelligence": dailyOpportunities.length || intelligence.length || decisions.length
+      ? `${dailyOpportunities.length + intelligence.length + decisions.length} intelligence items are available for explanation.`
+      : "No approved match intelligence is available yet. The coach will explain selections after publication.",
+    "Bankroll Coach": recommendation.reason,
+    "Performance Analyst": analysis.insight,
+    "Learning Coach": "Learning mode explains odds, markets, probabilities, bankroll discipline and platform usage without promising outcomes.",
+    "Daily Briefing": `${dailyOpportunities.length + workflowPredictions.length} subscriber opportunities and ${reports.length} reports are visible for the current cycle.`,
+  }[mode];
+
+  return (
+    <div className="mt-6 space-y-4">
+      <AiCoachCompactPanel analysis={analysis} mode={mode} onMode={onMode} recommendation={recommendation} />
+      <Panel title={`${mode} Workspace`}>
+        <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Coach response</p>
+              <p className="mt-3 text-sm leading-6 text-slate-300">{contextLine}</p>
+              {analysis.warnings.length ? (
+                <ul className="mt-3 space-y-2 text-sm text-amber-100">
+                  {analysis.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-emerald-100">No current bankroll warning is active.</p>
+              )}
+            </div>
+            <label className="block text-sm font-medium text-zinc-200">
+              Ask the FPF AI Coach
+              <textarea
+                className="mt-2 min-h-28 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none transition focus:border-emerald-300"
+                placeholder="Ask about confidence, risk, stake sizing, reports or platform usage."
+                value={question}
+                onChange={(event) => onQuestion(event.target.value)}
+              />
+            </label>
+            <p className="rounded-md border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-100">
+              Live AI provider integration point is ready. Until an approved AI service responds, the coach uses deterministic FPF platform data and clearly marked service-status messaging.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MiniStat label="Current bankroll" value={money(state.settings.currentBankrollCents)} />
+            <MiniStat label="Risk profile" value={state.settings.riskProfile} />
+            <MiniStat label="Suggested stake" value={money(recommendation.suggestedStakeCents)} />
+            <MiniStat label="Open exposure" value={money(analysis.openExposureCents)} />
+            <MiniStat label="Win rate" value={analysis.totalSelections ? `${analysis.winRate.toFixed(1)}%` : "More data required"} />
+            <MiniStat label="Drawdown" value={`${analysis.maximumDrawdownPercent.toFixed(1)}%`} />
+          </div>
+        </div>
+      </Panel>
+      <ResponsibleUsePanel />
+    </div>
+  );
+}
+
+function OpportunityBankrollGuide({
+  analysis,
+  onAddActiveSelection,
+  prediction,
+  recommendation,
+}: {
+  analysis: BankrollAnalysis;
+  onAddActiveSelection: (input: { match: string; league: string; market: string; odds: number; stakeCents: number }) => void;
+  prediction?: PredictionWithFixture;
+  recommendation: ReturnType<typeof recommendStake>;
+}) {
+  return (
+    <div className="mb-4 rounded-lg border border-emerald-400/20 bg-emerald-950/20 p-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Bankroll Coach</p>
+          <h3 className="mt-2 font-semibold">Risk-managed stake guidance before action.</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{recommendation.reason}</p>
+          <p className="mt-2 text-xs text-slate-400">Use only funds you can afford to lose. FPF never places bets automatically.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3 lg:min-w-80">
+          <MiniStat label="Suggested stake" value={money(recommendation.suggestedStakeCents)} />
+          <MiniStat label="Remaining exposure" value={money(analysis.remainingDailyExposureCents)} />
+          <MiniStat label="Risk" value={analysis.riskLevel} />
+        </div>
+      </div>
+      {prediction ? (
+        <button
+          className="mt-3 rounded-md border border-emerald-400/40 px-3 py-2 text-sm font-semibold text-emerald-100"
+          type="button"
+          onClick={() => onAddActiveSelection({
+            match: prediction.fixture ? `${prediction.fixture.homeTeamName} vs ${prediction.fixture.awayTeamName}` : "FPF opportunity",
+            league: prediction.fixture?.leagueName ?? "Unclassified",
+            market: prediction.recommendedMarket,
+            odds: prediction.fixture?.odds?.[0]?.price ?? 0,
+            stakeCents: recommendation.suggestedStakeCents,
+          })}
+        >
+          Add to exposure tracker
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function BankrollManagerView({
+  analysis,
+  currencies,
+  onAddRecord,
+  onRemoveActive,
+  onSaveSettings,
+  recommendation,
+  state,
+}: {
+  analysis: BankrollAnalysis;
+  currencies: CurrencySetting[];
+  onAddRecord: (event: FormEvent<HTMLFormElement>) => void;
+  onRemoveActive: (id: string) => void;
+  onSaveSettings: (event: FormEvent<HTMLFormElement>) => void;
+  recommendation: ReturnType<typeof recommendStake>;
+  state: BankrollState;
+}) {
+  const exposurePercent = analysis.dailyExposureLimitCents > 0 ? Math.min(100, Math.round((analysis.dailyExposureCents / analysis.dailyExposureLimitCents) * 100)) : 0;
+  const currencyOptions = currencies.length ? currencies.map((item) => item.code) : ["USD", "EUR", "GBP", "UGX", "KES", "NGN", "ZAR"];
+
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Bankroll Dashboard">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Current bankroll" value={money(state.settings.currentBankrollCents)} />
+          <Metric label="Profit / Loss" value={money(analysis.netProfitCents)} />
+          <Metric label="ROI" value={`${analysis.roi.toFixed(1)}%`} />
+          <Metric label="Risk indicator" value={analysis.riskLevel} />
+          <Metric label="Open exposure" value={money(analysis.openExposureCents)} />
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
+            <div className="flex items-center justify-between text-sm text-slate-300">
+              <span>Daily exposure gauge</span>
+              <strong>{exposurePercent}%</strong>
+            </div>
+            <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-800">
+              <i className="block h-full rounded-full bg-emerald-300" style={{ width: `${exposurePercent}%` }} />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <MiniStat label="Limit" value={money(analysis.dailyExposureLimitCents)} />
+              <MiniStat label="Committed" value={money(analysis.dailyExposureCents)} />
+              <MiniStat label="Remaining" value={money(analysis.remainingDailyExposureCents)} />
+            </div>
+          </div>
+          <div className="rounded-lg border border-emerald-400/20 bg-emerald-950/20 p-4">
+            <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">AI Coach recommendation</p>
+            <p className="mt-3 text-sm leading-6 text-emerald-50">{recommendation.reason}</p>
+          </div>
+        </div>
+      </Panel>
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <Panel title="Bankroll Setup">
+          <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSaveSettings}>
+            <TextField label="Starting bankroll" name="startingBankroll" type="number" value={(state.settings.startingBankrollCents / 100).toFixed(2)} />
+            <TextField label="Current bankroll" name="currentBankroll" type="number" value={(state.settings.currentBankrollCents / 100).toFixed(2)} />
+            <SelectField label="Currency" name="currency" value={state.settings.currency} options={currencyOptions.map((code) => ({ value: code, label: code }))} />
+            <SelectField label="Risk profile" name="riskProfile" value={state.settings.riskProfile} options={["Conservative", "Balanced", "Aggressive"].map((profile) => ({ value: profile, label: `${profile} - ${riskProfileConfig(profile as RiskProfile).label}` }))} />
+            <TextField label="Daily stop-loss" name="dailyStopLoss" type="number" value={(state.settings.dailyStopLossCents / 100).toFixed(2)} />
+            <TextField label="Weekly stop-loss" name="weeklyStopLoss" type="number" value={(state.settings.weeklyStopLossCents / 100).toFixed(2)} />
+            <TextField label="Maximum drawdown %" name="maxDrawdownPercent" type="number" value={String(state.settings.maxDrawdownPercent)} />
+            <TextField label="Maximum daily selections" name="maxDailySelections" type="number" value={String(state.settings.maxDailySelections)} />
+            <TextField label="Maximum open exposure %" name="maxOpenExposurePercent" type="number" value={String(state.settings.maxOpenExposurePercent)} />
+            <div className="sm:col-span-2"><SubmitButton>Save bankroll controls</SubmitButton></div>
+          </form>
+        </Panel>
+        <Panel title="Performance Tracking">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MiniStat label="Total staked" value={money(analysis.totalStakedCents)} />
+            <MiniStat label="Total returns" value={money(analysis.totalReturnsCents)} />
+            <MiniStat label="Wins / Losses / Voids" value={`${analysis.wins}/${analysis.losses}/${analysis.voids}`} />
+            <MiniStat label="Average odds" value={analysis.averageOdds ? analysis.averageOdds.toFixed(2) : "More data"} />
+            <MiniStat label="Average stake" value={money(analysis.averageStakeCents)} />
+            <MiniStat label="Largest win" value={money(analysis.largestWinCents)} />
+            <MiniStat label="Largest loss" value={money(analysis.largestLossCents)} />
+            <MiniStat label="Max drawdown" value={`${analysis.maximumDrawdownPercent.toFixed(1)}%`} />
+          </div>
+          <AllocationList title="League allocation" items={analysis.leagueExposure} />
+          <AllocationList title="Market allocation" items={analysis.marketExposure} />
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Active Selections">
+          <SelectionList selections={state.activeSelections} onRemove={onRemoveActive} />
+        </Panel>
+        <Panel title="Add Subscriber-Entered Record">
+          <BankrollRecordForm onSubmit={onAddRecord} />
+        </Panel>
+      </div>
+      <Panel title="Recent Performance">
+        <BankrollRecordList records={state.records} />
+      </Panel>
+      <ResponsibleUsePanel />
+    </div>
+  );
+}
+
+function AllocationList({ items, title }: { items: Array<{ label: string; amountCents: number; percent: number }>; title: string }) {
+  return (
+    <div className="mt-4">
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <div className="mt-2 space-y-2">
+        {items.slice(0, 4).map((item) => (
+          <div key={item.label}>
+            <div className="flex justify-between text-xs text-slate-400"><span>{item.label}</span><span>{item.percent}%</span></div>
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800"><i className="block h-full rounded-full bg-emerald-300" style={{ width: `${item.percent}%` }} /></div>
+          </div>
+        ))}
+        {!items.length ? <p className="text-sm text-slate-400">No active exposure yet.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function SelectionList({ onRemove, selections }: { onRemove: (id: string) => void; selections: BankrollRecord[] }) {
+  return (
+    <div className="space-y-3">
+      {selections.map((selection) => (
+        <div className="rounded-lg border border-slate-800 bg-slate-950 p-3" key={selection.id}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">{selection.match}</p>
+              <p className="mt-1 text-sm text-slate-400">{selection.league} - {selection.market}</p>
+              <p className="mt-1 text-xs text-slate-500">{selection.verificationStatus}</p>
+            </div>
+            <MiniStat label="Stake" value={money(selection.stakeCents)} />
+          </div>
+          <button className="mt-3 rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200" type="button" onClick={() => onRemove(selection.id)}>Remove from tracker</button>
+        </div>
+      ))}
+      {!selections.length ? <EmptyState message="No active selections. Add a selection from Opportunity Center or enter a record manually." /> : null}
+    </div>
+  );
+}
+
+function BankrollRecordForm({ onSubmit }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSubmit}>
+      <TextField label="Date" name="date" type="date" value={new Date().toISOString().slice(0, 10)} />
+      <TextField label="Match" name="match" type="text" />
+      <TextField label="League" name="league" type="text" />
+      <TextField label="Market" name="market" type="text" />
+      <TextField label="Odds" name="odds" type="number" />
+      <TextField label="Stake" name="stake" type="number" />
+      <TextField label="Return" name="return" type="number" />
+      <SelectField label="Result" name="result" value="AWAITING_RESULT" options={[
+        { value: "AWAITING_RESULT", label: "Awaiting result" },
+        { value: "WIN", label: "Win" },
+        { value: "LOSS", label: "Loss" },
+        { value: "VOID", label: "Void" },
+      ]} />
+      <label className="block text-sm font-medium text-zinc-200 sm:col-span-2">
+        Notes
+        <textarea className="mt-2 min-h-20 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none transition focus:border-emerald-300" name="notes" />
+      </label>
+      <div className="sm:col-span-2"><SubmitButton>Add private record</SubmitButton></div>
+    </form>
+  );
+}
+
+function BankrollRecordList({ records }: { records: BankrollRecord[] }) {
+  return (
+    <div className="space-y-2">
+      {records.slice(0, 12).map((record) => (
+        <div className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm md:grid-cols-[1fr_auto_auto_auto]" key={record.id}>
+          <div>
+            <p className="font-semibold text-white">{record.match}</p>
+            <p className="text-slate-400">{record.league} - {record.market} - {record.verificationStatus}</p>
+          </div>
+          <span>{record.result}</span>
+          <span>Stake {money(record.stakeCents)}</span>
+          <span>Net {money(record.returnCents - record.stakeCents)}</span>
+        </div>
+      ))}
+      {!records.length ? <EmptyState message="Add subscriber-entered records to unlock personal performance analysis. Subscriber-entered records are not independently verified." /> : null}
+    </div>
+  );
+}
+
+function LearningCentreView({ onCoachMode }: { onCoachMode: (mode: AiCoachMode) => void }) {
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Learning Centre">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Odds and probabilities", "Understand implied probability and why odds do not guarantee outcomes."],
+            ["Markets and selection types", "Learn home win, over goals, BTTS and risk differences between markets."],
+            ["Bankroll discipline", "Use stake bands, daily exposure limits and stop-loss controls."],
+            ["Using FPF responsibly", "Read confidence, risk and reasoning before deciding independently."],
+          ].map(([title, body]) => (
+            <article className="rounded-lg border border-slate-800 bg-slate-950 p-4" key={title}>
+              <h3 className="font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{body}</p>
+              <button className="mt-4 rounded-md border border-emerald-400/40 px-3 py-2 text-sm text-emerald-100" type="button" onClick={() => onCoachMode("Learning Coach")}>Ask Coach</button>
+            </article>
+          ))}
+        </div>
+      </Panel>
+      <ResponsibleUsePanel />
+    </div>
+  );
+}
+
+function ResponsibleUsePanel() {
+  return (
+    <Panel title="Responsible Use">
+      <div className="grid gap-3 md:grid-cols-5">
+        {[
+          "Use only funds you can afford to lose.",
+          "Suggested stakes are risk-management guidance, not guarantees.",
+          "Past performance does not guarantee future results.",
+          "Pause when you reach your selected loss limit.",
+          "You remain responsible for every betting decision.",
+        ].map((item) => <p className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100" key={item}>{item}</p>)}
+      </div>
+    </Panel>
   );
 }
 
@@ -5628,12 +6433,15 @@ function WorkflowPublicationCards({ predictions }: { predictions: PredictionQueu
 }
 
 function OpportunityCenterView({
+  bankrollAnalysis,
+  bankrollState,
   commandCenter,
   decisions,
   filters,
   fixtures,
   intelligence,
   onAdd,
+  onAddActiveSelection,
   onFilter,
   onSelectFixture,
   onSelectPrediction,
@@ -5642,12 +6450,15 @@ function OpportunityCenterView({
   setFilters,
   workflowPredictions,
 }: {
+  bankrollAnalysis: BankrollAnalysis;
+  bankrollState: BankrollState;
   commandCenter: SubscriberCommandCenter | null;
   decisions: DecisionEngineOutput[];
   filters: { search: string; league: string; country: string; date: string };
   fixtures: FootballFixtureSummary[];
   intelligence: PublishedIntelligence[];
   onAdd: (prediction: PredictionWithFixture) => void;
+  onAddActiveSelection: (input: { match: string; league: string; market: string; odds: number; stakeCents: number }) => void;
   onFilter: (event: FormEvent<HTMLFormElement>) => void;
   onSelectFixture: (id: string) => void;
   onSelectPrediction: (prediction: PredictionWithFixture) => void;
@@ -5662,6 +6473,8 @@ function OpportunityCenterView({
   const highValue = opportunities.filter((item) => item.expectedValue === "High" || item.expectedValue.startsWith("+"));
   const live = opportunities.filter((item) => item.status === "Live");
   const upcoming = opportunities.filter((item) => item.status === "Upcoming");
+  const topPrediction = predictions[0];
+  const topRecommendation = recommendStake(bankrollState, bankrollAnalysis, topPrediction);
   return (
     <div className="mt-6 space-y-4">
       <Panel title="Opportunity Filters">
@@ -5675,6 +6488,12 @@ function OpportunityCenterView({
         </div>
       </Panel>
       <Panel title="Institutional Opportunity Center">
+        <OpportunityBankrollGuide
+          analysis={bankrollAnalysis}
+          prediction={topPrediction}
+          recommendation={topRecommendation}
+          onAddActiveSelection={onAddActiveSelection}
+        />
         <DecisionOutputCards decisions={decisions} />
         <WorkflowPublicationCards predictions={workflowPredictions} />
         <SubscriberOpportunityCards opportunities={opportunities} />
@@ -5732,9 +6551,17 @@ function LiveIntelligenceFeedView({ feed }: { feed: SubscriberIntelligenceFeedIt
   );
 }
 
-function ReportsView({ operationalReports, reports }: { operationalReports: OperationalReport[]; reports: SubscriberReport[] }) {
+function ReportsView({ analysis, operationalReports, reports }: { analysis: BankrollAnalysis; operationalReports: OperationalReport[]; reports: SubscriberReport[] }) {
   return (
     <Panel title="Intelligence Reports">
+      <div className="mb-4">
+        <AiCoachCompactPanel
+          analysis={analysis}
+          mode="Performance Analyst"
+          onMode={() => undefined}
+          recommendation={{ stakePercent: 0, suggestedStakeCents: 0, reason: analysis.insight }}
+        />
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {operationalReports.map((report) => (
           <article className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 p-4" key={report.id}>
@@ -6375,6 +7202,12 @@ function PredictionDetail({
           <p>Suspensions: Included when synchronized as injury/unavailability notes</p>
           <p>Suggested market: {prediction.recommendedMarket}</p>
           <p>Odds comparison: {prediction.edge ? `${(prediction.edge * 100).toFixed(1)}% edge` : "No edge"}</p>
+          <div className="mt-4 rounded-md border border-emerald-400/20 bg-emerald-950/20 p-3">
+            <p className="font-semibold text-emerald-100">AI Coach</p>
+            <p className="mt-2 text-xs leading-5 text-emerald-50">
+              Confidence reflects the available FPF data for this selection. Risk score, market volatility and missing-data warnings should be reviewed before you decide independently.
+            </p>
+          </div>
           <button className="mt-4 w-full rounded-md bg-emerald-300 px-4 py-3 font-semibold text-zinc-950" type="button" onClick={() => onAdd(prediction)}>Add to slip</button>
         </div>
       </div>
