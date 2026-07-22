@@ -1361,9 +1361,9 @@ export default function App() {
       : navItems;
 
   return (
-    <main className="min-h-dvh bg-zinc-950 text-white">
+    <main className="fpf-app-shell min-h-dvh text-white">
       <div className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
-        <aside className="flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
+        <aside className="fpf-sidebar flex max-h-dvh flex-col overflow-hidden border-b px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
           <div className="shrink-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
             <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : "Subscriber Platform"}</h1>
@@ -1374,7 +1374,7 @@ export default function App() {
           <nav className="mt-4 grid min-h-0 max-h-[48vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-5 lg:max-h-none lg:flex-1 lg:grid-cols-1 lg:pr-2" aria-label="Unified FPF navigation">
             {navigationItems.map((item) => (
               <button
-                className={`rounded-md px-3 py-3 text-left text-sm font-medium transition ${
+                className={`fpf-nav-item rounded-md px-3 py-3 text-left text-sm font-medium transition ${
                   (adminMode
                     ? activeAdminView === item
                     : session.user.role === "INVESTOR"
@@ -1418,14 +1418,14 @@ export default function App() {
         </aside>
 
         <section className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:h-dvh lg:px-8">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="fpf-topbar flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-sm text-emerald-300">{loadingLabel} | {roleLabels[session.user.role]} workspace</p>
               <h2 className="mt-1 text-3xl font-bold tracking-normal">Welcome, {session.user.name}</h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
-                Unified FPF Platform | Ready
+                System status | Ready
               </div>
               <button
                 aria-label="Sign out securely from the user menu"
@@ -2049,6 +2049,8 @@ function AIIntelligenceCenterView({
   treasuryDashboard: TreasuryDashboard | null;
   workflowQueue: PredictionWorkflowQueue | null;
 }) {
+  const [activeAiTab, setActiveAiTab] = useState("Executive Overview");
+  const [selectedDecision, setSelectedDecision] = useState<DecisionEngineOutput | null>(decisions[0] ?? null);
   const workflowItems = workflowQueue?.items ?? [];
   const candidateItems = workflowItems.filter((item) => ["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW"].includes(item.status));
   const publishingItems = workflowItems.filter((item) => ["APPROVED", "PUBLISHED"].includes(item.status));
@@ -2058,6 +2060,10 @@ function AIIntelligenceCenterView({
   const averageConfidence = decisions.length ? Math.round(totalConfidence / decisions.length) : 0;
   const totalRisk = decisions.reduce((sum, decision) => sum + decision.scores.riskScore, 0);
   const averageRisk = decisions.length ? Math.round(totalRisk / decisions.length) : 0;
+  const highConfidence = decisions.filter((decision) => decision.scores.confidenceScore >= 70);
+  const rejected = decisions.filter((decision) => decision.status === "REJECTED");
+  const selectedFixture = fixtures.find((fixture) => fixture.id === selectedDecision?.fixtureId);
+  const aiTabs = ["Executive Overview", "Today's AI Scans", "Match Detail", "Operations Review Queue", "Subscriber Publishing Queue", "Company Bets Queue", "Betting Ledger", "Executive Daily Briefing"];
 
   function exportBriefing() {
     const rows = [
@@ -2092,6 +2098,18 @@ function AIIntelligenceCenterView({
           <Metric label="Internal status" value="Ready" />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
+          {aiTabs.map((tab) => (
+            <button
+              className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${activeAiTab === tab ? "border-emerald-300 bg-emerald-300 text-zinc-950" : "border-zinc-700 text-zinc-300 hover:border-emerald-300 hover:text-white"}`}
+              key={tab}
+              type="button"
+              onClick={() => setActiveAiTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
           <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={exportBriefing}>
             Export daily briefing
           </button>
@@ -2101,6 +2119,22 @@ function AIIntelligenceCenterView({
         </div>
       </Panel>
 
+      {activeAiTab === "Executive Overview" ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Matches scanned today" value={String(fixtures.length)} />
+          <Metric label="Qualified opportunities" value={String(candidateItems.length + publishingItems.length)} />
+          <Metric label="High-confidence opportunities" value={String(highConfidence.length)} />
+          <Metric label="Subscriber candidates" value={String(publishingItems.length)} />
+          <Metric label="Company candidates" value={String(treasuryDashboard?.capitalAllocations.length ?? 0)} />
+          <Metric label="Rejected opportunities" value={String(rejected.length)} />
+          <Metric label="Total exposure" value={money(treasuryDashboard?.accounts.capitalCurrentlyExposedCents ?? 0)} />
+          <Metric label="Daily profit/loss" value={money(treasuryDashboard?.daily.netDailyProfitCents ?? 0)} />
+          <Metric label="Weekly profit/loss" value={money(treasuryDashboard?.weekly.confirmedWeeklyNetProfitCents ?? 0)} />
+          <Metric label="AI system status" value="Operational" />
+        </div>
+      ) : null}
+
+      {activeAiTab === "Today's AI Scans" ? (
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Panel title="Today's AI Scans">
           <div className="space-y-3">
@@ -2130,6 +2164,11 @@ function AIIntelligenceCenterView({
                     ))}
                   </div>
                 ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => { setSelectedDecision(decision); setActiveAiTab("Match Detail"); }}>Open details</button>
+                  <button className="rounded-md border border-emerald-700 px-3 py-2 text-xs text-emerald-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${decision.id}/actions`, { action: "REQUEST_REVIEW", notes: "Further analysis requested from AI Intelligence Center." })}>Request further analysis</button>
+                  <button className="rounded-md border border-red-800 px-3 py-2 text-xs text-red-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${decision.id}/actions`, { action: "REJECT", notes: "Rejected from AI Intelligence Center scan." })}>Reject</button>
+                </div>
               </article>
             ))}
             {!decisions.length ? <p className="text-sm text-zinc-400">No AI scans are available yet. The center will populate as fixtures and provider data are processed.</p> : null}
@@ -2150,7 +2189,54 @@ function AIIntelligenceCenterView({
           </p>
         </Panel>
       </div>
+      ) : null}
 
+      {activeAiTab === "Match Detail" ? (
+        <Panel title="Match Intelligence Detail">
+          {selectedDecision ? (
+            <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{selectedDecision.dataQualityStatus.replaceAll("_", " ")}</p>
+                <h3 className="mt-2 text-2xl font-semibold">{selectedDecision.match}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{selectedDecision.league} | {selectedDecision.kickoffTime ? new Date(selectedDecision.kickoffTime).toLocaleString() : "Kickoff pending"}</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <MiniStat label="Home team" value={selectedFixture?.homeTeamName ?? selectedDecision.match.split(" vs ")[0] ?? "Pending"} />
+                  <MiniStat label="Away team" value={selectedFixture?.awayTeamName ?? selectedDecision.match.split(" vs ")[1] ?? "Pending"} />
+                  <MiniStat label="Competition" value={selectedDecision.league} />
+                  <MiniStat label="Recommended market" value={selectedDecision.recommendedMarket} />
+                  <MiniStat label="Confidence explanation" value={`${selectedDecision.scores.confidenceScore}% confidence from available verified inputs`} />
+                  <MiniStat label="Risk factors" value={selectedDecision.scores.riskScore >= 70 ? "Elevated risk" : selectedDecision.scores.riskScore >= 45 ? "Moderate risk" : "Controlled risk"} />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {["Form summary updates from normalized team data.", "Goals, BTTS, and over/under trends remain data-quality gated.", "Injury and suspension notes appear only when provider data is verified.", "Alternative markets remain review-controlled before publication."].map((item) => (
+                    <p className="rounded-md border border-zinc-800 bg-zinc-900 p-3 text-sm text-zinc-300" key={item}>{item}</p>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Panel title="AI Reasoning">
+                  <div className="space-y-2">
+                    {(selectedDecision.reasoning.length ? selectedDecision.reasoning : ["Insufficient live data for expanded reasoning."]).map((reason) => (
+                      <p className="rounded-md bg-emerald-500/10 p-2 text-sm text-emerald-100" key={reason}>{reason}</p>
+                    ))}
+                    {(selectedDecision.warnings.length ? selectedDecision.warnings : ["No critical warning currently attached."]).map((warning) => (
+                      <p className="rounded-md bg-amber-500/10 p-2 text-sm text-amber-100" key={warning}>{warning}</p>
+                    ))}
+                  </div>
+                </Panel>
+                <Panel title="Freshness & Sources">
+                  <MiniStat label="Generated" value={new Date(selectedDecision.generatedAt).toLocaleString()} />
+                  <MiniStat label="Sources" value="FPF normalized data, odds inputs, review workflow" />
+                </Panel>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">Select an AI scan to open match intelligence detail.</p>
+          )}
+        </Panel>
+      ) : null}
+
+      {activeAiTab === "Operations Review Queue" || activeAiTab === "Subscriber Publishing Queue" ? (
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel title="Operations Review Queue">
           <div className="space-y-3">
@@ -2197,7 +2283,9 @@ function AIIntelligenceCenterView({
           </div>
         </Panel>
       </div>
+      ) : null}
 
+      {activeAiTab === "Company Bets Queue" ? (
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel title="Company Bets Queue">
           <div className="space-y-3">
@@ -2221,7 +2309,16 @@ function AIIntelligenceCenterView({
           </div>
         </Panel>
 
+      </div>
+      ) : null}
+
+      {activeAiTab === "Betting Ledger" ? (
         <Panel title="Betting Ledger">
+          <div className="mb-4 grid gap-3 md:grid-cols-6">
+            {["Date range", "Competition", "Market", "Bookmaker", "Result", "Operator"].map((label) => (
+              <input className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200" key={label} placeholder={label} />
+            ))}
+          </div>
           <div className="space-y-3">
             {(treasuryDashboard?.executions ?? []).slice(0, 6).map((execution) => (
               <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={execution.id}>
@@ -2237,8 +2334,31 @@ function AIIntelligenceCenterView({
             ))}
             {!treasuryDashboard?.executions.length ? <p className="text-sm text-zinc-400">No betting executions have been recorded yet.</p> : null}
           </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={exportBriefing}>Export CSV</button>
+            <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={exportBriefing}>Export Excel-ready CSV</button>
+            <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => window.print()}>Printable report</button>
+          </div>
         </Panel>
-      </div>
+      ) : null}
+
+      {activeAiTab === "Executive Daily Briefing" ? (
+        <Panel title="Executive Daily Briefing">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 text-sm leading-6 text-zinc-300">
+              <p>Matches scanned: {fixtures.length}. Qualified opportunities: {candidateItems.length + publishingItems.length}. High-confidence opportunities: {highConfidence.length}.</p>
+              <p>Key risks: {averageRisk >= 70 ? "risk elevated across reviewed candidates" : "risk currently within normal review range"}.</p>
+              <p>Subscriber publications: {publishingItems.length}. Company candidates: {treasuryDashboard?.capitalAllocations.length ?? 0}. Unresolved review items: {candidateItems.length}.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MiniStat label="Total exposure" value={money(treasuryDashboard?.accounts.capitalCurrentlyExposedCents ?? 0)} />
+              <MiniStat label="Daily P/L" value={money(treasuryDashboard?.daily.netDailyProfitCents ?? 0)} />
+              <MiniStat label="Weekly P/L" value={money(treasuryDashboard?.weekly.confirmedWeeklyNetProfitCents ?? 0)} />
+              <MiniStat label="Provider alerts" value="No critical public alert" />
+            </div>
+          </div>
+        </Panel>
+      ) : null}
     </div>
   );
 }
@@ -4864,12 +4984,9 @@ function PublicNotFoundPage({ onNavigate }: { onNavigate: (path: string, id?: st
 }
 
 function AuthPanel({
-  apiCheck,
-  apiUrl,
   error,
   message,
   mode,
-  onApiTest,
   onForgot,
   onLogin,
   onRegister,
@@ -4894,18 +5011,13 @@ function AuthPanel({
   preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   return (
-    <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">
-      <div className="mb-4 rounded-md border border-zinc-800 bg-zinc-950 p-3">
-        <p className="break-words text-xs text-zinc-400">API URL: {apiUrl}</p>
-        <p className="mt-2 break-words text-xs text-zinc-500">{apiCheck}</p>
-        <button
-          className="mt-3 w-full rounded-md border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
-          type="button"
-          onClick={onApiTest}
-        >
-          Test API connection
-        </button>
+    <section className="auth-panel">
+      <div className="auth-panel-header">
+        <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Football Performance Fund</p>
+        <h2>{mode === "login" ? "Sign in securely" : mode === "register" ? "Create your access" : "Reset access"}</h2>
+        <p>{mode === "login" ? "Continue to your protected FPF workspace." : mode === "register" ? "Start with a public account role. Internal roles are assigned by FPF only." : "Enter your email and follow the secure reset flow."}</p>
       </div>
       <div className="grid grid-cols-3 rounded-md bg-zinc-950 p-1 text-sm">
         <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
@@ -4935,7 +5047,12 @@ function AuthPanel({
       {mode === "login" ? (
         <form className="mt-6 space-y-4" onSubmit={onLogin}>
           <TextField label="Email" name="email" type="email" />
-          <TextField label="Password" name="password" type="password" />
+          <div className="grid gap-2">
+            <TextField label="Password" name="password" type={showPassword ? "text" : "password"} />
+            <button className="w-fit rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-300 transition hover:border-emerald-300 hover:text-white" type="button" onClick={() => setShowPassword((current) => !current)}>
+              {showPassword ? "Hide password" : "Show password"}
+            </button>
+          </div>
           <label className="flex items-center gap-3 text-sm text-zinc-300">
             <input className="h-4 w-4 accent-emerald-400" name="rememberMe" type="checkbox" />
             Remember me
@@ -5524,8 +5641,8 @@ function UnifiedOperatingSystemStrip({
     ? ["Executive BI", "Treasury Center", "War Room", "Monitoring", "User Management"]
     : role === "INVESTOR"
       ? ["Investor Dashboard", "Simulator", "Reports", "Capital", "Settings"]
-      : role === "ANALYST"
-        ? ["Analyst Dashboard", "War Room", "My Analytics", "Prediction Workspace", "Settings"]
+    : role === "ANALYST"
+        ? ["AI Intelligence Center", "War Room", "Reports", "Monitoring", "Settings"]
         : ["Subscriber Home", "Opportunity Center", "Live Match Center", "Profile", "Settings"];
   return (
     <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -5573,20 +5690,20 @@ function LaunchExperienceCenter({ onDismiss, role }: { onDismiss: () => void; ro
     <section className="mt-4 rounded-lg border border-emerald-400/20 bg-gradient-to-br from-zinc-900 to-emerald-950/20 p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Welcome Wizard</p>
-          <h2 className="mt-2 text-xl font-semibold">Your unified FPF workspace is ready.</h2>
+          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Operational briefing</p>
+          <h2 className="mt-2 text-xl font-semibold">Your FPF command workspace is ready.</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
-            First login tour: use global search, review notifications, configure settings, then open your {role.toLowerCase()} command area. Empty states, coming-soon pages, maintenance messaging, success screens, and a custom 404 pattern are prepared in the launch system.
+            Review current alerts, open your priority workspace, and use settings to manage language, currency, timezone, security, and notification preferences.
           </p>
         </div>
         <button className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={onDismiss}>Start</button>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
         {[
-          ["Loading", "Skeleton loaders keep navigation calm while data arrives."],
-          ["Success", "Actions return clear confirmation messages."],
-          ["Empty", "No-data areas explain what will appear next."],
-          ["Fallback", "Maintenance, coming soon, and 404 states use the same FPF system language."],
+          ["Status", "Platform health, provider signals, and notifications remain visible."],
+          ["Security", "Protected routes use your verified role and active session."],
+          ["Review", "Operational queues show only the data your role is authorized to access."],
+          ["Reports", "Performance, financial, and intelligence reports remain separated by role."],
         ].map(([title, body]) => <MiniStat key={title} label={title} value={body} />)}
       </div>
     </section>

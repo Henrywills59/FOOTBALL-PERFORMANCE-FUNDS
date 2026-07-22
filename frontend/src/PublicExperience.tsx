@@ -83,6 +83,7 @@ export function Mission21PublicExperience({
   const plans = experience?.commercial.subscriberPlans.length ? experience.commercial.subscriberPlans : commercialStructure.subscriberPlans;
   const paymentConfigured = experience?.commercial.paymentConfigured ?? false;
   const publicNav = publicPageDefinitions.filter((page) => ["home", "how-fpf-works", "subscribers", "investors", "performance", "pricing", "security", "faq"].includes(page.id));
+  const authRoute = ["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/forgot-password", "/reset-password"].includes(currentPath);
 
   useEffect(() => {
     if (reducedMotion) return;
@@ -108,9 +109,30 @@ export function Mission21PublicExperience({
         <div className="public-nav-actions">
           <ThemeSwitcher theme={theme} onChange={onThemeChange} />
           <button className="ghost-action" type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
+          <button className="preview-action" type="button" onClick={() => onNavigate("/pricing", "pricing")}>Start 3-Day Preview</button>
         </div>
       </header>
 
+      {authRoute ? (
+        <section className="auth-page-shell" id="auth">
+          <div className="auth-story">
+            <p className="eyebrow">Secure FPF access</p>
+            <h1>Enter the Football Intelligence Operating System.</h1>
+            <p>
+              One protected account unlocks the correct workspace for subscribers, Performance Partners, internal operators, and administrators.
+            </p>
+            <div className="auth-proof-grid">
+              <span>JWT secured sessions</span>
+              <span>Role-based routing</span>
+              <span>Private intelligence controls</span>
+              <span>Production API connected</span>
+            </div>
+          </div>
+          <aside className="auth-dock auth-dock-page" aria-label="Account access">
+            {authPanel}
+          </aside>
+        </section>
+      ) : (
       <section className="public-hero" aria-labelledby="public-hero-title">
         <div className="hero-media" aria-hidden="true">
           {heroSlides.map((slide, index) => (
@@ -137,7 +159,6 @@ export function Mission21PublicExperience({
               <button type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
               <button type="button" onClick={() => onNavigate("/investors", "investor-transparency")}>Become a Partner</button>
               <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
-              <button className="secondary" type="button" onClick={() => onNavigate("/ai-intelligence", "intelligence-preview")}>View AI Intelligence</button>
             </div>
             <div className="hero-controls" aria-label="Hero slide controls">
               {heroSlides.map((slide, index) => (
@@ -152,11 +173,26 @@ export function Mission21PublicExperience({
               ))}
             </div>
           </div>
-          <aside className="auth-dock" id="auth" aria-label="Account access">
-            {authPanel}
+          <aside className="hero-intelligence-board" aria-label="Live platform highlights">
+            <div>
+              <span>AI Intelligence Score</span>
+              <strong>87/100</strong>
+              <small>Operational baseline</small>
+            </div>
+            <div>
+              <span>Live Match Scanner</span>
+              <strong>Active</strong>
+              <small>Provider-ready monitoring</small>
+            </div>
+            <div>
+              <span>Review Discipline</span>
+              <strong>Admin controlled</strong>
+              <small>No automatic publication</small>
+            </div>
           </aside>
         </div>
       </section>
+      )}
 
       <LiveActivityBar experience={experience} />
       <PublicSection id="intelligence-preview" eyebrow="Live football intelligence preview" title="Public preview, private selections protected.">
