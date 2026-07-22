@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { PremiumEmptyState, PremiumMetricGrid, PremiumSectionHeader, PremiumStatusBadge } from "./components/PremiumPrimitives";
 import type { CommercialStructure, CurrencySetting, LanguageSetting, PublicExperience, ThemePreference, UserGlobalPreferences } from "./types";
 
 type PublicPageDefinition = {
@@ -175,14 +176,14 @@ export function Mission21PublicExperience({
           </div>
           <aside className="hero-intelligence-board" aria-label="Live platform highlights">
             <div>
-              <span>AI Intelligence Score</span>
+              <span>AI Intelligence Engine</span>
               <strong>87/100</strong>
-              <small>Operational baseline</small>
+              <small>Online and review-gated</small>
             </div>
             <div>
               <span>Live Match Scanner</span>
               <strong>Active</strong>
-              <small>Provider-ready monitoring</small>
+              <small>Fixture cycles monitored</small>
             </div>
             <div>
               <span>Review Discipline</span>
@@ -195,6 +196,7 @@ export function Mission21PublicExperience({
       )}
 
       <LiveActivityBar experience={experience} />
+      <LiveDigitalPlatformSection experience={experience} />
       <PublicSection id="intelligence-preview" eyebrow="Live football intelligence preview" title="Public preview, private selections protected.">
         <div className="split-layout">
           <div className="feature-panel">
@@ -335,11 +337,49 @@ function LiveActivityBar({ experience }: { experience: PublicExperience | null }
   );
 }
 
+function LiveDigitalPlatformSection({ experience }: { experience: PublicExperience | null }) {
+  const activity = experience?.activity;
+  const operationalMetrics = [
+    { label: "AI Intelligence Engine", value: "Online", detail: "Scoring and review workflow ready", status: "live" as const },
+    { label: "Live Match Scanner", value: "Active", detail: "Fixture monitoring enabled", status: "live" as const },
+    { label: "Competitions Monitored", value: activity?.leaguesCovered ? String(activity.leaguesCovered) : "Live", detail: "Coverage expands with provider data", status: "ready" as const },
+    { label: "Data Synchronisation", value: "Running", detail: "Provider-safe fallback active", status: "live" as const },
+    { label: "Review Queue", value: activity?.pendingApproval ?? 0, detail: "Awaiting approved intelligence", status: activity?.pendingApproval ? "warning" as const : "ready" as const },
+    { label: "Opportunity Engine", value: "Processing", detail: "Confidence, risk, and value scoring", status: "live" as const },
+    { label: "Subscriber Portal", value: "Online", detail: "Approved intelligence only", status: "ready" as const },
+    { label: "Performance Partner Portal", value: "Online", detail: "Capital views remain protected", status: "ready" as const },
+  ];
+
+  return (
+    <PublicSection id="platform-live" eyebrow="Live digital platform" title="An active football intelligence operating system">
+      <PremiumMetricGrid metrics={operationalMetrics} />
+      <div className="report-card-grid">
+        {[
+          ["Daily Intelligence Briefing", "Available to Subscribers", "Today"],
+          ["Weekly Performance Report", "Available to Subscribers", "This week"],
+          ["Market Trends Report", "Available to Subscribers", "Updated weekly"],
+          ["League Performance Review", "Available to Subscribers", "Current cycle"],
+          ["Risk Analysis Report", "Available to Subscribers", "Operations controlled"],
+          ["Confidence Distribution Report", "Available to Subscribers", "Model review ready"],
+        ].map(([title, status, date]) => (
+          <article className="premium-report-card" key={title}>
+            <div>
+              <PremiumStatusBadge tone="ready">{status}</PremiumStatusBadge>
+              <small>{date}</small>
+            </div>
+            <strong>{title}</strong>
+            <button type="button" onClick={() => undefined}>View Report</button>
+          </article>
+        ))}
+      </div>
+    </PublicSection>
+  );
+}
+
 function PublicSection({ children, eyebrow, id, title }: { children: ReactNode; eyebrow: string; id: string; title: string }) {
   return (
     <section className="public-section" id={id}>
-      <p className="eyebrow">{eyebrow}</p>
-      <h2>{title}</h2>
+      <PremiumSectionHeader eyebrow={eyebrow} title={title} />
       {children}
     </section>
   );
@@ -358,7 +398,10 @@ function PerformanceCenter({ experience }: { experience: PublicExperience | null
           {experience?.performance.liveVerifiedResults.length ? (
             <p>Verified selections are available in the reporting ledger.</p>
           ) : (
-            <p>First verified results will appear after official launch selections are published, settled, and reconciled.</p>
+            <PremiumEmptyState
+              title="Verified ledger preparing"
+              body="First verified results will appear after official launch selections are published, settled, and reconciled."
+            />
           )}
         </article>
         <article>

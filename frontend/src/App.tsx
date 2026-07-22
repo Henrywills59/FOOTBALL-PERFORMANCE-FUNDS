@@ -69,6 +69,7 @@ import type {
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
 import { Mission21PublicExperience, ThemeSwitcher } from "./PublicExperience";
+import { PremiumEmptyState, PremiumMetricGrid, PremiumSectionHeader, PremiumStatusBadge } from "./components/PremiumPrimitives";
 
 function normalizeApiBaseUrl(value?: string) {
   const trimmed = value?.trim().replace(/\/+$/, "");
@@ -135,7 +136,7 @@ type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
 type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
 type AnalystNavItem =
-  | "Analyst Dashboard"
+  | "Operations Dashboard"
   | "War Room"
   | "Academy"
   | "Prediction Workspace"
@@ -1484,7 +1485,7 @@ export default function App() {
           {message ? <p className="mt-4 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
 
           {showLaunchCenter ? (
-            <LaunchExperienceCenter
+            <ExecutiveSessionBriefing
               role={session.user.role}
               onDismiss={() => {
                 localStorage.setItem("fpf_launch_center_seen", "true");
@@ -1746,15 +1747,14 @@ function AdminPortal({
 
   if (activeView === "Admin Dashboard") {
     return (
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Total users" value={String(overview?.totalUsers ?? 0)} />
-        <Metric label="Active subscribers" value={String(overview?.activeSubscribers ?? 0)} />
-        <Metric label="Active investors" value={String(overview?.activeInvestors ?? 0)} />
-        <Metric label="Today's fixtures" value={String(overview?.todaysFixtures ?? 0)} />
-        <Metric label="Pending predictions" value={String(overview?.pendingPredictions ?? pending.length)} />
-        <Metric label="Approved predictions" value={String(overview?.approvedPredictions ?? 0)} />
-        <Metric label="System health" value={overview?.systemHealth ?? "OK"} />
-      </div>
+      <AdminExecutiveOverview
+        fixtures={fixtures}
+        overview={overview}
+        pendingPredictions={pending.length}
+        reports={reports}
+        users={users}
+        workflowQueue={workflowQueue}
+      />
     );
   }
 
@@ -2032,6 +2032,77 @@ function AdminPortal({
   );
 }
 
+function AdminExecutiveOverview({
+  fixtures,
+  overview,
+  pendingPredictions,
+  reports,
+  users,
+  workflowQueue,
+}: {
+  fixtures: FootballFixtureSummary[];
+  overview: AdminOverview | null;
+  pendingPredictions: number;
+  reports: AdminReports | null;
+  users: AdminUser[];
+  workflowQueue: PredictionWorkflowQueue | null;
+}) {
+  const queueItems = workflowQueue?.items ?? [];
+  const activeUsers = users.filter((user) => user.status === "ACTIVE").length;
+  const pendingQueue = queueItems.filter((item) => ["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW"].includes(item.status)).length;
+  const approvedQueue = queueItems.filter((item) => ["APPROVED", "PUBLISHED"].includes(item.status)).length;
+
+  return (
+    <section className="admin-executive-overview mt-6">
+      <div className="admin-command-hero">
+        <PremiumSectionHeader eyebrow="Admin command center" title="Executive operating overview">
+          <p>
+            Monitor platform readiness, role activity, fixture coverage, review queues, and reporting without exposing private operational detail outside the admin command surface.
+          </p>
+        </PremiumSectionHeader>
+        <div className="admin-command-status">
+          <PremiumStatusBadge tone="live">System {overview?.systemHealth ?? "OK"}</PremiumStatusBadge>
+          <span>{new Date().toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      <PremiumMetricGrid
+        metrics={[
+          { label: "Total users", value: String(overview?.totalUsers ?? users.length), detail: `${activeUsers} active accounts`, status: "ready" },
+          { label: "Active subscribers", value: String(overview?.activeSubscribers ?? reports?.subscribers.active ?? 0), detail: "Subscriber portal access", status: "live" },
+          { label: "Active partners", value: String(overview?.activeInvestors ?? reports?.investors.active ?? 0), detail: "Performance Partner workspaces", status: "ready" },
+          { label: "Today's fixtures", value: String(overview?.todaysFixtures ?? fixtures.length), detail: "Fixture intelligence coverage", status: fixtures.length ? "live" : "muted" },
+          { label: "Review queue", value: String(overview?.pendingPredictions ?? pendingPredictions + pendingQueue), detail: `${approvedQueue} approved or published`, status: pendingQueue ? "warning" : "ready" },
+          { label: "Approved predictions", value: String(overview?.approvedPredictions ?? approvedQueue), detail: "Controlled publication only", status: "ready" },
+          { label: "Audit posture", value: "Enabled", detail: "Admin actions remain logged", status: "live" },
+          { label: "Platform health", value: overview?.systemHealth ?? "OK", detail: "Health routes and safe defaults active", status: "live" },
+        ]}
+      />
+
+      <div className="admin-command-panels">
+        <Panel title="Priority operations">
+          <div className="space-y-3">
+            {[
+              `Review ${pendingQueue || pendingPredictions} pending intelligence item${pendingQueue + pendingPredictions === 1 ? "" : "s"}.`,
+              `Monitor ${fixtures.length} fixture${fixtures.length === 1 ? "" : "s"} currently loaded into the command center.`,
+              "Keep subscriber publishing separate from company capital decisions.",
+              "Use reports and monitoring before approving high-risk workflows.",
+            ].map((item) => (
+              <p className="rounded-lg border border-zinc-800 bg-zinc-950/80 p-3 text-sm text-zinc-300" key={item}>{item}</p>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Control discipline">
+          <div className="space-y-3 text-sm leading-6 text-zinc-300">
+            <p>Admin users can approve, reject, publish, and monitor operational queues. Subscriber and Performance Partner views receive only role-approved data.</p>
+            <p>No AI scan is automatically published. Company capital, treasury, and settlement modules remain isolated from public and subscriber surfaces.</p>
+          </div>
+        </Panel>
+      </div>
+    </section>
+  );
+}
+
 function AIIntelligenceCenterView({
   decisions,
   fixtures,
@@ -2087,16 +2158,26 @@ function AIIntelligenceCenterView({
   }
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="ai-command-center mt-6 space-y-4">
       <Panel title="AI Intelligence Center">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          <Metric label="Today's AI scans" value={String(decisions.length)} />
-          <Metric label="Review queue" value={String(candidateItems.length)} />
-          <Metric label="Publish queue" value={String(publishingItems.length)} />
-          <Metric label="Avg confidence" value={`${averageConfidence}%`} />
-          <Metric label="Avg risk" value={`${averageRisk}%`} />
-          <Metric label="Internal status" value="Ready" />
+        <div className="ai-command-header">
+          <PremiumSectionHeader eyebrow="Football intelligence operations" title="Decision-grade AI review center">
+            <p>
+              Evaluate normalized fixture data, route opportunities into review, separate subscriber publication from company-only execution, and preserve audit discipline.
+            </p>
+          </PremiumSectionHeader>
+          <PremiumStatusBadge tone="live">AI system operational</PremiumStatusBadge>
         </div>
+        <PremiumMetricGrid
+          metrics={[
+            { label: "Today's AI scans", value: String(decisions.length), detail: "Matches evaluated", status: decisions.length ? "live" : "muted" },
+            { label: "Review queue", value: String(candidateItems.length), detail: "Awaiting operations decision", status: candidateItems.length ? "warning" : "ready" },
+            { label: "Publish queue", value: String(publishingItems.length), detail: "Subscriber-ready items", status: publishingItems.length ? "live" : "ready" },
+            { label: "Avg confidence", value: `${averageConfidence}%`, detail: "Across current decisions", status: averageConfidence >= 70 ? "live" : "ready" },
+            { label: "Avg risk", value: `${averageRisk}%`, detail: "Lower is better", status: averageRisk >= 70 ? "warning" : "ready" },
+            { label: "Internal status", value: "Ready", detail: "No auto-publication", status: "live" },
+          ]}
+        />
         <div className="mt-4 flex flex-wrap gap-2">
           {aiTabs.map((tab) => (
             <button
@@ -2171,7 +2252,12 @@ function AIIntelligenceCenterView({
                 </div>
               </article>
             ))}
-            {!decisions.length ? <p className="text-sm text-zinc-400">No AI scans are available yet. The center will populate as fixtures and provider data are processed.</p> : null}
+            {!decisions.length ? (
+              <PremiumEmptyState
+                title="No AI scans in this cycle"
+                body="The center will populate automatically as fixtures and provider data are processed through the Intelligence Core."
+              />
+            ) : null}
           </div>
         </Panel>
 
@@ -2231,7 +2317,10 @@ function AIIntelligenceCenterView({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-zinc-400">Select an AI scan to open match intelligence detail.</p>
+            <PremiumEmptyState
+              title="No match selected"
+              body="Open an AI scan to view match intelligence detail, confidence reasoning, risk factors, and source freshness."
+            />
           )}
         </Panel>
       ) : null}
@@ -2261,7 +2350,12 @@ function AIIntelligenceCenterView({
                 </div>
               </article>
             ))}
-            {!candidateItems.length ? <p className="text-sm text-zinc-400">No candidates are waiting for operations review.</p> : null}
+            {!candidateItems.length ? (
+              <PremiumEmptyState
+                title="Review queue clear"
+                body="New candidates appear only after verified AI scoring creates a reviewable item for the operations team."
+              />
+            ) : null}
           </div>
         </Panel>
       ) : null}
@@ -2280,7 +2374,12 @@ function AIIntelligenceCenterView({
                 </div>
               </article>
             ))}
-            {!publishingItems.length ? <p className="text-sm text-zinc-400">No approved intelligence is waiting for publication.</p> : null}
+            {!publishingItems.length ? (
+              <PremiumEmptyState
+                title="No subscriber publications queued"
+                body="Approved subscriber selections will appear here after admin review. Internal notes and company-only execution data remain hidden from subscribers."
+              />
+            ) : null}
           </div>
         </Panel>
       ) : null}
@@ -2305,7 +2404,12 @@ function AIIntelligenceCenterView({
                 )}
               </article>
             ))}
-            {!treasuryDashboard?.capitalAllocations.length ? <p className="text-sm text-zinc-400">No company capital allocations are queued.</p> : null}
+            {!treasuryDashboard?.capitalAllocations.length ? (
+              <PremiumEmptyState
+                title="No company capital allocations queued"
+                body="Company-only selections appear here only after the capital desk workflow authorizes an internal allocation."
+              />
+            ) : null}
           </div>
         </Panel>
 
@@ -2332,7 +2436,12 @@ function AIIntelligenceCenterView({
                 </div>
               </article>
             ))}
-            {!treasuryDashboard?.executions.length ? <p className="text-sm text-zinc-400">No betting executions have been recorded yet.</p> : null}
+            {!treasuryDashboard?.executions.length ? (
+              <PremiumEmptyState
+                title="No betting ledger executions"
+                body="Execution records remain empty until an authorized operator marks a company selection as placed and reconciled."
+              />
+            ) : null}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={exportBriefing}>Export CSV</button>
@@ -2392,7 +2501,7 @@ function AnalystPortal({
   treasury: AnalystTreasuryView | null;
   analytics: AnalystPrivateAnalytics | null;
 }) {
-  if (activeView === "Analyst Dashboard") {
+  if (activeView === "Operations Dashboard") {
     return (
       <div className="mt-6 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
@@ -2403,14 +2512,14 @@ function AnalystPortal({
           <Metric label="Approved" value={String(dashboard?.approvedIntelligence ?? 0)} />
           <Metric label="ARI" value={String(performance?.reliability.analystReliabilityIndex ?? 50)} />
         </div>
-        <Panel title="Professional Analyst Status">
+        <Panel title="Professional Operations Status">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MiniStat label="Internal rank" value={performance?.profile.rank ?? "ACADEMY"} />
             <MiniStat label="Reliability index" value={`${performance?.reliability.analystReliabilityIndex ?? 50}/100`} />
             <MiniStat label="Capital allocation" value={money(performance?.profile.capitalAllocationCents ?? 0)} />
             <MiniStat label="Graduation AI" value={performance?.graduationRecommendation.replace("_", " ") ?? "PENDING"} />
           </div>
-          <p className="mt-4 text-sm text-zinc-400">Internal analyst data is never exposed to subscribers. Published outputs appear only as FPF Intelligence.</p>
+          <p className="mt-4 text-sm text-zinc-400">Internal review data is never exposed to subscribers. Published outputs appear only as FPF Intelligence.</p>
         </Panel>
         <Panel title="Assigned Matches">
           <div className="space-y-2">
@@ -2540,7 +2649,7 @@ function AnalystAcademyView({
 }) {
   return (
     <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_380px]">
-      <Panel title="FPF Analyst Academy">
+      <Panel title="FPF Operations Academy">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MiniStat label="Status" value={performance?.academy?.status ?? "Pending academy activation"} />
           <MiniStat label="Duration" value={`${performance?.academy?.durationDays ?? 14} days`} />
@@ -2664,19 +2773,19 @@ function AdminAnalystCommandCenter({
   control: AdminAnalystControlCenter | null;
   onAction: (path: string, body?: object) => Promise<void>;
 }) {
-  if (!control) return <LoadingSkeleton label="Preparing Analyst Command Center" />;
+  if (!control) return <LoadingSkeleton label="Preparing Internal Review Command Center" />;
   return (
     <div className="mt-6 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <Metric label="Applications" value={String(control.applications.length)} />
-        <Metric label="Analysts" value={String(control.analysts.length)} />
+        <Metric label="Review team" value={String(control.analysts.length)} />
         <Metric label="Academy" value={String(control.academy.length)} />
         <Metric label="Demo predictions" value={String(control.predictions.length)} />
         <Metric label="Fraud signals" value={String(control.fraudSignals.length)} />
         <Metric label="Reward pool" value={`${control.rewardPoolPercent}%`} />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="Analyst Applications">
+        <Panel title="Internal Review Applications">
           <div className="space-y-3">
             {control.applications.map((application) => (
               <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={application.id}>
@@ -3327,7 +3436,7 @@ function AnalystTreasuryViewPanel({ treasury }: { treasury: AnalystTreasuryView 
   if (!treasury) return <LoadingSkeleton label="Preparing analyst treasury controls" />;
   return (
     <div className="mt-6 space-y-4">
-      <Panel title="Analyst Treasury Visibility">
+      <Panel title="Operations Treasury Visibility">
         <p className="text-sm text-zinc-400">{treasury.notice}</p>
       </Panel>
       <Panel title="My Approved Allocations">
@@ -5685,27 +5794,32 @@ function UnifiedOperatingSystemStrip({
   );
 }
 
-function LaunchExperienceCenter({ onDismiss, role }: { onDismiss: () => void; role: AuthUser["role"] }) {
+function ExecutiveSessionBriefing({ onDismiss, role }: { onDismiss: () => void; role: AuthUser["role"] }) {
+  const roleFocus = role === "ADMIN"
+    ? "Command center oversight, platform health, user activity, and intelligence queues."
+    : role === "INVESTOR"
+      ? "Portfolio status, reports, wallet history, and distribution transparency."
+      : role === "ANALYST"
+        ? "Internal intelligence operations, review queues, and evidence workflow."
+        : "Approved opportunities, live match context, reports, and subscription status.";
   return (
-    <section className="mt-4 rounded-lg border border-emerald-400/20 bg-gradient-to-br from-zinc-900 to-emerald-950/20 p-5">
+    <section className="executive-session-brief">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Operational briefing</p>
-          <h2 className="mt-2 text-xl font-semibold">Your FPF command workspace is ready.</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
-            Review current alerts, open your priority workspace, and use settings to manage language, currency, timezone, security, and notification preferences.
-          </p>
+          <PremiumSectionHeader eyebrow="Executive session brief" title="Your FPF workspace is live.">
+            <p>{roleFocus}</p>
+          </PremiumSectionHeader>
         </div>
-        <button className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={onDismiss}>Start</button>
+        <button className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-zinc-950" type="button" onClick={onDismiss}>Enter workspace</button>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
-        {[
-          ["Status", "Platform health, provider signals, and notifications remain visible."],
-          ["Security", "Protected routes use your verified role and active session."],
-          ["Review", "Operational queues show only the data your role is authorized to access."],
-          ["Reports", "Performance, financial, and intelligence reports remain separated by role."],
-        ].map(([title, body]) => <MiniStat key={title} label={title} value={body} />)}
-      </div>
+      <PremiumMetricGrid
+        metrics={[
+          { label: "System Health", value: "Ready", detail: "Protected API routing online", status: "live" },
+          { label: "Session Security", value: "Verified", detail: "Bearer session and role checks active", status: "ready" },
+          { label: "Data Separation", value: "Enforced", detail: "Internal queues stay private by role", status: "ready" },
+          { label: "Reports", value: "Available", detail: "Financial, performance, and intelligence modules remain segmented", status: "ready" },
+        ]}
+      />
     </section>
   );
 }
