@@ -124,20 +124,30 @@ const navItems = [
   "Notifications",
   "Referral Program",
 ] as const;
-const adminNavBaseItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Intelligence Review", "Analyst Command", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
+const adminNavBaseItems = ["Admin Dashboard", "Executive BI", "Infrastructure Center", "Payment Center", "Prediction Review", "Operations Review Queue", "AI Intelligence Center", "War Room", "Treasury Center", "Executive Situation", "Investor Management", "Business Control", "Media Command", "Reports", "Monitoring", "Announcements", "Fixture Management", "User Management", "Audit Logs", "Settings"] as const;
 const futureAdminNavItems = ["Global Command Wall"] as const;
 const adminNavItems = [...adminNavBaseItems, ...(enableExecutiveGlobalCommandWall ? futureAdminNavItems : [])] as const;
+const operationsCommandItems = ["AI Intelligence Center", "War Room", "Reports", "Monitoring", "Settings"] as const;
 const investorNavItemsWithWallet = ["Investor Dashboard", "Simulator", "Earnings", "Reports", "Capital", "Profile", "Settings", "Documents", "Support", "Wallet", "Payments", "Investment Plans", "Portfolio", "Withdrawals"] as const;
-const analystNavItems = ["Analyst Dashboard", "War Room", "Academy", "Prediction Workspace", "Performance", "My Analytics", "Treasury", "Rewards", "Profile", "Settings"] as const;
 
 type AuthMode = "login" | "register" | "forgot";
 type NavItem = (typeof navItems)[number];
 type AdminNavItem = (typeof adminNavItems)[number];
 type InvestorNavItem = (typeof investorNavItemsWithWallet)[number];
-type AnalystNavItem = (typeof analystNavItems)[number];
+type AnalystNavItem =
+  | "Analyst Dashboard"
+  | "War Room"
+  | "Academy"
+  | "Prediction Workspace"
+  | "Performance"
+  | "My Analytics"
+  | "Treasury"
+  | "Rewards"
+  | "Profile"
+  | "Settings";
 type PredictionWithFixture = PredictionResult & { fixture?: FootballFixtureDetail };
 type SearchResult = { category: string; title: string; description: string; target?: string };
-type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem | AnalystNavItem;
+type PlatformNavTarget = NavItem | AdminNavItem | InvestorNavItem;
 type PublicPageDefinition = {
   label: string;
   path: string;
@@ -148,11 +158,10 @@ type PublicPageDefinition = {
 const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Home", path: "/", id: "home", description: "Cinematic FPF homepage and launch gateway." },
   { label: "About", path: "/about", id: "about", description: "The Football Performance Fund mission and operating model." },
-  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, analyst, and admin platform." },
-  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How data, AI, analysts, and admin approval become FPF intelligence." },
+  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, operations, and admin platform." },
+  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How data, AI, internal review, and admin approval become FPF intelligence." },
   { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
   { label: "Investors", path: "/investors", id: "investors", description: "Investor transparency, simulator, reports, and risk-first controls." },
-  { label: "Analyst Applications", path: "/analyst-applications", id: "analyst-applications", description: "Professional internal analyst application journey." },
   { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
   { label: "AI Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Explainable football intelligence, confidence, risk, and value scores." },
   { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
@@ -161,7 +170,7 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Security", path: "/security", id: "security", description: "Authentication, authorization, privacy, and risk controls." },
   { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and launch-stage insights." },
   { label: "Media", path: "/media", id: "media", description: "Media center, announcements, and press resources." },
-  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal analyst pathway, and partner programmes." },
+  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal operations pathway, and partner programmes." },
   { label: "Contact", path: "/contact", id: "contact", description: "Contact and support entry points." },
   { label: "FAQ", path: "/faq", id: "faq", description: "Frequently asked questions." },
   { label: "Privacy Policy", path: "/privacy-policy", id: "privacy-policy", description: "Privacy and data preference information." },
@@ -174,13 +183,14 @@ const publicPageDefinitions: PublicPageDefinition[] = [
 const publicPathAliases: Record<string, string> = {
   "/for-subscribers": "/subscribers",
   "/for-investors": "/investors",
-  "/for-analysts": "/analyst-applications",
+  "/for-analysts": "/ai-intelligence",
   "/legal": "/terms-and-conditions",
   "/privacy": "/privacy-policy",
   "/terms": "/terms-and-conditions",
 };
 
 const legacyPrivatePaths = ["/app", "/dashboard", "/dashboard/admin", "/dashboard/subscriber", "/dashboard/investor", "/dashboard/analyst"];
+const publicRegistrationRoles = PUBLIC_USER_ROLES.filter((role) => role !== "ANALYST");
 
 function normalizedPathname(pathname = window.location.pathname) {
   const clean = pathname.replace(/\/+$/, "");
@@ -229,6 +239,28 @@ function getStoredSession() {
   } catch {
     return null;
   }
+}
+
+function getStoredSessionLocation() {
+  if (localStorage.getItem("fpf_session")) return "local";
+  if (sessionStorage.getItem("fpf_session")) return "session";
+  return null;
+}
+
+function persistSession(nextSession: AuthResponse, storage: "local" | "session") {
+  const serialized = JSON.stringify(nextSession);
+  sessionStorage.removeItem("fpf_session");
+  localStorage.removeItem("fpf_session");
+  if (storage === "local") localStorage.setItem("fpf_session", serialized);
+  else sessionStorage.setItem("fpf_session", serialized);
+}
+
+function isInternalOperationsRole(role: AuthUser["role"]) {
+  return role === "ANALYST";
+}
+
+function isAdminCommandRole(role: AuthUser["role"]) {
+  return role === "ADMIN" || isInternalOperationsRole(role);
 }
 
 const defaultGlobalPreferences: UserGlobalPreferences = {
@@ -286,8 +318,10 @@ export default function App() {
   const [activeView, setActiveView] = useState<NavItem>("Subscriber Home");
   const [activeAdminView, setActiveAdminView] = useState<AdminNavItem>("Admin Dashboard");
   const [activeInvestorView, setActiveInvestorView] = useState<InvestorNavItem>("Investor Dashboard");
-  const [activeAnalystView, setActiveAnalystView] = useState<AnalystNavItem>("Analyst Dashboard");
-  const [adminMode, setAdminMode] = useState(() => getStoredSession()?.user.role === "ADMIN");
+  const [adminMode, setAdminMode] = useState(() => {
+    const stored = getStoredSession();
+    return stored ? isAdminCommandRole(stored.user.role) : false;
+  });
   const [message, setMessage] = useState("");
   const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
   const [error, setError] = useState("");
@@ -400,7 +434,7 @@ export default function App() {
   useEffect(() => {
     if (!session && isLegacyPrivatePath(currentPath)) setMode("login");
     if (!session && ["/login", "/signin", "/sign-in"].includes(currentPath)) setMode("login");
-    if (!session && ["/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst"].includes(currentPath)) setMode("register");
+    if (!session && ["/register", "/get-started", "/subscribe", "/become-an-investor"].includes(currentPath)) setMode("register");
     if (!session && ["/forgot-password", "/reset-password"].includes(currentPath)) setMode("forgot");
   }, [currentPath, session]);
 
@@ -466,7 +500,7 @@ export default function App() {
 
       if (session.user.role === "SUBSCRIBER") await loadSubscriberData(session.token);
       if (session.user.role === "INVESTOR") await loadInvestorData(session.token);
-      if (session.user.role === "ANALYST") await loadAnalystData(session.token);
+      if (isInternalOperationsRole(session.user.role)) await loadOperationsTeamData(session.token);
     };
 
     void loadSessionData();
@@ -475,6 +509,40 @@ export default function App() {
       cancelled = true;
     };
   }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+
+    const validateStoredSession = async () => {
+      try {
+        const data = await apiGet<{ user: AuthUser }>("/users/me", session.token);
+        if (cancelled) return;
+        const refreshedSession = { ...session, user: data.user };
+        const storage = getStoredSessionLocation() ?? "session";
+        persistSession(refreshedSession, storage);
+        setSession(refreshedSession);
+        setAdminMode(isAdminCommandRole(data.user.role));
+        if (isInternalOperationsRole(data.user.role)) setActiveAdminView("AI Intelligence Center");
+      } catch {
+        if (cancelled) return;
+        localStorage.removeItem("fpf_session");
+        sessionStorage.removeItem("fpf_session");
+        clearPrivateClientState();
+        setSession(null);
+        setMode("login");
+        setError("Your session has expired. Please sign in again.");
+        window.history.replaceState(null, "", "/login");
+        setCurrentPath("/login");
+      }
+    };
+
+    void validateStoredSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.token]);
 
   useEffect(() => {
     if (!session || !["SUBSCRIBER", "ADMIN"].includes(session.user.role)) return;
@@ -615,15 +683,10 @@ export default function App() {
   }, [adminAnnouncements, adminInvestorManagement, adminUsers, fixtures, globalSearch, mediaDashboard?.posts, operationalNotifications, operationalReports, predictions, publishedIntelligence, session?.user.role]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
-    const serialized = JSON.stringify(nextSession);
-    sessionStorage.removeItem("fpf_session");
-    localStorage.removeItem("fpf_session");
-    if (rememberMe) localStorage.setItem("fpf_session", serialized);
-    else sessionStorage.setItem("fpf_session", serialized);
-    setAdminMode(nextSession.user.role === "ADMIN");
-    setActiveAdminView("Admin Dashboard");
+    persistSession(nextSession, rememberMe ? "local" : "session");
+    setAdminMode(isAdminCommandRole(nextSession.user.role));
+    setActiveAdminView(isInternalOperationsRole(nextSession.user.role) ? "AI Intelligence Center" : "Admin Dashboard");
     setActiveInvestorView("Investor Dashboard");
-    setActiveAnalystView("Analyst Dashboard");
     setActiveView("Subscriber Home");
     setSession(nextSession);
     window.history.pushState(null, "", "/app");
@@ -666,6 +729,7 @@ export default function App() {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
+      sameOriginApiEndpoint(path),
     );
   }
 
@@ -680,6 +744,7 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
+      sameOriginApiEndpoint(path),
     );
   }
 
@@ -694,6 +759,7 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
+      sameOriginApiEndpoint(path),
     );
   }
 
@@ -708,6 +774,7 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
+      sameOriginApiEndpoint(path),
     );
   }
 
@@ -882,9 +949,10 @@ export default function App() {
     }
   }
 
-  async function loadAnalystData(token: string) {
+  async function loadOperationsTeamData(token: string) {
     try {
-      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData, treasuryData, analyticsData] = await Promise.all([
+      setLoadingLabel("Loading AI Intelligence Center");
+      const [dashboard, performanceData, assignmentsData, submissionsData, fixtureData, workflowData, warRoomData, decisionData] = await Promise.all([
         apiGet<AnalystDashboard>("/analyst/dashboard", token),
         apiGet<AnalystPerformanceDashboard>("/analyst/performance", token),
         apiGet<{ assignments: AnalystAssignment[] }>("/analyst/assignments", token),
@@ -892,8 +960,7 @@ export default function App() {
         apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token),
         apiGet<PredictionWorkflowQueue>("/prediction-workflow/queue?sort=priority", token),
         apiGet<WarRoomDashboard>("/war-room", token),
-        apiGet<AnalystTreasuryView>("/treasury/analyst/me", token),
-        apiGet<AnalystPrivateAnalytics>("/analytics/analyst/me", token),
+        apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token),
       ]);
       setAnalystDashboard(dashboard);
       setAnalystPerformance(performanceData);
@@ -902,11 +969,11 @@ export default function App() {
       setFixtures(fixtureData.fixtures);
       setPredictionWorkflowQueue(workflowData);
       setWarRoom(warRoomData);
-      setAnalystTreasury(treasuryData);
-      setAnalystAnalytics(analyticsData);
-      setLoadingLabel("Analyst workspace ready");
+      setAdminDecisionOutputs(decisionData.decisions);
+      setAdminIntelligence(submissionsData.submissions);
+      setLoadingLabel("AI Intelligence Center ready");
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Unable to load analyst workspace");
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load AI Intelligence Center");
     }
   }
 
@@ -975,10 +1042,15 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
+      sameOriginApiEndpoint(path),
     );
     await loadOperationsData(session.token);
-    await loadAdminData(session.token);
-    if (session.user.role === "ADMIN") await loadSubscriberData(session.token);
+    if (session.user.role === "ADMIN") {
+      await loadAdminData(session.token);
+      await loadSubscriberData(session.token);
+    } else if (isInternalOperationsRole(session.user.role)) {
+      await loadOperationsTeamData(session.token);
+    }
   }
 
   async function adminSimulate(body: InvestorSimulatorInput) {
@@ -1015,8 +1087,9 @@ export default function App() {
         },
         body: body ? JSON.stringify(body) : undefined,
       },
+      sameOriginApiEndpoint(path),
     );
-    await loadAnalystData(session.token);
+    await loadOperationsTeamData(session.token);
   }
 
   async function loadAnalystAssistance(fixtureId: string) {
@@ -1125,7 +1198,6 @@ export default function App() {
     setActiveView("Subscriber Home");
     setActiveAdminView("Admin Dashboard");
     setActiveInvestorView("Investor Dashboard");
-    setActiveAnalystView("Analyst Dashboard");
     setGlobalSearch("");
     setFavoriteModules([]);
     setRecentPages([]);
@@ -1210,7 +1282,6 @@ export default function App() {
   function currentModuleLabel() {
     if (adminMode) return activeAdminView;
     if (session?.user.role === "INVESTOR") return activeInvestorView;
-    if (session?.user.role === "ANALYST") return activeAnalystView;
     return activeView;
   }
 
@@ -1238,8 +1309,6 @@ export default function App() {
       setActiveAdminView(label as AdminNavItem);
     } else if (session?.user.role === "INVESTOR" && (investorNavItemsWithWallet as readonly string[]).includes(label)) {
       setActiveInvestorView(label as InvestorNavItem);
-    } else if (session?.user.role === "ANALYST" && (analystNavItems as readonly string[]).includes(label)) {
-      setActiveAnalystView(label as AnalystNavItem);
     } else if ((navItems as readonly string[]).includes(label)) {
       setActiveView(label as NavItem);
     } else if ((adminNavItems as readonly string[]).includes(label) && session?.user.role === "ADMIN") {
@@ -1284,11 +1353,11 @@ export default function App() {
   const daily = [...predictions].sort((a, b) => b.confidenceScore - a.confidenceScore);
   const recent = predictions.slice(0, 5);
   const navigationItems = adminMode
-    ? adminNavItems
+    ? isInternalOperationsRole(session.user.role)
+      ? operationsCommandItems
+      : adminNavItems
     : session.user.role === "INVESTOR"
       ? investorNavItemsWithWallet
-      : session.user.role === "ANALYST"
-        ? analystNavItems
       : navItems;
 
   return (
@@ -1297,7 +1366,7 @@ export default function App() {
         <aside className="flex max-h-dvh flex-col overflow-hidden border-b border-zinc-800 bg-zinc-950/95 px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-6">
           <div className="shrink-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Football Performance Fund</p>
-            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : session.user.role === "ANALYST" ? "Analyst Operations" : "Subscriber Platform"}</h1>
+            <h1 className="mt-2 text-xl font-bold">{adminMode ? "Admin Command" : session.user.role === "INVESTOR" ? "Investor Platform" : "Subscriber Platform"}</h1>
           </div>
           <div className="mt-4 shrink-0">
             <ThemeSwitcher theme={themePreference} onChange={setThemePreference} />
@@ -1310,8 +1379,6 @@ export default function App() {
                     ? activeAdminView === item
                     : session.user.role === "INVESTOR"
                       ? activeInvestorView === item
-                      : session.user.role === "ANALYST"
-                        ? activeAnalystView === item
                       : activeView === item)
                     ? "bg-emerald-300 text-zinc-950"
                     : "bg-zinc-900 text-zinc-300 hover:text-white"
@@ -1390,7 +1457,6 @@ export default function App() {
             onNotifications={() => {
               if (session.user.role === "SUBSCRIBER") setActiveView("Notifications");
               else if (session.user.role === "INVESTOR") setActiveInvestorView("Support");
-              else if (session.user.role === "ANALYST") setActiveAnalystView("Analyst Dashboard");
               else setActiveAdminView("Monitoring");
             }}
             onQuery={setGlobalSearch}
@@ -1402,7 +1468,7 @@ export default function App() {
               if (adminMode) setActiveAdminView("Settings");
               else if (session.user.role === "SUBSCRIBER") setActiveView("Settings");
               else if (session.user.role === "INVESTOR") setActiveInvestorView("Settings");
-              else if (session.user.role === "ANALYST") setActiveAnalystView("Settings");
+              else if (isInternalOperationsRole(session.user.role)) setActiveAdminView("Settings");
             }}
           />
           <UnifiedOperatingSystemStrip
@@ -1444,7 +1510,7 @@ export default function App() {
               health={platformHealth}
               syncLogs={syncLogs}
               users={adminUsers}
-              onAction={adminAction}
+              onAction={isInternalOperationsRole(session.user.role) ? analystAction : adminAction}
               onSimulate={adminSimulate}
               globalization={{ languages, currencies, timezones, preferences: globalPreferences }}
               onGlobalPreferences={saveGlobalPreferences}
@@ -1461,53 +1527,7 @@ export default function App() {
               treasuryDashboard={treasuryDashboard}
               executiveSituation={executiveSituation}
               executiveAnalytics={executiveAnalytics}
-            />
-          ) : null}
-
-          {!adminMode && session.user.role === "ANALYST" && activeAnalystView === "Profile" ? (
-            <ProfileView
-              currencies={currencies}
-              languages={languages}
-              onSignOut={signOut}
-              onPasswordChange={safelySubmit(handlePasswordChange)}
-              onPreferences={saveGlobalPreferences}
-              preferences={globalPreferences}
-              session={session}
-              timezones={timezones}
-            />
-          ) : null}
-
-          {!adminMode && session.user.role === "ANALYST" && activeAnalystView === "Settings" ? (
-            <SettingsCenterView
-              currencies={currencies}
-              languages={languages}
-              notificationPreferences={notificationPreferences}
-              notifications={operationalNotifications}
-              onSignOut={signOut}
-              onPasswordChange={safelySubmit(handlePasswordChange)}
-              onPreferences={saveGlobalPreferences}
-              onSaveNotificationPreferences={saveNotificationPreferences}
-              preferences={globalPreferences}
-              session={session}
-              timezones={timezones}
-            />
-          ) : null}
-
-          {!adminMode && session.user.role === "ANALYST" && activeAnalystView !== "Profile" && activeAnalystView !== "Settings" ? (
-            <AnalystPortal
-              activeView={activeAnalystView}
-              assignments={analystAssignments}
-              assistance={analystAssistance}
-              dashboard={analystDashboard}
-              performance={analystPerformance}
-              fixtures={fixtures}
-              workflowQueue={predictionWorkflowQueue}
-              warRoom={warRoom}
-              treasury={analystTreasury}
-              analytics={analystAnalytics}
-              submissions={analystSubmissions}
-              onAction={analystAction}
-              onAssistance={loadAnalystAssistance}
+              role={session.user.role}
             />
           ) : null}
 
@@ -1677,6 +1697,7 @@ function AdminPortal({
   overview,
   predictions,
   reports,
+  role,
   settings,
   syncLogs,
   users,
@@ -1715,6 +1736,7 @@ function AdminPortal({
   overview: AdminOverview | null;
   predictions: PredictionResult[];
   reports: AdminReports | null;
+  role: AuthUser["role"];
   settings: AdminSettings | null;
   syncLogs: AuditLogEntry[];
   users: AdminUser[];
@@ -1794,6 +1816,20 @@ function AdminPortal({
     );
   }
 
+  if (activeView === "AI Intelligence Center") {
+    return (
+      <AIIntelligenceCenterView
+        decisions={decisions}
+        fixtures={fixtures}
+        intelligence={intelligence}
+        isAdmin={role === "ADMIN"}
+        onAction={onAction}
+        treasuryDashboard={treasuryDashboard}
+        workflowQueue={workflowQueue}
+      />
+    );
+  }
+
   if (activeView === "Reports") {
     return <AdminReportsView operationalReports={operationalReports} reports={reports} onAction={onAction} />;
   }
@@ -1818,7 +1854,7 @@ function AdminPortal({
     return <AdminAnnouncementsView announcements={adminAnnouncements} onAction={onAction} />;
   }
 
-  if (activeView === "Intelligence Review") {
+  if (activeView === "Operations Review Queue") {
     return (
       <Panel title="FPF Intelligence Review">
         <form
@@ -1881,10 +1917,6 @@ function AdminPortal({
         </div>
       </Panel>
     );
-  }
-
-  if (activeView === "Analyst Command") {
-    return <AdminAnalystCommandCenter control={analystControl} onAction={onAction} />;
   }
 
   if (activeView === "War Room") {
@@ -1997,6 +2029,217 @@ function AdminPortal({
         />
       </div>
     </Panel>
+  );
+}
+
+function AIIntelligenceCenterView({
+  decisions,
+  fixtures,
+  intelligence,
+  isAdmin,
+  onAction,
+  treasuryDashboard,
+  workflowQueue,
+}: {
+  decisions: DecisionEngineOutput[];
+  fixtures: FootballFixtureSummary[];
+  intelligence: AnalystIntelligenceSubmission[];
+  isAdmin: boolean;
+  onAction: (path: string, body?: object) => Promise<void>;
+  treasuryDashboard: TreasuryDashboard | null;
+  workflowQueue: PredictionWorkflowQueue | null;
+}) {
+  const workflowItems = workflowQueue?.items ?? [];
+  const candidateItems = workflowItems.filter((item) => ["NEW", "ANALYZING", "PENDING_REVIEW", "UNDER_REVIEW"].includes(item.status));
+  const publishingItems = workflowItems.filter((item) => ["APPROVED", "PUBLISHED"].includes(item.status));
+  const approvedSubmissions = intelligence.filter((submission) => ["APPROVED", "PUBLISHED"].includes(submission.status));
+  const pendingSubmissions = intelligence.filter((submission) => ["DRAFT", "PENDING_REVIEW"].includes(submission.status));
+  const totalConfidence = decisions.reduce((sum, decision) => sum + decision.scores.confidenceScore, 0);
+  const averageConfidence = decisions.length ? Math.round(totalConfidence / decisions.length) : 0;
+  const totalRisk = decisions.reduce((sum, decision) => sum + decision.scores.riskScore, 0);
+  const averageRisk = decisions.length ? Math.round(totalRisk / decisions.length) : 0;
+
+  function exportBriefing() {
+    const rows = [
+      ["Metric", "Value"],
+      ["Fixtures scanned", String(fixtures.length)],
+      ["AI decisions", String(decisions.length)],
+      ["Queue candidates", String(candidateItems.length)],
+      ["Pending internal reviews", String(pendingSubmissions.length)],
+      ["Approved internal intelligence", String(approvedSubmissions.length)],
+      ["Average confidence", `${averageConfidence}%`],
+      ["Average risk", `${averageRisk}%`],
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `fpf-ai-intelligence-briefing-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="AI Intelligence Center">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <Metric label="Today's AI scans" value={String(decisions.length)} />
+          <Metric label="Review queue" value={String(candidateItems.length)} />
+          <Metric label="Publish queue" value={String(publishingItems.length)} />
+          <Metric label="Avg confidence" value={`${averageConfidence}%`} />
+          <Metric label="Avg risk" value={`${averageRisk}%`} />
+          <Metric label="Internal status" value="Ready" />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button" onClick={exportBriefing}>
+            Export daily briefing
+          </button>
+          <button className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200" type="button" onClick={() => window.print()}>
+            Print command view
+          </button>
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Panel title="Today's AI Scans">
+          <div className="space-y-3">
+            {decisions.slice(0, 8).map((decision) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={decision.id}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{decision.status.replaceAll("_", " ")}</p>
+                    <h3 className="mt-2 text-lg font-semibold">{decision.match}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">{decision.league} | {decision.recommendedMarket} | {decision.predictedOutcome}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <MiniStat label="Confidence" value={`${decision.scores.confidenceScore}%`} />
+                    <MiniStat label="Risk" value={`${decision.scores.riskScore}`} />
+                    <MiniStat label="Value" value={`${decision.scores.valueScore}`} />
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {(decision.reasoning.length ? decision.reasoning : ["Pending live data enrichment."]).slice(0, 4).map((reason) => (
+                    <p className="rounded-md bg-emerald-500/10 p-2 text-xs text-emerald-100" key={reason}>{reason}</p>
+                  ))}
+                </div>
+                {decision.warnings.length ? (
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {decision.warnings.slice(0, 3).map((warning) => (
+                      <p className="rounded-md bg-amber-500/10 p-2 text-xs text-amber-100" key={warning}>{warning}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+            {!decisions.length ? <p className="text-sm text-zinc-400">No AI scans are available yet. The center will populate as fixtures and provider data are processed.</p> : null}
+          </div>
+        </Panel>
+
+        <Panel title="Executive Daily Briefing">
+          <div className="space-y-3">
+            <MiniStat label="Fixtures monitored" value={String(fixtures.length)} />
+            <MiniStat label="Markets in queue" value={String(new Set(workflowItems.map((item) => item.recommendedMarket)).size)} />
+            <MiniStat label="Internal reviews pending" value={String(pendingSubmissions.length)} />
+            <MiniStat label="Approved FPF intelligence" value={String(approvedSubmissions.length)} />
+            <MiniStat label="Company exposure" value={money(treasuryDashboard?.accounts.capitalCurrentlyExposedCents ?? 0)} />
+            <MiniStat label="Reconciliation" value={money(treasuryDashboard?.accounts.outstandingReconciliationCents ?? 0)} />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-zinc-400">
+            This internal command surface combines AI scans, operations review, publication readiness, and company capital visibility. Subscriber pages only receive approved FPF Intelligence.
+          </p>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Operations Review Queue">
+          <div className="space-y-3">
+            {candidateItems.slice(0, 8).map((item) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.status.replaceAll("_", " ")}</p>
+                    <h3 className="mt-2 font-semibold">{item.match}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">{item.league} | {item.recommendedMarket} | Priority {item.priority}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <MiniStat label="Confidence" value={`${item.confidenceScore}%`} />
+                    <MiniStat label="Risk" value={`${item.riskScore}`} />
+                    <MiniStat label="Opportunity" value={`${item.opportunityScore}`} />
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-zinc-300">{item.explanation}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="rounded-md bg-emerald-300 px-3 py-2 text-xs font-semibold text-zinc-950" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "APPROVE", notes: "Approved from AI Intelligence Center." })}>Approve candidate</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "REQUEST_REVIEW", notes: "Additional internal review requested." })}>Request review</button>
+                  <button className="rounded-md border border-red-800 px-3 py-2 text-xs text-red-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "REJECT", notes: "Rejected from AI Intelligence Center." })}>Reject</button>
+                </div>
+              </article>
+            ))}
+            {!candidateItems.length ? <p className="text-sm text-zinc-400">No candidates are waiting for operations review.</p> : null}
+          </div>
+        </Panel>
+
+        <Panel title="Subscriber Publishing Queue">
+          <div className="space-y-3">
+            {publishingItems.slice(0, 8).map((item) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{item.status.replaceAll("_", " ")}</p>
+                <h3 className="mt-2 font-semibold">{item.match}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{item.predictedOutcome} | {item.recommendedMarket}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="rounded-md border border-emerald-700 px-3 py-2 text-xs text-emerald-100" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "PUBLISH", notes: "Published from AI Intelligence Center." })}>Publish to subscribers</button>
+                  <button className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-200" type="button" onClick={() => void onAction(`/prediction-workflow/queue/${item.id}/actions`, { action: "ARCHIVE", notes: "Archived from AI Intelligence Center." })}>Archive</button>
+                </div>
+              </article>
+            ))}
+            {!publishingItems.length ? <p className="text-sm text-zinc-400">No approved intelligence is waiting for publication.</p> : null}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Company Bets Queue">
+          <div className="space-y-3">
+            {(treasuryDashboard?.capitalAllocations ?? []).slice(0, 8).map((allocation) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={allocation.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{allocation.approvalStatus} | {allocation.riskGrade} risk</p>
+                <h3 className="mt-2 font-semibold">{allocation.fixture}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{allocation.market} | {allocation.selection}</p>
+                {isAdmin ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <MiniStat label="Recommended stake" value={money(allocation.recommendedStakeCents)} />
+                    <MiniStat label="Max stake" value={money(allocation.maximumAllowedStakeCents)} />
+                    <MiniStat label="Expected return" value={money(allocation.expectedReturnCents)} />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-zinc-400">Stake management is controlled by authorized company roles.</p>
+                )}
+              </article>
+            ))}
+            {!treasuryDashboard?.capitalAllocations.length ? <p className="text-sm text-zinc-400">No company capital allocations are queued.</p> : null}
+          </div>
+        </Panel>
+
+        <Panel title="Betting Ledger">
+          <div className="space-y-3">
+            {(treasuryDashboard?.executions ?? []).slice(0, 6).map((execution) => (
+              <article className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={execution.id}>
+                <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">{execution.status.replaceAll("_", " ")}</p>
+                <h3 className="mt-2 font-semibold">{execution.fixture}</h3>
+                <p className="mt-1 text-sm text-zinc-400">{execution.market} | {execution.selection} | {execution.bookmaker}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <MiniStat label="Actual stake" value={money(execution.actualStakeCents)} />
+                  <MiniStat label="Odds" value={String(execution.actualOdds)} />
+                  <MiniStat label="Currency" value={execution.currency} />
+                </div>
+              </article>
+            ))}
+            {!treasuryDashboard?.executions.length ? <p className="text-sm text-zinc-400">No betting executions have been recorded yet.</p> : null}
+          </div>
+        </Panel>
+      </div>
+    </div>
   );
 }
 
@@ -4546,7 +4789,7 @@ function PublicLaunchExperience({
   theme: ThemePreference;
 }) {
   const currentPage = getCanonicalPublicPage(currentPath);
-  const isUnknownPublicRoute = !currentPage && !isLegacyPrivatePath(currentPath) && !["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/apply-as-analyst", "/forgot-password", "/reset-password"].includes(currentPath);
+  const isUnknownPublicRoute = !currentPage && !isLegacyPrivatePath(currentPath) && !["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/forgot-password", "/reset-password"].includes(currentPath);
   if (isUnknownPublicRoute) {
     return <PublicNotFoundPage onNavigate={onNavigate} />;
   }
@@ -4596,70 +4839,6 @@ function LaunchPanel({ id, items, title }: { id: string; items: string[]; title:
       <h2 className="text-xl font-semibold">{title}</h2>
       <div className="mt-4 grid gap-2">
         {items.map((item) => <div className="rounded-md bg-zinc-950 p-3 text-sm text-zinc-300" key={item}>{item}</div>)}
-      </div>
-    </section>
-  );
-}
-
-function AnalystApplicationPortal() {
-  const [status, setStatus] = useState("");
-  return (
-    <section className="rounded-lg border border-emerald-400/20 bg-zinc-900 p-5" id="analyst-applications">
-      <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
-        <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-emerald-300">Professional Analyst Portal</p>
-          <h2 className="mt-2 text-2xl font-semibold">Apply to work inside the FPF intelligence desk.</h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-300">
-            Analysts are internal professionals. FPF does not publish analyst profiles, rankings, names, followers, likes, or individual public tips.
-            Approved candidates enter a 14-day academy with virtual capital and demo fixtures before any admin promotion decision.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <MiniStat label="Academy" value="14 days" />
-            <MiniStat label="Capital" value="Virtual only" />
-            <MiniStat label="Visibility" value="Internal" />
-          </div>
-        </div>
-        <form
-          className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            setStatus("Submitting application...");
-            try {
-              await fetchJson<{ application: AnalystApplication }>(apiEndpoint("/analyst-applications"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  fullName: form.get("fullName"),
-                  email: form.get("email"),
-                  country: form.get("country"),
-                  footballExperience: form.get("footballExperience"),
-                  preferredLeagues: String(form.get("preferredLeagues") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
-                  yearsOfExperience: Number(form.get("yearsOfExperience")),
-                  countriesCovered: String(form.get("countriesCovered") ?? "").split(",").map((item) => item.trim()).filter(Boolean),
-                  predictionStyle: form.get("predictionStyle"),
-                  motivationStatement: form.get("motivationStatement"),
-                }),
-              });
-              setStatus("Application submitted. FPF will review it internally.");
-              event.currentTarget.reset();
-            } catch (caughtError) {
-              setStatus(caughtError instanceof Error ? caughtError.message : "Unable to submit application.");
-            }
-          }}
-        >
-          <TextField label="Full name" name="fullName" type="text" />
-          <TextField label="Email" name="email" type="email" />
-          <TextField label="Country" name="country" type="text" />
-          <TextField label="Years of experience" name="yearsOfExperience" type="number" value="3" />
-          <TextField label="Preferred leagues" name="preferredLeagues" type="text" value="Premier League, La Liga" />
-          <TextField label="Countries covered" name="countriesCovered" type="text" value="England, Spain" />
-          <TextField label="Prediction style" name="predictionStyle" type="text" value="Risk-managed market analysis" />
-          <TextField label="Football experience" name="footballExperience" type="text" />
-          <TextField label="Motivation statement" name="motivationStatement" type="text" />
-          <SubmitButton>Submit analyst application</SubmitButton>
-          {status ? <p className="text-sm text-emerald-200">{status}</p> : null}
-        </form>
       </div>
     </section>
   );
@@ -4772,7 +4951,7 @@ function AuthPanel({
           <label className="block text-sm font-medium text-zinc-200">
             Role
             <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" name="role" defaultValue="SUBSCRIBER">
-              {PUBLIC_USER_ROLES.map((role) => (
+              {publicRegistrationRoles.map((role) => (
                 <option key={role} value={role}>{roleLabels[role]}</option>
               ))}
             </select>

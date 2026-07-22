@@ -130,14 +130,14 @@ export function Mission21PublicExperience({
             <p className="eyebrow">Institutional football intelligence</p>
             <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
             <p className="hero-support">
-              AI-powered football intelligence, professional analyst review, disciplined capital controls, and transparent performance reporting in one global platform.
+              AI-powered football intelligence, private operations review, disciplined capital controls, and transparent performance reporting in one global platform.
             </p>
             <div className="hero-actions">
               <button type="button" onClick={() => onNavigate("/ai-intelligence", "intelligence-preview")}>Explore Intelligence</button>
               <button type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
-              <button type="button" onClick={() => onNavigate("/investors", "investor-transparency")}>Become an Investor</button>
+              <button type="button" onClick={() => onNavigate("/investors", "investor-transparency")}>Become a Partner</button>
               <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
-              <button className="secondary" type="button" onClick={() => onNavigate("/analyst-applications", "analyst-academy")}>Apply as an Analyst</button>
+              <button className="secondary" type="button" onClick={() => onNavigate("/ai-intelligence", "intelligence-preview")}>View AI Intelligence</button>
             </div>
             <div className="hero-controls" aria-label="Hero slide controls">
               {heroSlides.map((slide, index) => (
@@ -198,7 +198,7 @@ export function Mission21PublicExperience({
           {[
             "Football data collected",
             "AI intelligence generated",
-            "Analysts review assigned fixtures",
+            "Private operations review assigned fixtures",
             "Rules and odds policy enforced",
             "Admin approves final intelligence",
             "Subscribers receive approved opportunities",
@@ -212,12 +212,12 @@ export function Mission21PublicExperience({
             </article>
           ))}
         </div>
-        <p className="policy-note">Suggested odds policy: minimum 1.60, maximum 2.00. Analyst work is internal, publication is Admin-controlled, and outcomes are never guaranteed.</p>
+        <p className="policy-note">Suggested odds policy: minimum 1.60, maximum 2.00. Internal review work is private, publication is Admin-controlled, and outcomes are never guaranteed.</p>
       </PublicSection>
 
       <PublicSection id="workspace-previews" eyebrow="Platform preview" title="One operating system, role-specific workspaces">
         <div className="preview-grid">
-          {["Subscriber Intelligence Dashboard", "Investor Portfolio Dashboard", "Analyst Academy", "Intelligence War Room", "Executive Analytics", "Treasury Controls"].map((title) => (
+          {["Subscriber Intelligence Dashboard", "Performance Partner Dashboard", "AI Intelligence Center", "Intelligence War Room", "Executive Analytics", "Treasury Controls"].map((title) => (
             <article className="workspace-preview" key={title}>
               <span>Platform Preview</span>
               <strong>{title}</strong>
@@ -238,11 +238,11 @@ export function Mission21PublicExperience({
         </div>
       </PublicSection>
 
-      <PublicSection id="investor-transparency" eyebrow="Investor transparency" title="Capital separation, reporting, and risk-first controls">
+      <PublicSection id="investor-transparency" eyebrow="Performance Partner transparency" title="Capital separation, reporting, and risk-first controls">
         <div className="split-layout">
           <div className="feature-panel">
-            <p>Investor capital is tracked separately from company operating funds. Weekly reporting and treasury reconciliation are designed for Admin approval before any payout process.</p>
-            <p className="policy-note">Default profit-distribution policy: Company 50%, Analyst Pool 20%, Investor Pool 30%. Returns are not guaranteed.</p>
+            <p>Performance Partner capital is tracked separately from company operating funds. Weekly reporting and treasury reconciliation are designed for Admin approval before any payout process.</p>
+            <p className="policy-note">Default profit-distribution policy: Company 50%, internal performance pool 20%, partner pool 30%. Returns are not guaranteed.</p>
           </div>
           <div className="signal-grid">
             <div><span>Minimum investment</span><strong>{money(experience?.commercial.minimumInvestmentCents ?? commercialStructure.minimumInvestmentCents)}</strong></div>
@@ -279,7 +279,7 @@ function LiveActivityBar({ experience }: { experience: PublicExperience | null }
   const activity = experience?.activity;
   const metrics = [
     { label: "Fixtures monitored", value: activity?.fixturesMonitored ?? 0, empty: "Monitoring cycle preparing" },
-    { label: "Analyst reviews today", value: activity?.analystReviewsCompleted ?? 0, empty: "Intelligence desk online" },
+    { label: "Operations reviews today", value: activity?.analystReviewsCompleted ?? 0, empty: "Intelligence desk online" },
     { label: "Pending approvals", value: activity?.pendingApproval ?? 0, empty: "Awaiting the next fixture cycle" },
     { label: "Covered leagues", value: activity?.leaguesCovered ?? 0, empty: "Coverage begins after provider activation" },
     { label: "Approved opportunities", value: activity?.approvedOpportunities ?? 0, empty: "Members-only publication queue preparing" },
@@ -346,14 +346,14 @@ function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: s
       id: "about",
       eyebrow: "About FPF",
       title: "A disciplined football intelligence company, not a public tipster feed",
-      body: "FPF combines normalized football data, AI scoring, internal analyst workflow, admin approval, and transparent reporting. Production authentication, role permissions, payments, treasury, and monitoring remain connected to the existing backend.",
+      body: "FPF combines normalized football data, AI scoring, private operations review, admin approval, and transparent reporting. Production authentication, role permissions, payments, treasury, and monitoring remain connected to the existing backend.",
       action: ["How FPF Works", "/how-fpf-works", "how-fpf-works"],
     },
     {
       id: "platform",
       eyebrow: "Unified platform",
       title: "One website and operating system",
-      body: "Guests, subscribers, investors, analysts, admins, and executives enter through one production app shell. Each role receives the correct protected workspace after login.",
+      body: "Guests, subscribers, performance partners, internal operators, admins, and executives enter through one production app shell. Each role receives the correct protected workspace after login.",
       action: ["Sign In", "/login", "auth"],
     },
     {
@@ -371,18 +371,18 @@ function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: s
       action: ["View Pricing", "/pricing", "pricing"],
     },
     {
-      id: "analyst-applications",
-      eyebrow: "Analyst pathway",
-      title: "Professional internal analysts, never public tipsters",
-      body: "Analysts work inside a protected workspace with assignments, rulebooks, discipline metrics, War Room context, and admin-controlled publication.",
-      action: ["Create Analyst Account", "/register", "auth"],
+      id: "ai-intelligence-center",
+      eyebrow: "AI Intelligence Center",
+      title: "Private review operations, never public tipsters",
+      body: "FPF intelligence is prepared inside protected workspaces with assignments, rulebooks, discipline metrics, War Room context, and admin-controlled publication.",
+      action: ["Explore Intelligence", "/ai-intelligence", "intelligence-preview"],
     },
     {
       id: "investor-packages",
-      eyebrow: "Investor packages",
-      title: "Investment education with risk-first placeholders",
-      body: "Investor pages explain minimums, lock periods, simulator assumptions, weekly distributions, and reporting while real payment and treasury rules stay in production services.",
-      action: ["Investor Overview", "/investors", "investor-transparency"],
+      eyebrow: "Performance Partner packages",
+      title: "Participation education with risk-first placeholders",
+      body: "Performance Partner pages explain minimums, lock periods, simulator assumptions, weekly distributions, and reporting while real payment and treasury rules stay in production services.",
+      action: ["Partner Overview", "/investors", "investor-transparency"],
     },
     {
       id: "blog",
@@ -401,15 +401,15 @@ function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: s
     {
       id: "careers",
       eyebrow: "Careers",
-      title: "Analysts, operations, engineering, and support",
-      body: "FPF is prepared for future hiring and contracted expert workflows without exposing internal analyst identities to subscribers.",
-      action: ["Apply as Analyst", "/analyst-applications", "analyst-applications"],
+      title: "Operations, engineering, compliance, and support",
+      body: "FPF is prepared for future internal and contracted expert workflows without exposing private staff identities to subscribers.",
+      action: ["Contact FPF", "/contact", "contact"],
     },
     {
       id: "contact",
       eyebrow: "Contact",
       title: "Support and partnership entry points",
-      body: "Subscribers, investors, analysts, partners, and media can start from the public app and route into the correct authenticated workflow when needed.",
+      body: "Subscribers, performance partners, country partners, operations staff, and media can start from the public app and route into the correct authenticated workflow when needed.",
       action: ["Sign In", "/login", "auth"],
     },
   ] as const;
@@ -514,7 +514,7 @@ function FAQSection() {
     <PublicSection id="faq" eyebrow="Questions" title="Clear answers before you join">
       <div className="faq-grid">
         <article><strong>Does FPF guarantee outcomes?</strong><p>No. Football intelligence supports decisions, but outcomes are never guaranteed.</p></article>
-        <article><strong>Are analysts public tipsters?</strong><p>No. Analysts are internal staff or approved contracted experts.</p></article>
+        <article><strong>Does FPF operate as a tipster marketplace?</strong><p>No. Intelligence work is private and published publicly only under the FPF brand when approved.</p></article>
         <article><strong>Are simulations real returns?</strong><p>No. Simulations are projection-only and separated from verified live results.</p></article>
         <article><strong>When are selections visible?</strong><p>Only Admin-approved intelligence is published to members.</p></article>
       </div>
@@ -526,7 +526,7 @@ function LegalDisclosures() {
   return (
     <section className="legal-strip" id="risk-disclosure">
       <strong>Legal and risk disclosures</strong>
-      <p>FPF does not guarantee football outcomes, fixed returns, investor profits, or payout timing. Public pages do not show private selections, investor identities, analyst identities, treasury balances, API keys, or internal logs.</p>
+      <p>FPF does not guarantee football outcomes, fixed returns, partner profits, or payout timing. Public pages do not show private selections, partner identities, internal staff identities, treasury balances, API keys, or internal logs.</p>
       <div className="legal-route-grid">
         <article id="privacy-policy">
           <strong>Privacy Policy</strong>
@@ -534,7 +534,7 @@ function LegalDisclosures() {
         </article>
         <article id="terms-and-conditions">
           <strong>Terms and Conditions</strong>
-          <p>Membership, investor, analyst, and admin workflows are governed by platform rules, risk disclosures, and production authorization controls.</p>
+          <p>Membership, performance partner, operations, and admin workflows are governed by platform rules, risk disclosures, and production authorization controls.</p>
         </article>
         <article id="responsible-participation">
           <strong>Responsible Participation</strong>

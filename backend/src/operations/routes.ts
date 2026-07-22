@@ -1,23 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
+import { USER_ROLES } from "@fpf/shared";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { AdminService } from "../admin/adminService.js";
 import type { OperationsService } from "./service.js";
 import type { AnnouncementCreateInput, IncidentCreateInput } from "./types.js";
-
-const USER_ROLES = [
-  "SUBSCRIBER",
-  "INVESTOR",
-  "ANALYST",
-  "ADMIN",
-  "CEO",
-  "FINANCE",
-  "RISK_MANAGER",
-  "CAPITAL_MANAGER",
-  "SUPER_ADMINISTRATOR",
-  "COUNTRY_PARTNER",
-] as const;
 
 const reportTypeSchema = z.enum([
   "SUBSCRIBER",
