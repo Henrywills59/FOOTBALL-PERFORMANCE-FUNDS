@@ -1513,6 +1513,185 @@ export type PredictionWorkflowAction =
   | "ARCHIVE"
   | "RESTORE";
 
+export type AiIntelligenceStatus =
+  | "SCANNED"
+  | "QUALIFIED"
+  | "REQUIRES_REVIEW"
+  | "APPROVED_SUBSCRIBER"
+  | "APPROVED_COMPANY"
+  | "APPROVED_BOTH"
+  | "REJECTED"
+  | "PUBLISHED"
+  | "WITHDRAWN"
+  | "EXPIRED";
+
+export type IntelligenceReviewDecision =
+  | "APPROVE_SUBSCRIBER"
+  | "APPROVE_COMPANY"
+  | "APPROVE_BOTH"
+  | "REJECT"
+  | "REQUEST_MORE_ANALYSIS"
+  | "WITHDRAW";
+
+export type SubscriberPublicationStatus = "DRAFT" | "SCHEDULED" | "PUBLISHED" | "WITHDRAWN" | "EXPIRED";
+
+export type CompanyBetPlacementStatus =
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "READY_TO_PLACE"
+  | "PLACED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "SETTLED";
+
+export type BettingLedgerResult = "PENDING" | "WON" | "LOST" | "VOID" | "PARTIAL_WIN" | "PARTIAL_LOSS" | "CANCELLED";
+
+export type AiIntelligenceRecord = {
+  id: string;
+  fixtureId: string;
+  matchLabel: string;
+  leagueName: string;
+  kickoffAt: string | null;
+  source: string;
+  scanStatus: AiIntelligenceStatus;
+  confidenceScore: number;
+  riskScore: number;
+  valueScore: number;
+  opportunityScore: number;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  reasoningSummary: string;
+  supportingMetrics: Record<string, unknown>;
+  riskFactors: string[];
+  alternativeMarkets: string[];
+  operationsNotes: string | null;
+  subscriberSummary: string | null;
+  dataQualityStatus: PredictionDataQualityStatus;
+  decisionEngineRunId: string | null;
+  createdByUserId: string | null;
+  lastReviewedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type AiIntelligenceReview = {
+  id: string;
+  intelligenceId: string;
+  reviewerUserId: string | null;
+  decision: IntelligenceReviewDecision;
+  previousStatus: AiIntelligenceStatus;
+  nextStatus: AiIntelligenceStatus;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type SubscriberPublication = {
+  id: string;
+  intelligenceId: string;
+  status: SubscriberPublicationStatus;
+  title: string;
+  summary: string;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  confidenceScore: number;
+  riskScore: number;
+  valueScore: number;
+  opportunityScore: number;
+  riskGrade: string;
+  visibleFrom: string | null;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SubscriberIntelligence = Pick<
+  SubscriberPublication,
+  | "id"
+  | "intelligenceId"
+  | "title"
+  | "summary"
+  | "recommendedMarket"
+  | "predictedOutcome"
+  | "confidenceScore"
+  | "riskScore"
+  | "valueScore"
+  | "opportunityScore"
+  | "riskGrade"
+  | "publishedAt"
+> & {
+  matchLabel: string;
+  leagueName: string;
+  kickoffAt: string | null;
+};
+
+export type CompanyBet = {
+  id: string;
+  intelligenceId: string;
+  status: CompanyBetPlacementStatus;
+  market: string;
+  selection: string;
+  requestedStakeCents: number;
+  approvedStakeCents: number;
+  currency: string;
+  targetOdds: number | null;
+  finalOdds: number | null;
+  bookmaker: string | null;
+  exposureCents: number;
+  maxLossCents: number;
+  expectedReturnCents: number;
+  riskGrade: string;
+  approvedByUserId: string | null;
+  placedByUserId: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt: string | null;
+  placedAt: string | null;
+  cancelledAt: string | null;
+};
+
+export type BettingLedgerEntry = {
+  id: string;
+  companyBetId: string;
+  fixtureId: string;
+  market: string;
+  selection: string;
+  stakeCents: number;
+  currency: string;
+  odds: number;
+  potentialReturnCents: number;
+  settledReturnCents: number;
+  profitLossCents: number;
+  result: BettingLedgerResult;
+  bookmaker: string | null;
+  placedAt: string | null;
+  settledAt: string | null;
+  reconciliationStatus: string;
+  externalBetReference: string | null;
+  createdByUserId: string | null;
+  settledByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type IntelligenceExecutiveSummary = {
+  scanned: number;
+  reviewQueue: number;
+  approvedForSubscribers: number;
+  publishedToSubscribers: number;
+  companyBetsPending: number;
+  companyBetsPlaced: number;
+  ledgerOpen: number;
+  ledgerSettled: number;
+  exposureCents: number;
+  profitLossCents: number;
+};
+
 export type TreasuryRiskGrade = "LOW" | "MEDIUM" | "HIGH";
 export type TreasuryExecutionStatus = "RECOMMENDED" | "PENDING_EXECUTION" | "PLACED" | "PARTIALLY_PLACED" | "NOT_EXECUTED" | "CANCELLED" | "SETTLED";
 export type TreasurySettlementOutcome = "WIN" | "LOSS" | "VOID" | "HALF_WIN" | "HALF_LOSS" | "CANCELLED" | "PENDING_VERIFICATION";
