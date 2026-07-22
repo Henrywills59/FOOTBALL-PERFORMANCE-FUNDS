@@ -219,7 +219,7 @@ export function Mission21PublicExperience({
             </div>
           </div>
           <div className="signal-grid">
-            {["DATA_COLLECTION", "AI_ANALYSIS", "ANALYST_REVIEW", "ADMIN_REVIEW", "PUBLISHED_TO_MEMBERS"].map((stage) => (
+            {["DATA_COLLECTION", "AI_ANALYSIS", "INTERNAL_REVIEW", "ADMIN_REVIEW", "PUBLISHED_TO_MEMBERS"].map((stage) => (
               <div key={stage}>
                 <span>{statusLabel(stage)}</span>
                 <strong>{stage === experience?.intelligencePreview.status ? "Active" : "Ready"}</strong>

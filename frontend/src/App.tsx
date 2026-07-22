@@ -453,7 +453,7 @@ export default function App() {
       : publicPage
         ? `${publicPage.label} | Football Performance Fund`
         : "Page Not Found | Football Performance Fund";
-    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, investor, analyst, treasury, and executive operating system.");
+    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, performance partner, treasury, and executive operating system.");
     setMetaTag("robots", isPrivate ? "noindex,nofollow" : "index,follow");
     setMetaTag("og:title", publicPage ? `${publicPage.label} | Football Performance Fund` : "Football Performance Fund", "property");
     setMetaTag("og:description", publicPage?.description ?? "We Don't Chase Luck. We Build Performance.", "property");
@@ -2236,8 +2236,7 @@ function AIIntelligenceCenterView({
         </Panel>
       ) : null}
 
-      {activeAiTab === "Operations Review Queue" || activeAiTab === "Subscriber Publishing Queue" ? (
-      <div className="grid gap-4 xl:grid-cols-2">
+      {activeAiTab === "Operations Review Queue" ? (
         <Panel title="Operations Review Queue">
           <div className="space-y-3">
             {candidateItems.slice(0, 8).map((item) => (
@@ -2265,7 +2264,9 @@ function AIIntelligenceCenterView({
             {!candidateItems.length ? <p className="text-sm text-zinc-400">No candidates are waiting for operations review.</p> : null}
           </div>
         </Panel>
+      ) : null}
 
+      {activeAiTab === "Subscriber Publishing Queue" ? (
         <Panel title="Subscriber Publishing Queue">
           <div className="space-y-3">
             {publishingItems.slice(0, 8).map((item) => (
@@ -2282,7 +2283,6 @@ function AIIntelligenceCenterView({
             {!publishingItems.length ? <p className="text-sm text-zinc-400">No approved intelligence is waiting for publication.</p> : null}
           </div>
         </Panel>
-      </div>
       ) : null}
 
       {activeAiTab === "Company Bets Queue" ? (
