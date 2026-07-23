@@ -49,6 +49,7 @@ import type {
   PlatformHealth,
   PublicUserRole,
   SubscriberCommandCenter,
+  SubscriberIntelligence,
   SubscriberIntelligenceFeedItem,
   SubscriberNotification,
   SubscriberOpportunity,
@@ -118,6 +119,8 @@ const navItems = [
   "Opportunity Center",
   "Live Intelligence Feed",
   "Performance Center",
+  "Prediction History",
+  "Subscription Center",
   "Live Match Center",
   "Intelligence Reports",
   "Profile",
@@ -385,6 +388,7 @@ export default function App() {
   const [executiveAnalytics, setExecutiveAnalytics] = useState<ExecutiveAnalyticsDashboard | null>(null);
   const [analystAnalytics, setAnalystAnalytics] = useState<AnalystPrivateAnalytics | null>(null);
   const [subscriberCommandCenter, setSubscriberCommandCenter] = useState<SubscriberCommandCenter | null>(null);
+  const [subscriberIntelligence, setSubscriberIntelligence] = useState<SubscriberIntelligence[]>([]);
   const [decisionOutputs, setDecisionOutputs] = useState<DecisionEngineOutput[]>([]);
   const [commercialStructure, setCommercialStructure] = useState<CommercialStructure>(defaultCommercialStructure);
   const [languages, setLanguages] = useState<LanguageSetting[]>([]);
@@ -797,18 +801,20 @@ export default function App() {
   async function loadSubscriberData(token: string) {
     try {
       setLoadingLabel("Loading subscriber platform");
-      const commandCenter = await apiGet<SubscriberCommandCenter>("/intelligence/dashboard", token);
+      const commandCenter = await apiGet<SubscriberCommandCenter>("/subscriber/command-center", token);
       const fixtureData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/fixtures?limit=30", token);
       const liveData = await apiGet<{ fixtures: FootballFixtureSummary[] }>("/intelligence/live?limit=20", token);
       const decisionData = await apiGet<{ decisions: DecisionEngineOutput[] }>("/intelligence/decision/opportunities?limit=12", token);
       const approvedData = await apiGet<{ predictions: PredictionResult[] }>("/predictions/approved", token);
       const intelligenceData = await apiGet<{ intelligence: PublishedIntelligence[] }>("/intelligence/published", token);
+      const subscriberIntelligenceData = await apiGet<{ intelligence: SubscriberIntelligence[] }>("/subscriber/intelligence", token);
       const workflowPublicationData = await apiGet<{ predictions: PredictionQueueItem[] }>("/predictions/published-workflow", token);
       setSubscriberCommandCenter(commandCenter);
       setFixtures(fixtureData.fixtures);
       setLiveFixtures(liveData.fixtures);
       setDecisionOutputs(decisionData.decisions);
       setPublishedIntelligence(intelligenceData.intelligence);
+      setSubscriberIntelligence(subscriberIntelligenceData.intelligence);
       setPublishedWorkflowPredictions(workflowPublicationData.predictions);
       if (fixtureData.fixtures[0]) await loadFixtureDetail(fixtureData.fixtures[0].id, token);
 
@@ -1244,6 +1250,7 @@ export default function App() {
     setExecutiveAnalytics(null);
     setAnalystAnalytics(null);
     setSubscriberCommandCenter(null);
+    setSubscriberIntelligence([]);
     setDecisionOutputs([]);
     setOperationalReports([]);
     setMonitoringOverview(null);
@@ -1576,6 +1583,7 @@ export default function App() {
               workflowPredictions={publishedWorkflowPredictions}
               featured={featured}
               intelligence={publishedIntelligence}
+              subscriberIntelligence={subscriberIntelligence}
               liveFixtures={liveFixtures}
               notifications={notifications}
               predictions={predictions}
@@ -1593,6 +1601,7 @@ export default function App() {
               filters={filters}
               fixtures={fixtures}
               intelligence={publishedIntelligence}
+              subscriberIntelligence={subscriberIntelligence}
               predictions={daily}
               selectedFixture={selectedFixture}
               setFilters={setFilters}
@@ -1607,6 +1616,12 @@ export default function App() {
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Performance Center" ? (
             <PerformanceView commandCenter={subscriberCommandCenter} predictions={predictions} intelligence={publishedIntelligence} fixtures={fixtures} />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Prediction History" ? (
+            <PredictionHistoryView history={subscriberCommandCenter?.predictionHistory ?? []} />
+          ) : null}
+          {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Subscription Center" ? (
+            <SubscriptionCenterView subscription={subscriberCommandCenter?.subscriptionCenter ?? null} onSubscriptionCheckout={createSubscriptionCheckout} />
           ) : null}
           {!adminMode && session.user.role !== "INVESTOR" && session.user.role !== "ANALYST" && activeView === "Live Match Center" ? (
             <LiveMatchCenter
@@ -1629,6 +1644,7 @@ export default function App() {
               onPreferences={saveGlobalPreferences}
               preferences={globalPreferences}
               session={session}
+              commandCenter={subscriberCommandCenter}
               timezones={timezones}
             />
           ) : null}
@@ -5200,6 +5216,7 @@ function DashboardView({
   decisions,
   featured,
   intelligence,
+  subscriberIntelligence,
   liveFixtures,
   notifications,
   onAdd,
@@ -5213,6 +5230,7 @@ function DashboardView({
   decisions: DecisionEngineOutput[];
   featured: PredictionWithFixture[];
   intelligence: PublishedIntelligence[];
+  subscriberIntelligence: SubscriberIntelligence[];
   liveFixtures: FootballFixtureSummary[];
   notifications: string[];
   onAdd: (prediction: PredictionWithFixture) => void;
@@ -5246,16 +5264,22 @@ function DashboardView({
           </div>
         </div>
       </section>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Today's Opportunities" value={String(opportunities.length || intelligence.length + featured.length)} />
-        <Metric label="Live Matches" value={String(liveFixtures.length)} />
-        <Metric label="AI Intelligence" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
-        <Metric label="Performance" value={overview?.performanceSummary ?? "Monitoring"} />
+        <Metric label="Confidence Score" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
+        <Metric label="Daily Performance" value={`${commandCenter?.performance.dailyRoi ?? commandCenter?.performance.roi ?? 0}%`} />
+        <Metric label="Weekly Performance" value={`${commandCenter?.performance.weeklyRoi ?? commandCenter?.performance.roi ?? 0}%`} />
+        <Metric label="Monthly Performance" value={`${commandCenter?.performance.monthlyRoi ?? commandCenter?.performance.roi ?? 0}%`} />
         <Metric label="Subscription" value={overview?.subscriptionStatus ?? "Active"} />
+        <Metric label="Notifications" value={String(commandCenter?.notifications.length ?? notifications.length)} />
+        <Metric label="ROI" value={`${commandCenter?.performance.overallRoi ?? commandCenter?.performance.roi ?? 0}%`} />
+        <Metric label="Win Rate" value={`${commandCenter?.performance.strikeRate ?? 0}%`} />
+        <Metric label="Live Matches" value={String(liveFixtures.length)} />
       </div>
       <Panel title="Today's Opportunities">
         <DecisionOutputCards decisions={decisions} />
         <WorkflowPublicationCards predictions={workflowPredictions} />
+        <SubscriberIntelligenceCards intelligence={subscriberIntelligence} />
         <SubscriberOpportunityCards opportunities={opportunities} />
         {!opportunities.length ? <OpportunityCards predictions={featured} onAdd={onAdd} /> : null}
       </Panel>
@@ -5272,6 +5296,9 @@ function DashboardView({
       </div>
       <Panel title="FPF Intelligence">
         <div className="grid gap-3 md:grid-cols-2">
+          {subscriberIntelligence.map((item) => (
+            <SubscriberIntelligenceCard item={item} key={item.id} />
+          ))}
           {intelligence.map((item) => (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={item.id}>
               <p className="text-xs uppercase tracking-[0.12em] text-emerald-300">FPF Intelligence</p>
@@ -5285,7 +5312,7 @@ function DashboardView({
               </div>
             </div>
           ))}
-          {!intelligence.length ? <p className="text-sm text-zinc-400">Published FPF Intelligence will appear here after admin review.</p> : null}
+          {!intelligence.length && !subscriberIntelligence.length ? <p className="text-sm text-zinc-400">Published FPF Intelligence will appear here after admin review.</p> : null}
         </div>
       </Panel>
       <Panel title="Recent Predictions">
@@ -5315,6 +5342,9 @@ function SubscriberOpportunityCards({ opportunities }: { opportunities: Subscrib
             <MiniStat label="AI Confidence" value={`${opportunity.aiConfidence}%`} />
             <MiniStat label="Risk Grade" value={opportunity.riskGrade} />
             <MiniStat label="EV" value={opportunity.expectedValue} />
+            <MiniStat label="Odds" value={opportunity.suggestedOdds ? opportunity.suggestedOdds.toFixed(2) : "Pending"} />
+            <MiniStat label="Accuracy" value={opportunity.historicalAccuracy ? `${opportunity.historicalAccuracy}%` : "Building"} />
+            <MiniStat label="Status" value={opportunity.currentStatus ?? opportunity.status} />
           </div>
           <p className="mt-4 text-sm font-medium text-white">{opportunity.market}: {opportunity.prediction}</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">{opportunity.explanation}</p>
@@ -5325,6 +5355,44 @@ function SubscriberOpportunityCards({ opportunities }: { opportunities: Subscrib
       ))}
       {!opportunities.length ? <EmptyState message="Approved subscriber opportunities will appear here after FPF review." /> : null}
     </div>
+  );
+}
+
+function SubscriberIntelligenceCards({ intelligence }: { intelligence: SubscriberIntelligence[] }) {
+  if (!intelligence.length) return null;
+
+  return (
+    <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {intelligence.map((item) => (
+        <SubscriberIntelligenceCard item={item} key={item.id} />
+      ))}
+    </div>
+  );
+}
+
+function SubscriberIntelligenceCard({ item }: { item: SubscriberIntelligence }) {
+  return (
+    <article className="rounded-lg border border-emerald-400/20 bg-slate-950/85 p-4 shadow-xl shadow-black/10">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald-300">Approved FPF Intelligence</p>
+          <h3 className="mt-2 font-semibold">{item.matchLabel}</h3>
+          <p className="mt-1 text-sm text-slate-400">{item.leagueName}</p>
+        </div>
+        <span className="rounded-md border border-emerald-400/30 px-2 py-1 text-xs text-emerald-200">Published</span>
+      </div>
+      <p className="mt-4 text-sm font-medium text-white">{item.recommendedMarket}: {item.predictedOutcome}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">{item.summary}</p>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+        <MiniStat label="Confidence" value={`${item.confidenceScore}%`} />
+        <MiniStat label="Risk" value={item.riskGrade} />
+        <MiniStat label="Value" value={`${item.valueScore}`} />
+        <MiniStat label="Accuracy" value={`${Math.round(Math.max(50, Math.min(88, item.confidenceScore - item.riskScore * 0.15)))}%`} />
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Kickoff: {item.kickoffAt ? new Date(item.kickoffAt).toLocaleString() : "Pending fixture sync"}
+      </p>
+    </article>
   );
 }
 
@@ -5448,6 +5516,7 @@ function OpportunityCenterView({
   filters,
   fixtures,
   intelligence,
+  subscriberIntelligence,
   onAdd,
   onFilter,
   onSelectFixture,
@@ -5462,6 +5531,7 @@ function OpportunityCenterView({
   filters: { search: string; league: string; country: string; date: string };
   fixtures: FootballFixtureSummary[];
   intelligence: PublishedIntelligence[];
+  subscriberIntelligence: SubscriberIntelligence[];
   onAdd: (prediction: PredictionWithFixture) => void;
   onFilter: (event: FormEvent<HTMLFormElement>) => void;
   onSelectFixture: (id: string) => void;
@@ -5492,6 +5562,7 @@ function OpportunityCenterView({
       <Panel title="Institutional Opportunity Center">
         <DecisionOutputCards decisions={decisions} />
         <WorkflowPublicationCards predictions={workflowPredictions} />
+        <SubscriberIntelligenceCards intelligence={subscriberIntelligence} />
         <SubscriberOpportunityCards opportunities={opportunities} />
       </Panel>
       <OpportunityList intelligence={intelligence} predictions={predictions} onAdd={onAdd} onSelect={onSelectPrediction} />
@@ -5570,6 +5641,173 @@ function ReportsView({ operationalReports, reports }: { operationalReports: Oper
         {!reports.length && !operationalReports.length ? <EmptyState message="Daily briefings, weekly reports, market trends, and league analysis will appear here." /> : null}
       </div>
     </Panel>
+  );
+}
+
+function PredictionHistoryView({ history }: { history: NonNullable<SubscriberCommandCenter["predictionHistory"]> }) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("All");
+  const [sort, setSort] = useState<"date" | "confidence" | "market">("date");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const filtered = history
+    .filter((item) => {
+      const haystack = `${item.fixture} ${item.league} ${item.market} ${item.status}`.toLowerCase();
+      return haystack.includes(search.toLowerCase()) && (status === "All" || item.status === status || item.result === status);
+    })
+    .sort((a, b) => {
+      if (sort === "confidence") return b.confidence - a.confidence;
+      if (sort === "market") return a.market.localeCompare(b.market);
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  return (
+    <div className="mt-6 space-y-4">
+      <Panel title="Prediction History">
+        <div className="grid gap-3 md:grid-cols-4">
+          <TextField label="Search" name="search" type="search" value={search} onChange={(value) => { setSearch(value); setPage(1); }} />
+          <label className="text-sm text-slate-300">
+            Status
+            <select className="mt-2 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-3 text-white" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+              {["All", "Published", "Pending", "Won", "Lost", "Void"].map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="text-sm text-slate-300">
+            Sort
+            <select className="mt-2 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-3 text-white" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+              <option value="date">Date</option>
+              <option value="confidence">Confidence</option>
+              <option value="market">Market</option>
+            </select>
+          </label>
+          <Metric label="Records" value={String(filtered.length)} />
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
+              <tr>
+                <th className="py-3">Date</th>
+                <th>Fixture</th>
+                <th>League</th>
+                <th>Market</th>
+                <th>Odds</th>
+                <th>Result</th>
+                <th>P/L</th>
+                <th>Confidence</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((item) => (
+                <tr className="border-t border-slate-900 text-slate-300" key={item.id}>
+                  <td className="py-3">{new Date(item.date).toLocaleDateString()}</td>
+                  <td>{item.fixture}</td>
+                  <td>{item.league}</td>
+                  <td>{item.market}</td>
+                  <td>{item.odds ? item.odds.toFixed(2) : "Pending"}</td>
+                  <td>{item.result}</td>
+                  <td className={item.profitLossCents >= 0 ? "text-emerald-300" : "text-rose-300"}>{money(item.profitLossCents)}</td>
+                  <td>{item.confidence}%</td>
+                  <td>{item.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!pageItems.length ? <EmptyState message="Prediction history will populate as approved intelligence is published and settled." /> : null}
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3 text-sm text-slate-400">
+          <span>Page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            <button className="rounded-md border border-slate-800 px-3 py-2" type="button" disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+            <button className="rounded-md border border-slate-800 px-3 py-2" type="button" disabled={page === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function SubscriptionCenterView({
+  onSubscriptionCheckout,
+  subscription,
+}: {
+  onSubscriptionCheckout: (planCode: string, billingCycle: "MONTHLY" | "ANNUAL") => Promise<PaymentOrder | undefined>;
+  subscription: SubscriberCommandCenter["subscriptionCenter"] | null;
+}) {
+  const center = subscription ?? {
+    plan: "Subscriber Intelligence",
+    status: "Active" as const,
+    billingCycle: "Monthly" as const,
+    expirationDate: null,
+    paymentStatus: "Current" as const,
+    billingHistory: [],
+    receipts: [],
+    upgradeOptions: ["Starter", "Pro", "Elite"],
+  };
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Plan" value={center.plan} />
+        <Metric label="Status" value={center.status} />
+        <Metric label="Payment" value={center.paymentStatus} />
+        <Metric label="Expires" value={center.expirationDate ? new Date(center.expirationDate).toLocaleDateString() : "Not set"} />
+      </div>
+      <Panel title="Manage Subscription">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <form
+            className="rounded-lg border border-slate-800 bg-slate-950 p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onSubscriptionCheckout(String(form.get("planCode")), String(form.get("billingCycle")) as "MONTHLY" | "ANNUAL");
+            }}
+          >
+            <h3 className="font-semibold">Renew or upgrade</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-400">Payments activate only after confirmed provider status. This keeps subscription access aligned with the secure backend flow.</p>
+            <label className="mt-4 block text-sm text-slate-300">
+              Plan
+              <select className="mt-2 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-3 text-white" name="planCode" defaultValue="PRO">
+                {center.upgradeOptions.map((option) => <option key={option} value={option.toUpperCase()}>{option}</option>)}
+              </select>
+            </label>
+            <label className="mt-3 block text-sm text-slate-300">
+              Billing
+              <select className="mt-2 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-3 text-white" name="billingCycle" defaultValue={center.billingCycle === "Annual" ? "ANNUAL" : "MONTHLY"}>
+                <option value="MONTHLY">Monthly</option>
+                <option value="ANNUAL">Annual</option>
+              </select>
+            </label>
+            <div className="mt-4"><SubmitButton>Create secure checkout</SubmitButton></div>
+          </form>
+          <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
+            <h3 className="font-semibold">Billing history</h3>
+            <div className="mt-4 space-y-3">
+              {center.billingHistory.map((item) => (
+                <div className="flex items-center justify-between rounded-md bg-slate-900/60 p-3 text-sm" key={item.id}>
+                  <span>{new Date(item.date).toLocaleDateString()} - {item.status}</span>
+                  <span>{money(item.amountCents)}</span>
+                </div>
+              ))}
+              {!center.billingHistory.length ? <EmptyState message="Billing history will appear after confirmed subscription payments." /> : null}
+            </div>
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Receipts">
+        <div className="grid gap-3 md:grid-cols-2">
+          {center.receipts.map((receipt) => (
+            <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-4" key={receipt.id}>
+              <div><p className="font-semibold">{receipt.label}</p><p className="text-sm text-slate-500">{new Date(receipt.date).toLocaleDateString()}</p></div>
+              <button className="rounded-md border border-emerald-700 px-3 py-2 text-sm text-emerald-100" type="button">Download receipt</button>
+            </div>
+          ))}
+          {!center.receipts.length ? <EmptyState message="Downloadable receipts will appear after billing records are available." /> : null}
+        </div>
+      </Panel>
+    </div>
   );
 }
 
@@ -5752,7 +5990,7 @@ function UnifiedOperatingSystemStrip({
       ? ["Investor Dashboard", "Simulator", "Reports", "Capital", "Settings"]
     : role === "ANALYST"
         ? ["AI Intelligence Center", "War Room", "Reports", "Monitoring", "Settings"]
-        : ["Subscriber Home", "Opportunity Center", "Live Match Center", "Profile", "Settings"];
+        : ["Subscriber Home", "Opportunity Center", "Prediction History", "Performance Center", "Subscription Center", "Live Match Center", "Profile", "Settings"];
   return (
     <section className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -6215,25 +6453,35 @@ function PerformanceView({
 }) {
   const winRate = commandCenter?.performance.strikeRate ?? (predictions.length ? Math.round(predictions.filter((prediction) => prediction.confidenceScore >= 60).length / predictions.length * 100) : 0);
   const roi = commandCenter?.performance.roi ?? (predictions.length ? Math.round(predictions.reduce((total, prediction) => total + (prediction.edge ?? 0), 0) / predictions.length * 1000) / 10 : 0);
-  const favoriteLeagues = Array.from(new Set(fixtures.map((fixture) => fixture.leagueName))).slice(0, 4);
+  const favoriteLeagues = commandCenter?.performance.bestMarkets?.length
+    ? commandCenter.performance.bestMarkets
+    : Array.from(new Set(fixtures.map((fixture) => fixture.leagueName))).slice(0, 4);
   const monthly = commandCenter?.performance.chart.map((item) => item.value) ?? [42, 58, 51, 64, 61, Math.max(30, winRate)];
   return (
     <div className="mt-6 space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Daily ROI" value={`${(commandCenter?.performance.dailyRoi ?? roi).toFixed(1)}%`} />
+        <Metric label="Weekly ROI" value={`${(commandCenter?.performance.weeklyRoi ?? roi).toFixed(1)}%`} />
+        <Metric label="Monthly ROI" value={`${(commandCenter?.performance.monthlyRoi ?? roi).toFixed(1)}%`} />
+        <Metric label="Overall ROI" value={`${(commandCenter?.performance.overallRoi ?? roi).toFixed(1)}%`} />
+        <Metric label="Average Odds" value={(commandCenter?.performance.averageOdds ?? 0).toFixed(2)} />
         <Metric label="Wins" value={String(commandCenter?.performance.wins ?? 0)} />
         <Metric label="Losses" value={String(commandCenter?.performance.losses ?? 0)} />
         <Metric label="Strike Rate" value={`${winRate}%`} />
-        <Metric label="ROI" value={`${roi.toFixed(1)}%`} />
+        <Metric label="Loss Rate" value={`${commandCenter?.performance.lossRate ?? Math.max(0, 100 - winRate)}%`} />
+        <Metric label="Current Streak" value={commandCenter?.performance.currentStreak ?? "Building"} />
         <Metric label="Weekly Profit" value={money(commandCenter?.performance.weeklyProfit ?? 0)} />
         <Metric label="Monthly Profit" value={money(commandCenter?.performance.monthlyProfit ?? 0)} />
+        <Metric label="Best Win Streak" value={String(commandCenter?.performance.longestWinningStreak ?? 0)} />
+        <Metric label="Longest Loss Streak" value={String(commandCenter?.performance.longestLosingStreak ?? 0)} />
       </div>
-      <Panel title="Favorite Leagues">
+      <Panel title="Best Markets">
         <div className="flex flex-wrap gap-2">
           {favoriteLeagues.map((league) => <span className="rounded-md bg-zinc-950 px-3 py-2 text-sm text-zinc-300" key={league}>{league}</span>)}
-          {!favoriteLeagues.length ? <p className="text-sm text-zinc-400">Favorite leagues will appear as fixture history builds.</p> : null}
+          {!favoriteLeagues.length ? <p className="text-sm text-zinc-400">Best markets will appear as approved intelligence history builds.</p> : null}
         </div>
       </Panel>
-      <Panel title="Monthly Performance Chart">
+      <Panel title="Profit Graph">
         <div className="flex h-40 items-end gap-3">
           {monthly.map((value, index) => (
             <div className="flex flex-1 flex-col items-center gap-2" key={`${value}-${index}`}>
@@ -6241,6 +6489,18 @@ function PerformanceView({
               <span className="text-xs text-zinc-500">{commandCenter?.performance.chart[index]?.label ?? `M${index + 1}`}</span>
             </div>
           ))}
+        </div>
+      </Panel>
+      <Panel title="Performance Timeline">
+        <div className="space-y-3">
+          {(commandCenter?.performance.timeline ?? []).map((item) => (
+            <div className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950 p-4 text-sm sm:grid-cols-[1fr_auto_auto]" key={`${item.label}-${item.status}`}>
+              <span className="font-medium text-white">{item.label}</span>
+              <span className="text-slate-400">{item.status}</span>
+              <span className="text-emerald-300">{item.value}%</span>
+            </div>
+          ))}
+          {!commandCenter?.performance.timeline?.length ? <EmptyState message="Performance timeline will populate after approved intelligence is published." /> : null}
         </div>
       </Panel>
       <Panel title="Historical Context">
@@ -6254,6 +6514,7 @@ function PerformanceView({
 }
 
 function ProfileView({
+  commandCenter,
   currencies,
   languages,
   onSignOut,
@@ -6263,6 +6524,7 @@ function ProfileView({
   session,
   timezones,
 }: {
+  commandCenter?: SubscriberCommandCenter | null;
   currencies: CurrencySetting[];
   languages: LanguageSetting[];
   onSignOut: () => void;
@@ -6272,18 +6534,22 @@ function ProfileView({
   session: AuthResponse;
   timezones: TimezoneSetting[];
 }) {
+  const profile = commandCenter?.profileCenter;
   return (
     <div className="mt-6 grid gap-4 lg:grid-cols-2">
       <Panel title="Account Details">
         <dl className="space-y-4 text-sm">
-          <ProfileRow label="Name" value={session.user.name} />
-          <ProfileRow label="Email" value={session.user.email} />
+          <ProfileRow label="Name" value={profile?.name ?? session.user.name} />
+          <ProfileRow label="Email" value={profile?.email ?? session.user.email} />
           <ProfileRow label="Role" value={roleLabels[session.user.role]} />
-          <ProfileRow label="Account status" value={session.user.status} />
-          <ProfileRow label="Subscription plan" value="Subscriber Preview" />
-          <ProfileRow label="Subscription status" value="Active platform access" />
-          <ProfileRow label="Expiry date" value="Not set" />
+          <ProfileRow label="Account status" value={profile?.accountStatus ?? session.user.status} />
+          <ProfileRow label="Subscription plan" value={commandCenter?.subscriptionCenter?.plan ?? "Subscriber Preview"} />
+          <ProfileRow label="Subscription status" value={commandCenter?.subscriptionCenter?.status ?? "Active"} />
+          <ProfileRow label="Expiry date" value={commandCenter?.subscriptionCenter?.expirationDate ? new Date(commandCenter.subscriptionCenter.expirationDate).toLocaleDateString() : "Not set"} />
         </dl>
+        <div className="mt-5 rounded-lg border border-dashed border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
+          Avatar upload is provider-ready. Current avatar: {profile?.avatarUrl ? "Configured" : "Not uploaded"}
+        </div>
       </Panel>
       <Panel title="Password Change">
         <form className="space-y-4" onSubmit={onPasswordChange}>
@@ -6298,6 +6564,32 @@ function ProfileView({
         >
           Sign out securely
         </button>
+      </Panel>
+      <Panel title="Security and Devices">
+        <div className="space-y-4">
+          <ProfileRow label="MFA" value={profile?.mfaStatus ?? "Not Enabled"} />
+          <button className="w-full rounded-md border border-emerald-700 px-4 py-3 text-sm font-semibold text-emerald-100" type="button">Enable MFA placeholder</button>
+          <div className="space-y-2">
+            {(profile?.devices ?? []).map((device) => (
+              <div className="rounded-md border border-slate-800 bg-slate-950 p-3 text-sm" key={device.id}>
+                <p className="font-medium">{device.label}</p>
+                <p className="text-slate-500">{new Date(device.lastSeenAt).toLocaleString()}</p>
+              </div>
+            ))}
+            {!profile?.devices.length ? <EmptyState message="Trusted devices will appear after device tracking is enabled." /> : null}
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Login History">
+        <div className="space-y-2">
+          {(profile?.loginHistory ?? []).map((entry) => (
+            <div className="rounded-md border border-slate-800 bg-slate-950 p-3 text-sm" key={entry.id}>
+              <p className="font-medium">{entry.label}</p>
+              <p className="text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
+            </div>
+          ))}
+          {!profile?.loginHistory.length ? <EmptyState message="Login history will appear after audit history is connected to this profile view." /> : null}
+        </div>
       </Panel>
       <div className="lg:col-span-2">
         <GlobalPreferencesForm

@@ -243,10 +243,16 @@ export function createApp(options?: {
     footballRepository,
     adminService,
   );
+  const intelligenceWorkflowRepository = options?.intelligenceWorkflowRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryIntelligenceWorkflowRepository()
+      : new PrismaIntelligenceWorkflowRepository()
+  );
   const subscriberService = new SubscriberService(
     footballRepository,
     predictionRepository,
     analystRepository,
+    intelligenceWorkflowRepository,
   );
   const intelligenceService = new IntelligenceService(
     new IntelligenceRepositoryAdapter(footballRepository, predictionRepository, analystRepository),
@@ -257,11 +263,6 @@ export function createApp(options?: {
     options?.predictionWorkflowRepository ?? new PrismaPredictionWorkflowRepository(),
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
-  );
-  const intelligenceWorkflowRepository = options?.intelligenceWorkflowRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
-      ? new InMemoryIntelligenceWorkflowRepository()
-      : new PrismaIntelligenceWorkflowRepository()
   );
   const intelligenceWorkflowService = new IntelligenceWorkflowService(
     intelligenceWorkflowRepository,

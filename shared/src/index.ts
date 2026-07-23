@@ -1326,6 +1326,9 @@ export type SubscriberOpportunity = {
   aiConfidence: number;
   riskGrade: "Low" | "Medium" | "High";
   expectedValue: string;
+  suggestedOdds?: number | null;
+  historicalAccuracy?: number | null;
+  currentStatus?: string;
   status: "Live" | "Upcoming" | "Published" | "Monitoring";
   explanation: string;
   source: "AI Prediction" | "FPF Intelligence";
@@ -1345,9 +1348,20 @@ export type SubscriberPerformanceSummary = {
   losses: number;
   strikeRate: number;
   roi: number;
+  dailyRoi?: number;
+  weeklyRoi?: number;
+  monthlyRoi?: number;
+  overallRoi?: number;
+  lossRate?: number;
+  averageOdds?: number;
+  bestMarkets?: string[];
+  currentStreak?: string;
+  longestWinningStreak?: number;
+  longestLosingStreak?: number;
   weeklyProfit: number;
   monthlyProfit: number;
   chart: Array<{ label: string; value: number }>;
+  timeline?: Array<{ label: string; status: string; value: number }>;
 };
 
 export type SubscriberReport = {
@@ -1374,6 +1388,41 @@ export type SubscriberReferralSummary = {
   rewards: string[];
 };
 
+export type SubscriberPredictionHistoryItem = {
+  id: string;
+  date: string;
+  fixture: string;
+  league: string;
+  market: string;
+  odds: number | null;
+  result: "Pending" | "Won" | "Lost" | "Void";
+  profitLossCents: number;
+  confidence: number;
+  status: string;
+};
+
+export type SubscriberSubscriptionCenter = {
+  plan: string;
+  status: "Active" | "Trial" | "Expired";
+  billingCycle: "Monthly" | "Annual";
+  expirationDate: string | null;
+  paymentStatus: "Current" | "Pending" | "Past Due";
+  billingHistory: Array<{ id: string; date: string; amountCents: number; status: string }>;
+  receipts: Array<{ id: string; date: string; amountCents: number; label: string }>;
+  upgradeOptions: string[];
+};
+
+export type SubscriberProfileCenter = {
+  name: string;
+  email: string;
+  accountStatus: AccountStatus;
+  avatarUrl: string | null;
+  mfaStatus: "Not Enabled" | "Enabled";
+  devices: Array<{ id: string; label: string; lastSeenAt: string }>;
+  loginHistory: Array<{ id: string; label: string; createdAt: string }>;
+  notificationPreferences: string[];
+};
+
 export type SubscriberCommandCenter = {
   executiveOverview: {
     welcomeMessage: string;
@@ -1389,6 +1438,9 @@ export type SubscriberCommandCenter = {
   reports: SubscriberReport[];
   notifications: SubscriberNotification[];
   referral: SubscriberReferralSummary;
+  predictionHistory?: SubscriberPredictionHistoryItem[];
+  subscriptionCenter?: SubscriberSubscriptionCenter;
+  profileCenter?: SubscriberProfileCenter;
 };
 
 export type DecisionRecommendationStatus = "APPROVED_CANDIDATE" | "NEEDS_REVIEW" | "REJECTED";
