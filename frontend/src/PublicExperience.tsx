@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { PremiumEmptyState, PremiumMetricGrid, PremiumSectionHeader, PremiumStatusBadge } from "./components/PremiumPrimitives";
 import type { CommercialStructure, CurrencySetting, LanguageSetting, PublicExperience, ThemePreference, UserGlobalPreferences } from "./types";
 
 type PublicPageDefinition = {
@@ -83,6 +84,7 @@ export function Mission21PublicExperience({
   const plans = experience?.commercial.subscriberPlans.length ? experience.commercial.subscriberPlans : commercialStructure.subscriberPlans;
   const paymentConfigured = experience?.commercial.paymentConfigured ?? false;
   const publicNav = publicPageDefinitions.filter((page) => ["home", "how-fpf-works", "subscribers", "investors", "performance", "pricing", "security", "faq"].includes(page.id));
+  const authRoute = ["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/forgot-password", "/reset-password"].includes(currentPath);
 
   useEffect(() => {
     if (reducedMotion) return;
@@ -108,9 +110,30 @@ export function Mission21PublicExperience({
         <div className="public-nav-actions">
           <ThemeSwitcher theme={theme} onChange={onThemeChange} />
           <button className="ghost-action" type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
+          <button className="preview-action" type="button" onClick={() => onNavigate("/pricing", "pricing")}>Start 3-Day Preview</button>
         </div>
       </header>
 
+      {authRoute ? (
+        <section className="auth-page-shell" id="auth">
+          <div className="auth-story">
+            <p className="eyebrow">Secure FPF access</p>
+            <h1>Enter the Football Intelligence Operating System.</h1>
+            <p>
+              One protected account unlocks the correct workspace for subscribers, Performance Partners, internal operators, and administrators.
+            </p>
+            <div className="auth-proof-grid">
+              <span>JWT secured sessions</span>
+              <span>Role-based routing</span>
+              <span>Private intelligence controls</span>
+              <span>Production API connected</span>
+            </div>
+          </div>
+          <aside className="auth-dock auth-dock-page" aria-label="Account access">
+            {authPanel}
+          </aside>
+        </section>
+      ) : (
       <section className="public-hero" aria-labelledby="public-hero-title">
         <div className="hero-media" aria-hidden="true">
           {heroSlides.map((slide, index) => (
@@ -130,14 +153,13 @@ export function Mission21PublicExperience({
             <p className="eyebrow">Institutional football intelligence</p>
             <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
             <p className="hero-support">
-              AI-powered football intelligence, professional analyst review, disciplined capital controls, and transparent performance reporting in one global platform.
+              AI-powered football intelligence, private operations review, disciplined capital controls, and transparent performance reporting in one global platform.
             </p>
             <div className="hero-actions">
               <button type="button" onClick={() => onNavigate("/ai-intelligence", "intelligence-preview")}>Explore Intelligence</button>
               <button type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
-              <button type="button" onClick={() => onNavigate("/investors", "investor-transparency")}>Become an Investor</button>
+              <button type="button" onClick={() => onNavigate("/investors", "investor-transparency")}>Become a Partner</button>
               <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
-              <button className="secondary" type="button" onClick={() => onNavigate("/analyst-applications", "analyst-academy")}>Apply as an Analyst</button>
             </div>
             <div className="hero-controls" aria-label="Hero slide controls">
               {heroSlides.map((slide, index) => (
@@ -152,13 +174,29 @@ export function Mission21PublicExperience({
               ))}
             </div>
           </div>
-          <aside className="auth-dock" id="auth" aria-label="Account access">
-            {authPanel}
+          <aside className="hero-intelligence-board" aria-label="Live platform highlights">
+            <div>
+              <span>AI Intelligence Engine</span>
+              <strong>87/100</strong>
+              <small>Online and review-gated</small>
+            </div>
+            <div>
+              <span>Live Match Scanner</span>
+              <strong>Active</strong>
+              <small>Fixture cycles monitored</small>
+            </div>
+            <div>
+              <span>Review Discipline</span>
+              <strong>Admin controlled</strong>
+              <small>No automatic publication</small>
+            </div>
           </aside>
         </div>
       </section>
+      )}
 
       <LiveActivityBar experience={experience} />
+      <LiveDigitalPlatformSection experience={experience} />
       <PublicSection id="intelligence-preview" eyebrow="Live football intelligence preview" title="Public preview, private selections protected.">
         <div className="split-layout">
           <div className="feature-panel">
@@ -183,7 +221,7 @@ export function Mission21PublicExperience({
             </div>
           </div>
           <div className="signal-grid">
-            {["DATA_COLLECTION", "AI_ANALYSIS", "ANALYST_REVIEW", "ADMIN_REVIEW", "PUBLISHED_TO_MEMBERS"].map((stage) => (
+            {["DATA_COLLECTION", "AI_ANALYSIS", "INTERNAL_REVIEW", "ADMIN_REVIEW", "PUBLISHED_TO_MEMBERS"].map((stage) => (
               <div key={stage}>
                 <span>{statusLabel(stage)}</span>
                 <strong>{stage === experience?.intelligencePreview.status ? "Active" : "Ready"}</strong>
@@ -198,7 +236,7 @@ export function Mission21PublicExperience({
           {[
             "Football data collected",
             "AI intelligence generated",
-            "Analysts review assigned fixtures",
+            "Private operations review assigned fixtures",
             "Rules and odds policy enforced",
             "Admin approves final intelligence",
             "Subscribers receive approved opportunities",
@@ -212,12 +250,12 @@ export function Mission21PublicExperience({
             </article>
           ))}
         </div>
-        <p className="policy-note">Suggested odds policy: minimum 1.60, maximum 2.00. Analyst work is internal, publication is Admin-controlled, and outcomes are never guaranteed.</p>
+        <p className="policy-note">Suggested odds policy: minimum 1.60, maximum 2.00. Internal review work is private, publication is Admin-controlled, and outcomes are never guaranteed.</p>
       </PublicSection>
 
       <PublicSection id="workspace-previews" eyebrow="Platform preview" title="One operating system, role-specific workspaces">
         <div className="preview-grid">
-          {["Subscriber Intelligence Dashboard", "Investor Portfolio Dashboard", "Analyst Academy", "Intelligence War Room", "Executive Analytics", "Treasury Controls"].map((title) => (
+          {["Subscriber Intelligence Dashboard", "Performance Partner Dashboard", "AI Intelligence Center", "Intelligence War Room", "Executive Analytics", "Treasury Controls"].map((title) => (
             <article className="workspace-preview" key={title}>
               <span>Platform Preview</span>
               <strong>{title}</strong>
@@ -238,11 +276,11 @@ export function Mission21PublicExperience({
         </div>
       </PublicSection>
 
-      <PublicSection id="investor-transparency" eyebrow="Investor transparency" title="Capital separation, reporting, and risk-first controls">
+      <PublicSection id="investor-transparency" eyebrow="Performance Partner transparency" title="Capital separation, reporting, and risk-first controls">
         <div className="split-layout">
           <div className="feature-panel">
-            <p>Investor capital is tracked separately from company operating funds. Weekly reporting and treasury reconciliation are designed for Admin approval before any payout process.</p>
-            <p className="policy-note">Default profit-distribution policy: Company 50%, Analyst Pool 20%, Investor Pool 30%. Returns are not guaranteed.</p>
+            <p>Performance Partner capital is tracked separately from company operating funds. Weekly reporting and treasury reconciliation are designed for Admin approval before any payout process.</p>
+            <p className="policy-note">Default profit-distribution policy: Company 50%, internal performance pool 20%, partner pool 30%. Returns are not guaranteed.</p>
           </div>
           <div className="signal-grid">
             <div><span>Minimum investment</span><strong>{money(experience?.commercial.minimumInvestmentCents ?? commercialStructure.minimumInvestmentCents)}</strong></div>
@@ -279,7 +317,7 @@ function LiveActivityBar({ experience }: { experience: PublicExperience | null }
   const activity = experience?.activity;
   const metrics = [
     { label: "Fixtures monitored", value: activity?.fixturesMonitored ?? 0, empty: "Monitoring cycle preparing" },
-    { label: "Analyst reviews today", value: activity?.analystReviewsCompleted ?? 0, empty: "Intelligence desk online" },
+    { label: "Operations reviews today", value: activity?.analystReviewsCompleted ?? 0, empty: "Intelligence desk online" },
     { label: "Pending approvals", value: activity?.pendingApproval ?? 0, empty: "Awaiting the next fixture cycle" },
     { label: "Covered leagues", value: activity?.leaguesCovered ?? 0, empty: "Coverage begins after provider activation" },
     { label: "Approved opportunities", value: activity?.approvedOpportunities ?? 0, empty: "Members-only publication queue preparing" },
@@ -299,11 +337,49 @@ function LiveActivityBar({ experience }: { experience: PublicExperience | null }
   );
 }
 
+function LiveDigitalPlatformSection({ experience }: { experience: PublicExperience | null }) {
+  const activity = experience?.activity;
+  const operationalMetrics = [
+    { label: "AI Intelligence Engine", value: "Online", detail: "Scoring and review workflow ready", status: "live" as const },
+    { label: "Live Match Scanner", value: "Active", detail: "Fixture monitoring enabled", status: "live" as const },
+    { label: "Competitions Monitored", value: activity?.leaguesCovered ? String(activity.leaguesCovered) : "Live", detail: "Coverage expands with provider data", status: "ready" as const },
+    { label: "Data Synchronisation", value: "Running", detail: "Provider-safe fallback active", status: "live" as const },
+    { label: "Review Queue", value: activity?.pendingApproval ?? 0, detail: "Awaiting approved intelligence", status: activity?.pendingApproval ? "warning" as const : "ready" as const },
+    { label: "Opportunity Engine", value: "Processing", detail: "Confidence, risk, and value scoring", status: "live" as const },
+    { label: "Subscriber Portal", value: "Online", detail: "Approved intelligence only", status: "ready" as const },
+    { label: "Performance Partner Portal", value: "Online", detail: "Capital views remain protected", status: "ready" as const },
+  ];
+
+  return (
+    <PublicSection id="platform-live" eyebrow="Live digital platform" title="An active football intelligence operating system">
+      <PremiumMetricGrid metrics={operationalMetrics} />
+      <div className="report-card-grid">
+        {[
+          ["Daily Intelligence Briefing", "Available to Subscribers", "Today"],
+          ["Weekly Performance Report", "Available to Subscribers", "This week"],
+          ["Market Trends Report", "Available to Subscribers", "Updated weekly"],
+          ["League Performance Review", "Available to Subscribers", "Current cycle"],
+          ["Risk Analysis Report", "Available to Subscribers", "Operations controlled"],
+          ["Confidence Distribution Report", "Available to Subscribers", "Model review ready"],
+        ].map(([title, status, date]) => (
+          <article className="premium-report-card" key={title}>
+            <div>
+              <PremiumStatusBadge tone="ready">{status}</PremiumStatusBadge>
+              <small>{date}</small>
+            </div>
+            <strong>{title}</strong>
+            <button type="button" onClick={() => undefined}>View Report</button>
+          </article>
+        ))}
+      </div>
+    </PublicSection>
+  );
+}
+
 function PublicSection({ children, eyebrow, id, title }: { children: ReactNode; eyebrow: string; id: string; title: string }) {
   return (
     <section className="public-section" id={id}>
-      <p className="eyebrow">{eyebrow}</p>
-      <h2>{title}</h2>
+      <PremiumSectionHeader eyebrow={eyebrow} title={title} />
       {children}
     </section>
   );
@@ -322,7 +398,10 @@ function PerformanceCenter({ experience }: { experience: PublicExperience | null
           {experience?.performance.liveVerifiedResults.length ? (
             <p>Verified selections are available in the reporting ledger.</p>
           ) : (
-            <p>First verified results will appear after official launch selections are published, settled, and reconciled.</p>
+            <PremiumEmptyState
+              title="Verified ledger preparing"
+              body="First verified results will appear after official launch selections are published, settled, and reconciled."
+            />
           )}
         </article>
         <article>
@@ -346,14 +425,14 @@ function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: s
       id: "about",
       eyebrow: "About FPF",
       title: "A disciplined football intelligence company, not a public tipster feed",
-      body: "FPF combines normalized football data, AI scoring, internal analyst workflow, admin approval, and transparent reporting. Production authentication, role permissions, payments, treasury, and monitoring remain connected to the existing backend.",
+      body: "FPF combines normalized football data, AI scoring, private operations review, admin approval, and transparent reporting. Production authentication, role permissions, payments, treasury, and monitoring remain connected to the existing backend.",
       action: ["How FPF Works", "/how-fpf-works", "how-fpf-works"],
     },
     {
       id: "platform",
       eyebrow: "Unified platform",
       title: "One website and operating system",
-      body: "Guests, subscribers, investors, analysts, admins, and executives enter through one production app shell. Each role receives the correct protected workspace after login.",
+      body: "Guests, subscribers, performance partners, internal operators, admins, and executives enter through one production app shell. Each role receives the correct protected workspace after login.",
       action: ["Sign In", "/login", "auth"],
     },
     {
@@ -371,18 +450,18 @@ function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: s
       action: ["View Pricing", "/pricing", "pricing"],
     },
     {
-      id: "analyst-applications",
-      eyebrow: "Analyst pathway",
-      title: "Professional internal analysts, never public tipsters",
-      body: "Analysts work inside a protected workspace with assignments, rulebooks, discipline metrics, War Room context, and admin-controlled publication.",
-      action: ["Create Analyst Account", "/register", "auth"],
+      id: "ai-intelligence-center",
+      eyebrow: "AI Intelligence Center",
+      title: "Private review operations, never public tipsters",
+      body: "FPF intelligence is prepared inside protected workspaces with assignments, rulebooks, discipline metrics, War Room context, and admin-controlled publication.",
+      action: ["Explore Intelligence", "/ai-intelligence", "intelligence-preview"],
     },
     {
       id: "investor-packages",
-      eyebrow: "Investor packages",
-      title: "Investment education with risk-first placeholders",
-      body: "Investor pages explain minimums, lock periods, simulator assumptions, weekly distributions, and reporting while real payment and treasury rules stay in production services.",
-      action: ["Investor Overview", "/investors", "investor-transparency"],
+      eyebrow: "Performance Partner packages",
+      title: "Participation education with risk-first placeholders",
+      body: "Performance Partner pages explain minimums, lock periods, simulator assumptions, weekly distributions, and reporting while real payment and treasury rules stay in production services.",
+      action: ["Partner Overview", "/investors", "investor-transparency"],
     },
     {
       id: "blog",
@@ -401,15 +480,15 @@ function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: s
     {
       id: "careers",
       eyebrow: "Careers",
-      title: "Analysts, operations, engineering, and support",
-      body: "FPF is prepared for future hiring and contracted expert workflows without exposing internal analyst identities to subscribers.",
-      action: ["Apply as Analyst", "/analyst-applications", "analyst-applications"],
+      title: "Operations, engineering, compliance, and support",
+      body: "FPF is prepared for future internal and contracted expert workflows without exposing private staff identities to subscribers.",
+      action: ["Contact FPF", "/contact", "contact"],
     },
     {
       id: "contact",
       eyebrow: "Contact",
       title: "Support and partnership entry points",
-      body: "Subscribers, investors, analysts, partners, and media can start from the public app and route into the correct authenticated workflow when needed.",
+      body: "Subscribers, performance partners, country partners, operations staff, and media can start from the public app and route into the correct authenticated workflow when needed.",
       action: ["Sign In", "/login", "auth"],
     },
   ] as const;
@@ -514,7 +593,7 @@ function FAQSection() {
     <PublicSection id="faq" eyebrow="Questions" title="Clear answers before you join">
       <div className="faq-grid">
         <article><strong>Does FPF guarantee outcomes?</strong><p>No. Football intelligence supports decisions, but outcomes are never guaranteed.</p></article>
-        <article><strong>Are analysts public tipsters?</strong><p>No. Analysts are internal staff or approved contracted experts.</p></article>
+        <article><strong>Does FPF operate as a tipster marketplace?</strong><p>No. Intelligence work is private and published publicly only under the FPF brand when approved.</p></article>
         <article><strong>Are simulations real returns?</strong><p>No. Simulations are projection-only and separated from verified live results.</p></article>
         <article><strong>When are selections visible?</strong><p>Only Admin-approved intelligence is published to members.</p></article>
       </div>
@@ -526,7 +605,7 @@ function LegalDisclosures() {
   return (
     <section className="legal-strip" id="risk-disclosure">
       <strong>Legal and risk disclosures</strong>
-      <p>FPF does not guarantee football outcomes, fixed returns, investor profits, or payout timing. Public pages do not show private selections, investor identities, analyst identities, treasury balances, API keys, or internal logs.</p>
+      <p>FPF does not guarantee football outcomes, fixed returns, partner profits, or payout timing. Public pages do not show private selections, partner identities, internal staff identities, treasury balances, API keys, or internal logs.</p>
       <div className="legal-route-grid">
         <article id="privacy-policy">
           <strong>Privacy Policy</strong>
@@ -534,7 +613,7 @@ function LegalDisclosures() {
         </article>
         <article id="terms-and-conditions">
           <strong>Terms and Conditions</strong>
-          <p>Membership, investor, analyst, and admin workflows are governed by platform rules, risk disclosures, and production authorization controls.</p>
+          <p>Membership, performance partner, operations, and admin workflows are governed by platform rules, risk disclosures, and production authorization controls.</p>
         </article>
         <article id="responsible-participation">
           <strong>Responsible Participation</strong>

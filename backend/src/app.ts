@@ -34,6 +34,11 @@ import { createGlobalizationRouter } from "./globalization/routes.js";
 import { GlobalizationService } from "./globalization/service.js";
 import { createInfrastructureRouter } from "./infrastructure/infrastructureRoutes.js";
 import { InfrastructureService } from "./infrastructure/infrastructureService.js";
+import { InMemoryIntelligenceWorkflowRepository } from "./intelligenceWorkflow/inMemoryIntelligenceWorkflowRepository.js";
+import { PrismaIntelligenceWorkflowRepository } from "./intelligenceWorkflow/intelligenceWorkflowRepository.js";
+import { createIntelligenceWorkflowRouter } from "./intelligenceWorkflow/intelligenceWorkflowRoutes.js";
+import { IntelligenceWorkflowService } from "./intelligenceWorkflow/intelligenceWorkflowService.js";
+import type { IntelligenceWorkflowRepository } from "./intelligenceWorkflow/types.js";
 import { MemoryCacheStore } from "./intelligence/cache.js";
 import { DecisionEngineService } from "./intelligence/decision/decisionService.js";
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
@@ -186,6 +191,7 @@ export function createApp(options?: {
   footballRepository?: FootballRepository;
   predictionRepository?: PredictionRepository;
   predictionWorkflowRepository?: PredictionWorkflowRepository;
+  intelligenceWorkflowRepository?: IntelligenceWorkflowRepository;
   adminRepository?: AdminRepository;
   investorRepository?: InvestorRepository;
   walletRepository?: WalletRepository;
@@ -237,10 +243,16 @@ export function createApp(options?: {
     footballRepository,
     adminService,
   );
+  const intelligenceWorkflowRepository = options?.intelligenceWorkflowRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryIntelligenceWorkflowRepository()
+      : new PrismaIntelligenceWorkflowRepository()
+  );
   const subscriberService = new SubscriberService(
     footballRepository,
     predictionRepository,
     analystRepository,
+    intelligenceWorkflowRepository,
   );
   const intelligenceService = new IntelligenceService(
     new IntelligenceRepositoryAdapter(footballRepository, predictionRepository, analystRepository),
@@ -251,6 +263,16 @@ export function createApp(options?: {
     options?.predictionWorkflowRepository ?? new PrismaPredictionWorkflowRepository(),
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
+  );
+  const intelligenceWorkflowService = new IntelligenceWorkflowService(
+    intelligenceWorkflowRepository,
+    (auditInput) => adminService.audit(
+      auditInput.actorUserId,
+      auditInput.action,
+      auditInput.entityType,
+      auditInput.entityId,
+      auditInput.details,
+    ),
   );
   const operationsRepository = options?.operationsRepository ?? (
     process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
@@ -447,6 +469,13 @@ export function createApp(options?: {
     createPredictionWorkflowRouter({
       authService,
       predictionWorkflowService,
+    }),
+  );
+  app.use(
+    "/api",
+    createIntelligenceWorkflowRouter({
+      authService,
+      intelligenceWorkflowService,
     }),
   );
   app.use(

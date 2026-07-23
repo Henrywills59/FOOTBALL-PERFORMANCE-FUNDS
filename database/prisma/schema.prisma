@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -44,6 +45,56 @@ enum PredictionDataQualityStatus {
   READY
   INSUFFICIENT_DATA
   STALE_ODDS
+}
+
+enum AiIntelligenceStatus {
+  SCANNED
+  QUALIFIED
+  REQUIRES_REVIEW
+  APPROVED_SUBSCRIBER
+  APPROVED_COMPANY
+  APPROVED_BOTH
+  REJECTED
+  PUBLISHED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum IntelligenceReviewDecision {
+  APPROVE_SUBSCRIBER
+  APPROVE_COMPANY
+  APPROVE_BOTH
+  REJECT
+  REQUEST_MORE_ANALYSIS
+  WITHDRAW
+}
+
+enum SubscriberPublicationStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum CompanyBetPlacementStatus {
+  PENDING_APPROVAL
+  APPROVED
+  READY_TO_PLACE
+  PLACED
+  CANCELLED
+  EXPIRED
+  SETTLED
+}
+
+enum BettingLedgerResult {
+  PENDING
+  WON
+  LOST
+  VOID
+  PARTIAL_WIN
+  PARTIAL_LOSS
+  CANCELLED
 }
 
 enum InvestmentStatus {
@@ -216,6 +267,7 @@ model FootballFixture {
   predictions          MatchPrediction[]
   analystAssignments   AnalystAssignment[]
   intelligenceSubmissions AnalystIntelligenceSubmission[]
+  aiIntelligence       AiIntelligence[]
 
   @@index([kickoffAt])
   @@index([status])
@@ -453,6 +505,159 @@ model PredictionNotification {
   @@index([channel])
   @@index([status])
   @@map("prediction_notifications")
+}
+
+model AiIntelligence {
+  id                    String               @id @default(uuid())
+  fixtureId             String
+  matchLabel            String
+  leagueName            String
+  kickoffAt             DateTime?
+  source                String               @default("AI_DECISION_ENGINE")
+  scanStatus            AiIntelligenceStatus @default(SCANNED)
+  confidenceScore       Float                @default(0)
+  riskScore             Float                @default(0)
+  valueScore            Float                @default(0)
+  opportunityScore      Float                @default(0)
+  recommendedMarket     String
+  predictedOutcome      String
+  reasoningSummary      String
+  supportingMetrics     Json                 @default("{}")
+  riskFactors           Json                 @default("[]")
+  alternativeMarkets    Json                 @default("[]")
+  operationsNotes       String?
+  subscriberSummary     String?
+  dataQualityStatus     PredictionDataQualityStatus @default(INSUFFICIENT_DATA)
+  decisionEngineRunId   String?
+  createdByUserId       String?
+  lastReviewedByUserId  String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  reviewedAt            DateTime?
+  expiresAt             DateTime?
+  fixture               FootballFixture      @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  reviews               AiIntelligenceReview[]
+  subscriberPublications SubscriberPublication[]
+  companyBets           CompanyBet[]
+
+  @@index([fixtureId])
+  @@index([scanStatus])
+  @@index([leagueName])
+  @@index([kickoffAt])
+  @@index([confidenceScore])
+  @@index([riskScore])
+  @@index([createdAt])
+  @@map("ai_intelligence")
+}
+
+model AiIntelligenceReview {
+  id             String                     @id @default(uuid())
+  intelligenceId String
+  reviewerUserId String?
+  decision       IntelligenceReviewDecision
+  previousStatus AiIntelligenceStatus
+  nextStatus     AiIntelligenceStatus
+  notes          String?
+  createdAt      DateTime                   @default(now())
+  intelligence   AiIntelligence             @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
+
+  @@index([intelligenceId])
+  @@index([reviewerUserId])
+  @@index([decision])
+  @@index([createdAt])
+  @@map("ai_intelligence_reviews")
+}
+
+model SubscriberPublication {
+  id                 String                      @id @default(uuid())
+  intelligenceId     String
+  status             SubscriberPublicationStatus @default(DRAFT)
+  title              String
+  summary            String
+  recommendedMarket  String
+  predictedOutcome   String
+  confidenceScore    Float
+  riskScore          Float
+  valueScore         Float
+  opportunityScore   Float
+  riskGrade          String
+  visibleFrom        DateTime?
+  publishedAt        DateTime?
+  withdrawnAt        DateTime?
+  createdByUserId    String?
+  updatedByUserId    String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  intelligence       AiIntelligence              @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
+
+  @@index([intelligenceId])
+  @@index([status])
+  @@index([publishedAt])
+  @@map("subscriber_publications")
+}
+
+model CompanyBet {
+  id                    String                    @id @default(uuid())
+  intelligenceId         String
+  status                CompanyBetPlacementStatus @default(PENDING_APPROVAL)
+  market                String
+  selection             String
+  requestedStakeCents   Int                       @default(0)
+  approvedStakeCents    Int                       @default(0)
+  currency              String                    @default("USD")
+  targetOdds            Float?
+  finalOdds             Float?
+  bookmaker             String?
+  exposureCents         Int                       @default(0)
+  maxLossCents          Int                       @default(0)
+  expectedReturnCents   Int                       @default(0)
+  riskGrade             String                    @default("MEDIUM")
+  approvedByUserId      String?
+  placedByUserId        String?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  approvedAt            DateTime?
+  placedAt              DateTime?
+  cancelledAt           DateTime?
+  intelligence          AiIntelligence            @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
+  ledgerEntry           BettingLedgerEntry?
+
+  @@index([intelligenceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("company_bets")
+}
+
+model BettingLedgerEntry {
+  id                    String              @id @default(uuid())
+  companyBetId          String              @unique
+  fixtureId             String
+  market                String
+  selection             String
+  stakeCents            Int
+  currency              String              @default("USD")
+  odds                  Float
+  potentialReturnCents  Int
+  settledReturnCents    Int                 @default(0)
+  profitLossCents       Int                 @default(0)
+  result                BettingLedgerResult @default(PENDING)
+  bookmaker             String?
+  placedAt              DateTime?
+  settledAt             DateTime?
+  reconciliationStatus  String              @default("PENDING")
+  externalBetReference  String?
+  createdByUserId       String?
+  settledByUserId       String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  companyBet            CompanyBet          @relation(fields: [companyBetId], references: [id], onDelete: Cascade)
+
+  @@index([fixtureId])
+  @@index([result])
+  @@index([reconciliationStatus])
+  @@index([createdAt])
+  @@map("betting_ledger_entries")
 }
 
 model AuditLog {
