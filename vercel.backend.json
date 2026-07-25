@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build -w shared && npm run prisma:generate -w database && npm run build -w backend",
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/health/db",
+      "destination": "/api/health/db"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ]
+}

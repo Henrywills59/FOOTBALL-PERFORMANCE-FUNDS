@@ -4,11 +4,45 @@ export type HealthStatus = {
   version: string;
 };
 
-export const USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST", "ADMIN"] as const;
+export const USER_ROLES = [
+  "SUBSCRIBER",
+  "INVESTOR",
+  "ANALYST",
+  "ADMIN",
+  "CEO",
+  "FINANCE",
+  "RISK_MANAGER",
+  "CAPITAL_MANAGER",
+  "SUPER_ADMINISTRATOR",
+  "COUNTRY_PARTNER",
+] as const;
 export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"] as const;
+export const COMPANY_CAPITAL_ROLES = ["CEO", "FINANCE", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"] as const;
+export const INTERNAL_PLATFORM_NAME = "FPF OS";
+export const PUBLIC_BRAND_NAME = "Football Performance Fund";
+export const COMPANY_POSITIONING = "Global Football Performance Intelligence Company";
+export const PERFORMANCE_PARTNER_ROLE = "INVESTOR" as const;
+export const ROLE_DISPLAY_LABELS = {
+  SUBSCRIBER: "Subscriber",
+  INVESTOR: "Performance Partner",
+  ANALYST: "Analyst",
+  ADMIN: "Admin",
+  CEO: "CEO",
+  FINANCE: "Finance",
+  RISK_MANAGER: "Risk Manager",
+  CAPITAL_MANAGER: "Capital Manager",
+  SUPER_ADMINISTRATOR: "Super Administrator",
+  COUNTRY_PARTNER: "Country Partner",
+} as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 export type PublicUserRole = (typeof PUBLIC_USER_ROLES)[number];
+export type CompanyCapitalRole = (typeof COMPANY_CAPITAL_ROLES)[number];
+export type PerformancePartnerRole = typeof PERFORMANCE_PARTNER_ROLE;
+
+export function isPerformancePartnerRole(role: UserRole): role is PerformancePartnerRole {
+  return role === PERFORMANCE_PARTNER_ROLE;
+}
 
 export type AccountStatus = "ACTIVE" | "DISABLED";
 
@@ -31,6 +65,111 @@ export type DashboardRoute = {
   role: UserRole;
   path: string;
   title: string;
+};
+
+export type FpfSeasonStatus =
+  | "REGISTRATION"
+  | "ACTIVE"
+  | "SETTLEMENT"
+  | "CLOSING"
+  | "NEXT_REGISTRATION";
+
+export type ParticipationPlanCode = "HALF_SEASON" | "FULL_SEASON" | "REMAINING_SEASON";
+export type ParticipationAgreementStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "SETTLEMENT"
+  | "COMPLETED"
+  | "RENEWAL_OPEN"
+  | "EXPIRED"
+  | "CANCELLED";
+export type FinancialConstitutionAllocationType =
+  | "PERFORMANCE_PARTNER_DISTRIBUTION_POOL"
+  | "ANALYST_PERFORMANCE_POOL"
+  | "RISK_STABILITY_RESERVE"
+  | "COMPANY_GROWTH_OPERATIONS_FUND";
+
+export type FpfSeason = {
+  id: string;
+  name: string;
+  status: FpfSeasonStatus;
+  registrationOpensAt: string;
+  seasonStartsAt: string;
+  seasonEndsAt: string;
+  settlementStartsAt: string;
+  closingStartsAt: string;
+  nextRegistrationOpensAt: string | null;
+  totalWeeks: number;
+};
+
+export type ParticipationPlan = {
+  code: ParticipationPlanCode;
+  label: string;
+  description: string;
+  requiresActiveSeason: boolean;
+};
+
+export type PerformancePartnerParticipation = {
+  id: string;
+  userId: string;
+  seasonId: string;
+  planCode: ParticipationPlanCode;
+  status: ParticipationAgreementStatus;
+  participationAmountCents: number;
+  startsAt: string;
+  expiresAt: string;
+  remainingWeeks: number;
+  remainingDistributions: number;
+  contractualPayoutNotice: string;
+  noRetroactiveDistribution: boolean;
+};
+
+export type ParticipationRenewalResult = {
+  participation: PerformancePartnerParticipation;
+  renewalStatus: "READY_FOR_NEXT_SEASON_REGISTRATION";
+  message: string;
+};
+
+export type FinancialConstitutionAllocation = {
+  type: FinancialConstitutionAllocationType;
+  label: string;
+  percent: number;
+  distributable: boolean;
+  purpose: string;
+};
+
+export type SeasonOperatingModel = {
+  brand: typeof PUBLIC_BRAND_NAME;
+  platform: typeof INTERNAL_PLATFORM_NAME;
+  positioning: typeof COMPANY_POSITIONING;
+  currentSeason: FpfSeason;
+  participationPlans: ParticipationPlan[];
+  financialConstitution: FinancialConstitutionAllocation[];
+  notices: {
+    performancePartnerCompatibility: string;
+    contractualPayout: string;
+    noAutomaticRenewal: string;
+    noRetroactiveDistribution: string;
+  };
+};
+
+export type ParticipationSimulatorInput = {
+  participationAmountCents: number;
+  planCode: ParticipationPlanCode;
+  currentSeasonId?: string;
+  remainingWeeks?: number;
+};
+
+export type ParticipationSimulatorResult = {
+  input: ParticipationSimulatorInput;
+  plan: ParticipationPlan;
+  season: FpfSeason;
+  estimatedWeeklyDistributionCents: number;
+  estimatedTotalContractualPayoutCents: number;
+  contractExpiry: string;
+  remainingWeeks: number;
+  remainingDistributions: number;
+  notices: SeasonOperatingModel["notices"];
 };
 
 export type FootballFixtureStatus = "SCHEDULED" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED";
@@ -296,6 +435,7 @@ export type CommercialStructure = {
   subscriberPlans: SubscriberPlan[];
   investorLevels: InvestorLevel[];
   investorPackages: InvestorPackage[];
+  participationPlans: ParticipationPlan[];
   lockPeriods: InvestmentLockPeriod[];
   pricingRules: PricingRule[];
   minimumInvestmentCents: number;
@@ -307,6 +447,8 @@ export type CommercialStructure = {
     paymentPlaceholder: string;
     investmentRisk: string;
     simulationOnly: string;
+    performancePartnerCompatibility: string;
+    contractualPayout: string;
   };
 };
 
@@ -540,6 +682,149 @@ export type MediaProviderStatus = {
   name: string;
   configured: boolean;
   mode: "PLACEHOLDER";
+};
+
+export type CountryPartnerLicenceStatus = "PENDING" | "ACTIVE" | "SUSPENDED" | "EXPIRED" | "RENEWAL_DUE" | "TERMINATED";
+export type CountryPartnerLevelName = "Emerging" | "Bronze" | "Silver" | "Gold" | "Platinum";
+export type CountryPartnerLeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "CONVERTED" | "LOST";
+export type CountryPartnerMarketingPlatform =
+  | "FACEBOOK"
+  | "INSTAGRAM"
+  | "TIKTOK"
+  | "LINKEDIN"
+  | "X"
+  | "TELEGRAM"
+  | "WHATSAPP"
+  | "YOUTUBE_SHORTS";
+export type CountryPartnerMarketingContentType = "POSTER" | "REEL" | "CAPTION" | "SHORT_VIDEO" | "VOICE_SCRIPT" | "CAMPAIGN";
+
+export type CountryPartnerProfile = {
+  id: string;
+  userId: string;
+  partnerName: string;
+  countryCode: string;
+  countryName: string;
+  region: string | null;
+  licenceStatus: CountryPartnerLicenceStatus;
+  licenceStartedAt: string | null;
+  licenceExpiresAt: string | null;
+  entryFeeCents: number;
+  renewalFeeCents: number;
+  currency: string;
+  level: CountryPartnerLevelName;
+  complianceScore: number;
+  localContactDetails: Record<string, unknown>;
+  allowedCustomFields: string[];
+};
+
+export type CountryPartnerCommissionRule = {
+  id: string;
+  ruleCode: string;
+  label: string;
+  revenueType: "NET_SUBSCRIPTION_REVENUE" | "ELIGIBLE_COMPANY_REVENUE" | "APPROVED_LOCAL_SERVICE";
+  percent: number;
+  active: boolean;
+  notes: string;
+};
+
+export type CountryPartnerLevelThreshold = {
+  level: CountryPartnerLevelName;
+  minimumCbvCents: number;
+  active: boolean;
+};
+
+export type CountryBusinessVolume = {
+  totalCents: number;
+  currency: string;
+  subscriptionRevenueCents: number;
+  performancePartnerBusinessCents: number;
+  renewalsCents: number;
+  approvedLocalServicesCents: number;
+  verifiedPaymentCount: number;
+  periodStart: string;
+  periodEnd: string;
+};
+
+export type CountryPartnerCommissionSummary = {
+  totalCommissionCents: number;
+  currency: string;
+  subscriptionCommissionCents: number;
+  eligibleCompanyRevenueCommissionCents: number;
+  localServicesCommissionCents: number;
+  rules: CountryPartnerCommissionRule[];
+};
+
+export type CountryPartnerLead = {
+  id: string;
+  partnerId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  countryCode: string;
+  interestType: string;
+  status: CountryPartnerLeadStatus;
+  estimatedValueCents: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CountryPartnerMarketingAsset = {
+  id: string;
+  partnerId: string | null;
+  countryCode: string;
+  language: string;
+  platform: CountryPartnerMarketingPlatform;
+  contentType: CountryPartnerMarketingContentType;
+  campaignType: string;
+  title: string;
+  body: string;
+  caption: string;
+  script: string | null;
+  localisation: Record<string, unknown>;
+  approvedByHq: boolean;
+  status: "DRAFT" | "APPROVED" | "LOCALIZED" | "PUBLISHED" | "ARCHIVED";
+  createdAt: string;
+};
+
+export type CountryPartnerDashboard = {
+  profile: CountryPartnerProfile;
+  cbv: CountryBusinessVolume;
+  commissionSummary: CountryPartnerCommissionSummary;
+  subscriberGrowth: Array<{ label: string; value: number }>;
+  performancePartnerActivity: Array<{ label: string; amountCents: number; status: string }>;
+  marketing: {
+    approvedAssets: CountryPartnerMarketingAsset[];
+    dailyContentStatus: string;
+    editableFields: string[];
+  };
+  leadSummary: {
+    total: number;
+    newLeads: number;
+    qualified: number;
+    converted: number;
+  };
+  compliance: {
+    score: number;
+    status: string;
+    reminders: string[];
+  };
+  licence: {
+    status: CountryPartnerLicenceStatus;
+    entryFeeNotice: string;
+    renewalDueAt: string | null;
+    territoryRights: string;
+  };
+  reports: Array<{ title: string; summary: string; generatedAt: string }>;
+};
+
+export type CountryPartnerAdminOverview = {
+  partners: CountryPartnerProfile[];
+  rules: CountryPartnerCommissionRule[];
+  levels: CountryPartnerLevelThreshold[];
+  totalCbvCents: number;
+  activePartners: number;
+  pendingRenewals: number;
 };
 
 export type MediaDashboard = {
@@ -1301,6 +1586,91 @@ export type WarRoomDashboard = {
   searchIndex: Array<{ category: string; title: string; description: string }>;
 };
 
+export type IntelligenceScanStage =
+  | "FIXTURE_INGESTION"
+  | "MATCH_SCANNING"
+  | "CANDIDATE_SCORING"
+  | "CANDIDATE_QUEUE"
+  | "ANALYST_REVIEW"
+  | "PUBLICATION_PIPELINE";
+
+export type IntelligenceScanCandidate = {
+  fixtureId: string;
+  match: string;
+  league: string;
+  kickoffTime: string | null;
+  confidenceScore: number;
+  riskScore: number;
+  valueScore: number;
+  opportunityScore: number;
+  recommendationStatus: DecisionRecommendationStatus;
+  queueStatus: PredictionLifecycleStatus;
+  analystReviewStatus: "PENDING" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "PUBLISHED";
+  verifiedSelectionReady: boolean;
+  companyCapitalEligible: boolean;
+  financialEngineEligible: boolean;
+  auditTrail: string[];
+};
+
+export type IntelligenceScanSummary = {
+  fixturesIngested: number;
+  matchesScanned: number;
+  candidatesScored: number;
+  queuedCandidates: number;
+  verifiedSelectionsReady: number;
+  companyCapitalEligible: number;
+  generatedAt: string;
+};
+
+export type IntelligenceWorkflowRun = {
+  id: string;
+  mode: "MOCK_PROVIDER";
+  stages: IntelligenceScanStage[];
+  summary: IntelligenceScanSummary;
+  candidates: IntelligenceScanCandidate[];
+  warnings: string[];
+};
+
+export type AnalystCommandCentre = {
+  assignmentQueue: AnalystAssignment[];
+  workspace: {
+    pendingSubmissions: AnalystIntelligenceSubmission[];
+    approvedSubmissions: AnalystIntelligenceSubmission[];
+    rejectedSubmissions: AnalystIntelligenceSubmission[];
+    publishedSubmissions: AnalystIntelligenceSubmission[];
+  };
+  evidenceCollection: Array<{
+    fixtureId: string;
+    match: string;
+    evidenceStatus: "MISSING" | "PARTIAL" | "READY";
+    collectedEvidence: string[];
+    missingEvidence: string[];
+  }>;
+  recommendationWorkflow: Array<{
+    submissionId: string;
+    fixtureId: string;
+    match: string;
+    status: IntelligenceSubmissionStatus;
+    confidence: number;
+    riskLevel: string;
+    seniorReviewRequired: boolean;
+    publicationReady: boolean;
+  }>;
+  seniorReviewQueue: AnalystIntelligenceSubmission[];
+  approvalPipeline: {
+    pendingReview: number;
+    approved: number;
+    rejected: number;
+    published: number;
+  };
+  integrationStatus: {
+    verifiedSelections: "READY";
+    companyCapitalDesk: "READY";
+    financialEngine: "READY";
+    auditLogs: "READY";
+  };
+};
+
 export type PublishedIntelligence = {
   id: string;
   fixtureId: string;
@@ -1326,6 +1696,9 @@ export type SubscriberOpportunity = {
   aiConfidence: number;
   riskGrade: "Low" | "Medium" | "High";
   expectedValue: string;
+  suggestedOdds?: number | null;
+  historicalAccuracy?: number | null;
+  currentStatus?: string;
   status: "Live" | "Upcoming" | "Published" | "Monitoring";
   explanation: string;
   source: "AI Prediction" | "FPF Intelligence";
@@ -1345,9 +1718,20 @@ export type SubscriberPerformanceSummary = {
   losses: number;
   strikeRate: number;
   roi: number;
+  dailyRoi?: number;
+  weeklyRoi?: number;
+  monthlyRoi?: number;
+  overallRoi?: number;
+  lossRate?: number;
+  averageOdds?: number;
+  bestMarkets?: string[];
+  currentStreak?: string;
+  longestWinningStreak?: number;
+  longestLosingStreak?: number;
   weeklyProfit: number;
   monthlyProfit: number;
   chart: Array<{ label: string; value: number }>;
+  timeline?: Array<{ label: string; status: string; value: number }>;
 };
 
 export type SubscriberReport = {
@@ -1374,6 +1758,41 @@ export type SubscriberReferralSummary = {
   rewards: string[];
 };
 
+export type SubscriberPredictionHistoryItem = {
+  id: string;
+  date: string;
+  fixture: string;
+  league: string;
+  market: string;
+  odds: number | null;
+  result: "Pending" | "Won" | "Lost" | "Void";
+  profitLossCents: number;
+  confidence: number;
+  status: string;
+};
+
+export type SubscriberSubscriptionCenter = {
+  plan: string;
+  status: "Active" | "Trial" | "Expired";
+  billingCycle: "Monthly" | "Annual";
+  expirationDate: string | null;
+  paymentStatus: "Current" | "Pending" | "Past Due";
+  billingHistory: Array<{ id: string; date: string; amountCents: number; status: string }>;
+  receipts: Array<{ id: string; date: string; amountCents: number; label: string }>;
+  upgradeOptions: string[];
+};
+
+export type SubscriberProfileCenter = {
+  name: string;
+  email: string;
+  accountStatus: AccountStatus;
+  avatarUrl: string | null;
+  mfaStatus: "Not Enabled" | "Enabled";
+  devices: Array<{ id: string; label: string; lastSeenAt: string }>;
+  loginHistory: Array<{ id: string; label: string; createdAt: string }>;
+  notificationPreferences: string[];
+};
+
 export type SubscriberCommandCenter = {
   executiveOverview: {
     welcomeMessage: string;
@@ -1389,6 +1808,9 @@ export type SubscriberCommandCenter = {
   reports: SubscriberReport[];
   notifications: SubscriberNotification[];
   referral: SubscriberReferralSummary;
+  predictionHistory?: SubscriberPredictionHistoryItem[];
+  subscriptionCenter?: SubscriberSubscriptionCenter;
+  profileCenter?: SubscriberProfileCenter;
 };
 
 export type DecisionRecommendationStatus = "APPROVED_CANDIDATE" | "NEEDS_REVIEW" | "REJECTED";
@@ -1439,6 +1861,7 @@ export type PredictionLifecycleStatus =
   | "ANALYZING"
   | "PENDING_REVIEW"
   | "UNDER_REVIEW"
+  | "SENIOR_REVIEW"
   | "APPROVED"
   | "REJECTED"
   | "PUBLISHED"
@@ -1506,12 +1929,192 @@ export type PredictionWorkflowAction =
   | "REJECT"
   | "SAVE_DRAFT"
   | "REQUEST_REVIEW"
+  | "SENIOR_REVIEW"
   | "FLAG_HIGH_RISK"
   | "FLAG_HIGH_OPPORTUNITY"
   | "MARK_FEATURED"
   | "PUBLISH"
   | "ARCHIVE"
   | "RESTORE";
+
+export type AiIntelligenceStatus =
+  | "SCANNED"
+  | "QUALIFIED"
+  | "REQUIRES_REVIEW"
+  | "APPROVED_SUBSCRIBER"
+  | "APPROVED_COMPANY"
+  | "APPROVED_BOTH"
+  | "REJECTED"
+  | "PUBLISHED"
+  | "WITHDRAWN"
+  | "EXPIRED";
+
+export type IntelligenceReviewDecision =
+  | "APPROVE_SUBSCRIBER"
+  | "APPROVE_COMPANY"
+  | "APPROVE_BOTH"
+  | "REJECT"
+  | "REQUEST_MORE_ANALYSIS"
+  | "WITHDRAW";
+
+export type SubscriberPublicationStatus = "DRAFT" | "SCHEDULED" | "PUBLISHED" | "WITHDRAWN" | "EXPIRED";
+
+export type CompanyBetPlacementStatus =
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "READY_TO_PLACE"
+  | "PLACED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "SETTLED";
+
+export type BettingLedgerResult = "PENDING" | "WON" | "LOST" | "VOID" | "PARTIAL_WIN" | "PARTIAL_LOSS" | "CANCELLED";
+
+export type AiIntelligenceRecord = {
+  id: string;
+  fixtureId: string;
+  matchLabel: string;
+  leagueName: string;
+  kickoffAt: string | null;
+  source: string;
+  scanStatus: AiIntelligenceStatus;
+  confidenceScore: number;
+  riskScore: number;
+  valueScore: number;
+  opportunityScore: number;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  reasoningSummary: string;
+  supportingMetrics: Record<string, unknown>;
+  riskFactors: string[];
+  alternativeMarkets: string[];
+  operationsNotes: string | null;
+  subscriberSummary: string | null;
+  dataQualityStatus: PredictionDataQualityStatus;
+  decisionEngineRunId: string | null;
+  createdByUserId: string | null;
+  lastReviewedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type AiIntelligenceReview = {
+  id: string;
+  intelligenceId: string;
+  reviewerUserId: string | null;
+  decision: IntelligenceReviewDecision;
+  previousStatus: AiIntelligenceStatus;
+  nextStatus: AiIntelligenceStatus;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type SubscriberPublication = {
+  id: string;
+  intelligenceId: string;
+  status: SubscriberPublicationStatus;
+  title: string;
+  summary: string;
+  recommendedMarket: string;
+  predictedOutcome: string;
+  confidenceScore: number;
+  riskScore: number;
+  valueScore: number;
+  opportunityScore: number;
+  riskGrade: string;
+  visibleFrom: string | null;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SubscriberIntelligence = Pick<
+  SubscriberPublication,
+  | "id"
+  | "intelligenceId"
+  | "title"
+  | "summary"
+  | "recommendedMarket"
+  | "predictedOutcome"
+  | "confidenceScore"
+  | "riskScore"
+  | "valueScore"
+  | "opportunityScore"
+  | "riskGrade"
+  | "publishedAt"
+> & {
+  matchLabel: string;
+  leagueName: string;
+  kickoffAt: string | null;
+};
+
+export type CompanyBet = {
+  id: string;
+  intelligenceId: string;
+  status: CompanyBetPlacementStatus;
+  market: string;
+  selection: string;
+  requestedStakeCents: number;
+  approvedStakeCents: number;
+  currency: string;
+  targetOdds: number | null;
+  finalOdds: number | null;
+  bookmaker: string | null;
+  exposureCents: number;
+  maxLossCents: number;
+  expectedReturnCents: number;
+  riskGrade: string;
+  approvedByUserId: string | null;
+  placedByUserId: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt: string | null;
+  placedAt: string | null;
+  cancelledAt: string | null;
+};
+
+export type BettingLedgerEntry = {
+  id: string;
+  companyBetId: string;
+  fixtureId: string;
+  market: string;
+  selection: string;
+  stakeCents: number;
+  currency: string;
+  odds: number;
+  potentialReturnCents: number;
+  settledReturnCents: number;
+  profitLossCents: number;
+  result: BettingLedgerResult;
+  bookmaker: string | null;
+  placedAt: string | null;
+  settledAt: string | null;
+  reconciliationStatus: string;
+  externalBetReference: string | null;
+  createdByUserId: string | null;
+  settledByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type IntelligenceExecutiveSummary = {
+  scanned: number;
+  reviewQueue: number;
+  approvedForSubscribers: number;
+  publishedToSubscribers: number;
+  companyBetsPending: number;
+  companyBetsPlaced: number;
+  ledgerOpen: number;
+  ledgerSettled: number;
+  exposureCents: number;
+  profitLossCents: number;
+};
 
 export type TreasuryRiskGrade = "LOW" | "MEDIUM" | "HIGH";
 export type TreasuryExecutionStatus = "RECOMMENDED" | "PENDING_EXECUTION" | "PLACED" | "PARTIALLY_PLACED" | "NOT_EXECUTED" | "CANCELLED" | "SETTLED";

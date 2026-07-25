@@ -1,6 +1,4 @@
-export default function handler(_request: unknown, response: { status: (code: number) => { json: (body: unknown) => void } }) {
-  response.status(200).json({
-    status: "ok",
-    service: "football-performance-fund-api",
-  });
+export default async function handler(request: unknown, response: unknown) {
+  const { default: healthHandler } = await import("../backend/api/health.js");
+  return healthHandler(request, response as never);
 }

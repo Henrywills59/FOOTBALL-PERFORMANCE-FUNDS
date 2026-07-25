@@ -1,0 +1,1 @@
+ALTER TYPE "ParticipationAgreementStatus" ADD VALUE IF NOT EXISTS 'RENEWAL_OPEN';

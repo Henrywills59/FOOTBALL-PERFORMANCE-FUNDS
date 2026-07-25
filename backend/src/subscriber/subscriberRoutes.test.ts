@@ -8,11 +8,13 @@ import { InMemoryFootballRepository } from "../football/inMemoryFootballReposito
 import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
+import { InMemoryIntelligenceWorkflowRepository } from "../intelligenceWorkflow/inMemoryIntelligenceWorkflowRepository.js";
 
 function buildApp() {
   const footballRepository = new InMemoryFootballRepository();
   const predictionRepository = new InMemoryPredictionRepository([]);
   const analystRepository = new InMemoryAnalystRepository();
+  const intelligenceWorkflowRepository = new InMemoryIntelligenceWorkflowRepository();
   const app = createApp({
     userRepository: new InMemoryUserRepository(),
     footballRepository,
@@ -21,11 +23,12 @@ function buildApp() {
     investorRepository: new InMemoryInvestorRepository(),
     walletRepository: new InMemoryWalletRepository(),
     analystRepository,
+    intelligenceWorkflowRepository,
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });
 
-  return { analystRepository, app, footballRepository, predictionRepository };
+  return { analystRepository, app, footballRepository, intelligenceWorkflowRepository, predictionRepository };
 }
 
 async function register(app: ReturnType<typeof createApp>, role: "SUBSCRIBER" | "INVESTOR") {
@@ -66,6 +69,59 @@ describe("subscriber command center", () => {
     expect(response.body.reports.length).toBeGreaterThan(0);
     expect(response.body.notifications.length).toBeGreaterThan(0);
     expect(response.body.referral.referralCode).toMatch(/^FPF-/);
+  });
+
+  it("includes workflow subscriber publications without exposing internal intelligence fields", async () => {
+    const { app, intelligenceWorkflowRepository } = buildApp();
+    const intelligence = await intelligenceWorkflowRepository.createIntelligence({
+      fixtureId: "fixture-workflow",
+      matchLabel: "Liverpool vs Everton",
+      leagueName: "Premier League",
+      kickoffAt: new Date("2026-07-23T18:00:00.000Z").toISOString(),
+      recommendedMarket: "Match Result",
+      predictedOutcome: "Liverpool",
+      confidenceScore: 82,
+      riskScore: 31,
+      valueScore: 74,
+      opportunityScore: 81,
+      reasoningSummary: "Internal reasoning should not be exposed.",
+      subscriberSummary: "Published subscriber-safe explanation.",
+      supportingMetrics: { privateModel: "hidden" },
+      riskFactors: ["Internal review note"],
+      alternativeMarkets: ["Internal alternative"],
+      dataQualityStatus: "READY",
+    });
+    await intelligenceWorkflowRepository.updateIntelligenceStatus({
+      id: intelligence.id,
+      status: "APPROVED_SUBSCRIBER",
+      reviewedAt: new Date().toISOString(),
+    });
+    const publication = await intelligenceWorkflowRepository.createSubscriberPublication({
+      intelligence: { ...intelligence, scanStatus: "APPROVED_SUBSCRIBER" },
+      actorUserId: "admin-user",
+      title: "Liverpool Intelligence",
+      summary: "Published subscriber-safe explanation.",
+    });
+    await intelligenceWorkflowRepository.updateSubscriberPublication(publication.id, {
+      actorUserId: "admin-user",
+      status: "PUBLISHED",
+    });
+    const token = await register(app, "SUBSCRIBER");
+
+    const response = await request(app)
+      .get("/api/subscriber/command-center")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body.opportunities[0]).toEqual(
+      expect.objectContaining({
+        match: "Liverpool vs Everton",
+        source: "FPF Intelligence",
+        explanation: "Published subscriber-safe explanation.",
+      }),
+    );
+    expect(JSON.stringify(response.body)).not.toContain("privateModel");
+    expect(JSON.stringify(response.body)).not.toContain("Internal reasoning should not be exposed");
   });
 
   it("composes approved predictions and published intelligence into opportunities", async () => {

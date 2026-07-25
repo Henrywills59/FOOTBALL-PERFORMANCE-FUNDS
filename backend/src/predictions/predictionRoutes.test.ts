@@ -46,7 +46,34 @@ function fixture(overrides: Partial<FootballFixtureDetail> = {}): FootballFixtur
   };
 }
 
-async function authToken(app: ReturnType<typeof createApp>, role: "SUBSCRIBER" | "ANALYST" | "ADMIN") {
+async function authToken(
+  app: ReturnType<typeof createApp>,
+  role: "SUBSCRIBER" | "ANALYST" | "ADMIN",
+  users?: InMemoryUserRepository,
+) {
+  if (role === "ANALYST" || role === "ADMIN") {
+    if (!users) {
+      throw new Error("Internal test users require an in-memory user repository.");
+    }
+    const suffix = Math.random().toString(36).slice(2);
+    const id = `${role.toLowerCase()}-${suffix}`;
+    const email = `${role.toLowerCase()}-${suffix}@example.com`;
+    users.seedUser({
+      id,
+      name: `${role} User`,
+      email,
+      passwordHash: "not-used",
+      role,
+      status: "ACTIVE",
+      createdAt: new Date().toISOString(),
+    });
+
+    return jwt.sign({ role, email }, "test-secret", {
+      subject: id,
+      expiresIn: "1d",
+    });
+  }
+
   const suffix = Math.random().toString(36).slice(2);
   const response = await request(app)
     .post("/api/auth/register")
@@ -54,7 +81,7 @@ async function authToken(app: ReturnType<typeof createApp>, role: "SUBSCRIBER" |
       name: `${role} User`,
       email: `${role.toLowerCase()}-${suffix}@example.com`,
       password: "Password123",
-      role: role === "ADMIN" ? "ANALYST" : role,
+      role,
     })
     .expect(201);
 
@@ -113,7 +140,7 @@ describe("prediction routes", () => {
       jwtSecret: "test-secret",
       startFootballJobs: false,
     });
-    const analystToken = await authToken(app, "ANALYST");
+    const analystToken = await authToken(app, "ANALYST", userRepository);
 
     const generated = await request(app)
       .post("/api/predictions/fixtures/fixture-1/generate")
@@ -131,7 +158,7 @@ describe("prediction routes", () => {
         expect(response.body.predictions).toHaveLength(0);
       });
 
-    const adminCapableToken = await authToken(app, "ANALYST");
+    const adminCapableToken = await authToken(app, "ANALYST", userRepository);
     await request(app)
       .post(`/api/admin/predictions/${generated.body.prediction.id}/approve`)
       .set("Authorization", `Bearer ${adminCapableToken}`)

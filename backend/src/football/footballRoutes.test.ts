@@ -1,5 +1,6 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
+import jwt from "jsonwebtoken";
 import { createApp } from "../app.js";
 import { InMemoryUserRepository } from "../auth/inMemoryUserRepository.js";
 import { ApiFootballClient } from "./apiFootballClient.js";
@@ -27,8 +28,9 @@ async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
     raw: {},
   });
 
+  const userRepository = new InMemoryUserRepository();
   const app = createApp({
-    userRepository: new InMemoryUserRepository(),
+    userRepository,
     footballRepository,
     predictionRepository: new InMemoryPredictionRepository([]),
     adminRepository: new InMemoryAdminRepository(),
@@ -38,11 +40,31 @@ async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
     startFootballJobs: false,
   });
 
+  if (role === "ANALYST") {
+    userRepository.seedUser({
+      id: "analyst-football-user",
+      name: "Analyst User",
+      email: "analyst@example.com",
+      passwordHash: "not-used",
+      role: "ANALYST",
+      status: "ACTIVE",
+      createdAt: new Date().toISOString(),
+    });
+
+    return {
+      app,
+      token: jwt.sign({ role: "ANALYST", email: "analyst@example.com" }, "test-secret", {
+        subject: "analyst-football-user",
+        expiresIn: "1d",
+      }),
+    };
+  }
+
   const login = await request(app)
     .post("/api/auth/register")
     .send({
-      name: "Analyst User",
-      email: `${role.toLowerCase()}@example.com`,
+      name: "Subscriber User",
+      email: "subscriber@example.com",
       password: "Password123",
       role,
     })

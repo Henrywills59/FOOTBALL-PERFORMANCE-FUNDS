@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CommercialStructure, CurrencySetting, LanguageSetting, PublicExperience, ThemePreference, UserGlobalPreferences } from "./types";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import type { CommercialStructure, PublicExperience, ThemePreference } from "./types";
+import { historicalOperatingBaseline } from "./historicalOperatingBaseline";
 
 type PublicPageDefinition = {
   label: string;
@@ -22,48 +23,129 @@ type Props = {
 const heroSlides = [
   {
     title: "Matchday Intelligence",
-    image: "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?auto=format&fit=crop&w=1800&q=82",
-    alt: "Football stadium under match lights",
+    image: "https://images.unsplash.com/photo-1517747614396-d21a78b850e8?auto=format&fit=crop&w=1800&q=82",
+    caption: "Matchday Intelligence",
   },
   {
     title: "Professional Analysis",
     image: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1800&q=82",
-    alt: "Football players competing during a match",
+    caption: "Analyst Review",
   },
   {
     title: "Tactical Control",
     image: "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1800&q=82",
-    alt: "Football stadium crowd and tactical atmosphere",
+    caption: "Operational Discipline",
   },
 ];
 
-function formatPublicDate(value: string | null | undefined) {
-  if (!value) return "Awaiting verified update";
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+const publicCommercialFallback: CommercialStructure = {
+  subscriberPlans: [
+    {
+      code: "STARTER",
+      features: ["Basic match intelligence", "Limited daily opportunities", "Standard support"],
+      highlighted: false,
+      monthlyPriceCents: 1900,
+      name: "Starter",
+      yearlyPriceCents: 19000,
+    },
+    {
+      code: "PRO",
+      features: ["Full match intelligence", "Confidence and risk context", "Opportunity Centre", "Priority support"],
+      highlighted: true,
+      monthlyPriceCents: 4900,
+      name: "Pro",
+      yearlyPriceCents: 49000,
+    },
+    {
+      code: "ELITE",
+      features: ["Premium intelligence reports", "Advanced analytics", "Early feature access", "VIP support"],
+      highlighted: false,
+      monthlyPriceCents: 9900,
+      name: "Elite",
+      yearlyPriceCents: 99000,
+    },
+  ],
+  investorLevels: [],
+  investorPackages: [],
+  participationPlans: [],
+  lockPeriods: [],
+  minimumInvestmentCents: 10000,
+  notices: {
+    contractualPayout: "Performance Partner participation is governed by approved agreements.",
+    investmentRisk: "Capital is at risk. Returns are not guaranteed.",
+    paymentPlaceholder: "Secure checkout is being activated.",
+    performancePartnerCompatibility: "Performance Partner is the public participation model.",
+    simulationOnly: "Simulation only.",
+  },
+  pricingRules: [],
+  simulatorDefaults: { platformFeePercent: 10, weeklyReturnPercent: 1.25 },
+};
+
+const mobileNavItems = [
+  ["Home", "/", "home"],
+  ["Intelligence", "/how-fpf-works", "how-fpf-works"],
+  ["Live In-Play", "/live-in-play", "war-room-preview"],
+  ["Performance", "/performance", "performance"],
+  ["Pricing", "/pricing", "subscribers"],
+  ["About", "/about", "what-fpf-is"],
+  ["Community", "/community", "community-preview"],
+  ["Sign In", "/login", "auth"],
+  ["Start 3-Day Preview", "/register", "auth"],
+] as const;
+
+function isAuthPath(path: string) {
+  return ["/login", "/signin", "/sign-in", "/register", "/get-started", "/subscribe", "/become-an-investor", "/forgot-password", "/reset-password"].includes(path);
 }
 
 function money(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-function statusLabel(status: string) {
-  return status.replace(/_/g, " ");
+function formatPublicDate(value: string | null | undefined) {
+  if (!value) return "Awaiting first verified update";
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
 }
 
 export function ThemeSwitcher({ onChange, theme }: { onChange: (theme: ThemePreference) => void; theme: ThemePreference }) {
+  const [open, setOpen] = useState(false);
+  const activeLabel = theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light";
+
+  function selectTheme(nextTheme: ThemePreference) {
+    onChange(nextTheme);
+    setOpen(false);
+  }
+
   return (
-    <div className="theme-switcher" role="group" aria-label="Theme preference">
-      {(["dark", "light", "system"] as ThemePreference[]).map((option) => (
-        <button
-          aria-pressed={theme === option}
-          className={theme === option ? "active" : ""}
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-        >
-          {option === "system" ? "System" : option === "dark" ? "Dark" : "Light"}
-        </button>
-      ))}
+    <div className="theme-switcher" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={`Theme preference: ${activeLabel}`}
+        className="theme-toggle-button"
+        title={`Theme: ${activeLabel}`}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span aria-hidden="true">☾</span>
+      </button>
+      {open ? (
+        <div className="theme-menu" role="menu" aria-label="Theme preference">
+          {(["dark", "light", "system"] as ThemePreference[]).map((option) => (
+            <button
+              aria-pressed={theme === option}
+              className={theme === option ? "active" : ""}
+              key={option}
+              role="menuitemradio"
+              type="button"
+              onClick={() => selectTheme(option)}
+            >
+              {option === "system" ? "System" : option === "dark" ? "Dark" : "Light"}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -75,226 +157,385 @@ export function Mission21PublicExperience({
   experience,
   onNavigate,
   onThemeChange,
-  publicPageDefinitions,
   theme,
 }: Props) {
   const [activeSlide, setActiveSlide] = useState(0);
-  const reducedMotion = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
-  const plans = experience?.commercial.subscriberPlans.length ? experience.commercial.subscriberPlans : commercialStructure.subscriberPlans;
-  const paymentConfigured = experience?.commercial.paymentConfigured ?? false;
-  const publicNav = publicPageDefinitions.filter((page) => ["home", "how-fpf-works", "subscribers", "investors", "performance", "pricing", "security", "faq"].includes(page.id));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const authPage = isAuthPath(currentPath);
+  const publicCommercial = commercialStructure ?? publicCommercialFallback;
+  const experiencePlans = experience?.commercial?.subscriberPlans ?? [];
+  const structurePlans = publicCommercial.subscriberPlans ?? [];
+  const plans = experiencePlans.length ? experiencePlans : structurePlans.length ? structurePlans : publicCommercialFallback.subscriberPlans;
 
   useEffect(() => {
-    if (reducedMotion) return;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (reducedMotion || authPage) return;
     const timer = window.setInterval(() => setActiveSlide((value) => (value + 1) % heroSlides.length), 7000);
     return () => window.clearInterval(timer);
-  }, [reducedMotion]);
+  }, [authPage]);
+
+  function navigate(path: string, id?: string) {
+    setMobileMenuOpen(false);
+    onNavigate(path, id);
+  }
 
   return (
     <main className="fpf-public">
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="public-nav">
-        <div className="brand-block">
-          <span>Football Performance Fund</span>
-          <strong>FPF Global Intelligence</strong>
-        </div>
+        <button className="brand-block brand-button" type="button" onClick={() => navigate("/", "home")} aria-label="Football Performance Fund home">
+          <img className="brand-logo official-logo-image" src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="64" height="64" />
+          <span className="brand-copy">
+            <span>Football Performance Fund</span>
+            <strong>FPF Global Intelligence</strong>
+          </span>
+        </button>
         <nav className="public-nav-links" aria-label="Public website navigation">
-          {publicNav.map((item) => (
-            <button key={item.path} type="button" onClick={() => onNavigate(item.path, item.id)}>
-              {item.label}
+          {mobileNavItems.slice(0, 4).map(([label, path, id]) => (
+            <button key={path} type="button" onClick={() => navigate(path, id)}>
+              {label}
             </button>
           ))}
         </nav>
         <div className="public-nav-actions">
           <ThemeSwitcher theme={theme} onChange={onThemeChange} />
-          <button className="ghost-action" type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
+          <button className="ghost-action desktop-auth-action" type="button" onClick={() => navigate("/login", "auth")}>Sign In</button>
+          <button className="preview-nav-action" type="button" onClick={() => navigate("/register", "auth")}>Start 3-Day Preview</button>
+          <button
+            aria-controls="mobile-public-menu"
+            aria-expanded={mobileMenuOpen}
+            aria-label={mobileMenuOpen ? "Close public navigation menu" : "Open public navigation menu"}
+            className="mobile-menu-button"
+            type="button"
+            onClick={() => setMobileMenuOpen((current) => !current)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
         </div>
+        {mobileMenuOpen ? (
+          <nav className="mobile-public-menu" id="mobile-public-menu" aria-label="Mobile public navigation">
+            {mobileNavItems.map(([label, path, id]) => (
+              <button key={path} type="button" onClick={() => navigate(path, id)}>
+                {label}
+              </button>
+            ))}
+          </nav>
+        ) : null}
       </header>
 
-      <section className="public-hero" aria-labelledby="public-hero-title">
-        <div className="hero-media" aria-hidden="true">
-          {heroSlides.map((slide, index) => (
-            <img
-              alt=""
-              className={index === activeSlide ? "active" : ""}
-              decoding="async"
-              key={slide.image}
-              loading={index === 0 ? "eager" : "lazy"}
-              src={slide.image}
-            />
-          ))}
-        </div>
-        <div className="hero-overlay" />
-        <div className="hero-grid" id="main-content">
-          <div className="hero-copy">
-            <p className="eyebrow">Institutional football intelligence</p>
-            <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
-            <p className="hero-support">
-              AI-powered football intelligence, professional analyst review, disciplined capital controls, and transparent performance reporting in one global platform.
-            </p>
-            <div className="hero-actions">
-              <button type="button" onClick={() => onNavigate("/ai-intelligence", "intelligence-preview")}>Explore Intelligence</button>
-              <button type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
-              <button type="button" onClick={() => onNavigate("/investors", "investor-transparency")}>Become an Investor</button>
-              <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
-              <button className="secondary" type="button" onClick={() => onNavigate("/analyst-applications", "analyst-academy")}>Apply as an Analyst</button>
-            </div>
-            <div className="hero-controls" aria-label="Hero slide controls">
-              {heroSlides.map((slide, index) => (
-                <button
-                  aria-label={`Show ${slide.title}`}
-                  aria-pressed={activeSlide === index}
-                  className={activeSlide === index ? "active" : ""}
-                  key={slide.title}
-                  type="button"
-                  onClick={() => setActiveSlide(index)}
-                />
-              ))}
-            </div>
-          </div>
-          <aside className="auth-dock" id="auth" aria-label="Account access">
-            {authPanel}
-          </aside>
-        </div>
-      </section>
-
-      <LiveActivityBar experience={experience} />
-      <PublicSection id="intelligence-preview" eyebrow="Live football intelligence preview" title="Public preview, private selections protected.">
-        <div className="split-layout">
-          <div className="feature-panel">
-            <StatusPill status={experience?.intelligencePreview.status ?? "PROVIDER_PENDING"} />
-            <p>{experience?.intelligencePreview.message ?? "Live coverage begins after provider activation."}</p>
-            <div className="fixture-preview">
-              {experience?.intelligencePreview.fixtures.length ? (
-                experience.intelligencePreview.fixtures.map((fixture) => (
-                  <article key={`${fixture.match}-${fixture.kickoffTime}`}>
-                    <strong>{fixture.match}</strong>
-                    <span>{fixture.league} - {fixture.country}</span>
-                    <small>{formatPublicDate(fixture.kickoffTime)} - {fixture.publicationStatus}</small>
-                  </article>
-                ))
-              ) : (
-                <article>
-                  <strong>Coverage cycle preparing</strong>
-                  <span>Provider connection pending</span>
-                  <small>No paid selections are shown publicly.</small>
-                </article>
-              )}
-            </div>
-          </div>
-          <div className="signal-grid">
-            {["DATA_COLLECTION", "AI_ANALYSIS", "ANALYST_REVIEW", "ADMIN_REVIEW", "PUBLISHED_TO_MEMBERS"].map((stage) => (
-              <div key={stage}>
-                <span>{statusLabel(stage)}</span>
-                <strong>{stage === experience?.intelligencePreview.status ? "Active" : "Ready"}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      </PublicSection>
-
-      <PublicSection id="how-fpf-works" eyebrow="Operating model" title="How FPF operates">
-        <div className="workflow-grid">
-          {[
-            "Football data collected",
-            "AI intelligence generated",
-            "Analysts review assigned fixtures",
-            "Rules and odds policy enforced",
-            "Admin approves final intelligence",
-            "Subscribers receive approved opportunities",
-            "Company capital allocation is controlled",
-            "Results are settled and reconciled",
-            "Reports are generated",
-          ].map((step, index) => (
-            <article key={step}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <strong>{step}</strong>
-            </article>
-          ))}
-        </div>
-        <p className="policy-note">Suggested odds policy: minimum 1.60, maximum 2.00. Analyst work is internal, publication is Admin-controlled, and outcomes are never guaranteed.</p>
-      </PublicSection>
-
-      <PublicSection id="workspace-previews" eyebrow="Platform preview" title="One operating system, role-specific workspaces">
-        <div className="preview-grid">
-          {["Subscriber Intelligence Dashboard", "Investor Portfolio Dashboard", "Analyst Academy", "Intelligence War Room", "Executive Analytics", "Treasury Controls"].map((title) => (
-            <article className="workspace-preview" key={title}>
-              <span>Platform Preview</span>
-              <strong>{title}</strong>
-              <div className="preview-lines" aria-hidden="true"><i /><i /><i /></div>
-            </article>
-          ))}
-        </div>
-      </PublicSection>
-
-      <PublicRouteCoverage onNavigate={onNavigate} />
-      <PerformanceCenter experience={experience} />
-
-      <PublicSection id="subscribers" eyebrow="Subscriber experience" title="Approved intelligence with confidence and risk context">
-        <div className="value-grid">
-          {["Approved intelligence only", "Confidence and risk context", "Live match intelligence", "Opportunity history", "Performance reporting", "Global language and currency support", "Notifications", "Responsible participation tools"].map((item) => (
-            <article key={item}>{item}</article>
-          ))}
-        </div>
-      </PublicSection>
-
-      <PublicSection id="investor-transparency" eyebrow="Investor transparency" title="Capital separation, reporting, and risk-first controls">
-        <div className="split-layout">
-          <div className="feature-panel">
-            <p>Investor capital is tracked separately from company operating funds. Weekly reporting and treasury reconciliation are designed for Admin approval before any payout process.</p>
-            <p className="policy-note">Default profit-distribution policy: Company 50%, Analyst Pool 20%, Investor Pool 30%. Returns are not guaranteed.</p>
-          </div>
-          <div className="signal-grid">
-            <div><span>Minimum investment</span><strong>{money(experience?.commercial.minimumInvestmentCents ?? commercialStructure.minimumInvestmentCents)}</strong></div>
-            <div><span>Lock periods</span><strong>{(experience?.commercial.lockPeriods ?? commercialStructure.lockPeriods).map((item) => item.label).join(", ")}</strong></div>
-            <div><span>Simulator</span><strong>Projection only</strong></div>
-            <div><span>Reporting</span><strong>Weekly review</strong></div>
-          </div>
-        </div>
-      </PublicSection>
-
-      <TrustCenter experience={experience} />
-      <MilestoneTimeline experience={experience} />
-      <FoundingMembers experience={experience} />
-      <PricingSection paymentConfigured={paymentConfigured} plans={plans} onNavigate={onNavigate} />
-      <FAQSection />
-      <LegalDisclosures />
-
-      <footer className="public-footer">
-        <div>
-          <strong>Football Performance Fund</strong>
-          <span>Global football intelligence, built for disciplined performance.</span>
-        </div>
-        <div>
-          <button type="button" onClick={() => onNavigate("/privacy-policy", "legal")}>Privacy</button>
-          <button type="button" onClick={() => onNavigate("/risk-disclosure", "risk-disclosure")}>Risk Disclosure</button>
-          <button type="button" onClick={() => onNavigate("/contact", "contact")}>Contact</button>
-        </div>
-      </footer>
+      {authPage ? (
+        <PublicAuthPage authPanel={authPanel} />
+      ) : (
+        <>
+          <Hero activeSlide={activeSlide} onNavigate={navigate} />
+          <HistoricalBaselineSection experience={experience} />
+          <PublicSignalBar experience={experience} />
+          <LiveDigitalPlatformSection experience={experience} onNavigate={navigate} />
+          <HowItWorks />
+          <SubscriberMembership plans={plans} onNavigate={navigate} />
+          <PerformancePartnerProgramme commercialStructure={{ ...publicCommercialFallback, ...publicCommercial }} experience={experience} onNavigate={navigate} />
+          <PerformancePreview experience={experience} />
+          <TrustSection />
+          <FAQSection />
+          <ContactSection onNavigate={navigate} />
+          <PublicFooter onNavigate={navigate} />
+        </>
+      )}
     </main>
   );
 }
 
-function LiveActivityBar({ experience }: { experience: PublicExperience | null }) {
-  const activity = experience?.activity;
-  const metrics = [
-    { label: "Fixtures monitored", value: activity?.fixturesMonitored ?? 0, empty: "Monitoring cycle preparing" },
-    { label: "Analyst reviews today", value: activity?.analystReviewsCompleted ?? 0, empty: "Intelligence desk online" },
-    { label: "Pending approvals", value: activity?.pendingApproval ?? 0, empty: "Awaiting the next fixture cycle" },
-    { label: "Covered leagues", value: activity?.leaguesCovered ?? 0, empty: "Coverage begins after provider activation" },
-    { label: "Approved opportunities", value: activity?.approvedOpportunities ?? 0, empty: "Members-only publication queue preparing" },
+function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (path: string, id?: string) => void }) {
+  return (
+    <section className="public-hero" aria-labelledby="public-hero-title" id="home">
+      <div className="hero-media" aria-hidden="true">
+        {heroSlides.map((slide, index) => (
+          <img
+            alt=""
+            className={index === activeSlide ? "active" : ""}
+            decoding="async"
+            key={slide.image}
+            loading={index === 0 ? "eager" : "lazy"}
+            src={slide.image}
+          />
+        ))}
+      </div>
+      <div className="hero-overlay" />
+      <div className="hero-grid public-hero-grid" id="main-content">
+        <div className="hero-copy">
+          <p className="eyebrow hero-kicker">AI-Powered Football Intelligence</p>
+          <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
+          <p className="hero-support">
+            AI-powered predictions, live in-play intelligence and professional analyst insight in one disciplined football operating system.
+          </p>
+          <div className="hero-actions">
+            <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
+            <button type="button" onClick={() => onNavigate("/how-fpf-works", "how-fpf-works")}>Explore Intelligence</button>
+            <button className="secondary" type="button" onClick={() => onNavigate("/pricing", "pricing")}>View Membership Plans</button>
+            <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
+          </div>
+          <div className="hero-controls" aria-label="Hero slide indicators">
+            <span className="active">AI Verified<small>Every insight reviewed</small></span>
+            <span>Performance Focused<small>Data over emotion</small></span>
+            <span>Secure & Transparent<small>Role-protected access</small></span>
+          </div>
+        </div>
+        <HeroOpportunityPanel onNavigate={onNavigate} />
+      </div>
+    </section>
+  );
+}
+
+function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
+  const rows = [
+    ["Member intelligence", "Protected", "After login", "Review"],
+    ["Live opportunities", "Pending", "Provider data", "Queued"],
+    ["Verified reports", "Available", "Eligible users", "Secure"],
   ];
   return (
-    <section className="activity-bar" aria-label="Live FPF activity">
-      <div className="activity-track">
-        {metrics.map((metric) => (
-          <article key={metric.label}>
-            <span>{metric.label}</span>
-            <strong>{metric.value > 0 ? metric.value : metric.empty}</strong>
+    <aside className="hero-intelligence-card hero-opportunity-panel" aria-label="FPF intelligence preview">
+      <div className="panel-title-row">
+        <strong>Today's Top Opportunities</strong>
+        <button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button>
+      </div>
+      <div className="opportunity-preview-list">
+        {rows.map(([match, status, kickoff, grade]) => (
+          <article key={match}>
+            <div className="club-mark" aria-hidden="true"><span /></div>
+            <div>
+              <strong>{match}</strong>
+              <span>{kickoff}</span>
+            </div>
+            <b>{status}</b>
+            <em>{grade}</em>
           </article>
         ))}
       </div>
-      <p>Last updated {formatPublicDate(experience?.generatedAt)} - {activity?.safeState ?? "Intelligence desk online"}</p>
+      <button className="panel-action" type="button" onClick={() => onNavigate("/register", "auth")}>See All Intelligence</button>
+      <div className="war-room-mini" id="war-room-preview">
+        <div className="war-room-screen" aria-hidden="true"><i /><i /><i /><i /></div>
+        <div>
+          <span>FPF Intelligence War Room</span>
+          <strong>Real-time match analysis and internal review workspace.</strong>
+          <button type="button" onClick={() => onNavigate("/login", "auth")}>Enter War Room</button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
+  const monitoredCompetitions = Math.max(
+    1,
+    new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size,
+  );
+  const signals = [
+    { label: "AI Intelligence Engine", value: "Online" },
+    { label: "Live Match Scanner", value: "Active" },
+    { label: "Competitions Monitored", value: experience?.activity?.leaguesCovered ? `${experience.activity.leaguesCovered} live` : `${monitoredCompetitions} live` },
+    { label: "Data Synchronisation", value: experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Launch monitoring active" },
+    { label: "Analyst Review Queue", value: "Active" },
+    { label: "Opportunity Engine", value: "Processing" },
+    { label: "Platform Status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Operational" : "Operational" },
+    { label: "Intelligence Cycle", value: "Live" },
+    { label: "Subscriber Portal", value: "Online" },
+    { label: "Performance Partner Portal", value: "Online" },
+  ];
+  return (
+    <section className="activity-bar public-signal-bar" aria-label="Live digital platform metrics">
+      <div className="metric-layer-heading">
+        <span>Layer B</span>
+        <strong>Live Digital Platform</strong>
+      </div>
+      <div className="activity-track">
+        {signals.map((signal) => (
+          <article className="live-operational-card" key={signal.label}>
+            <i aria-hidden="true" />
+            <span>{signal.label}</span>
+            <strong>{signal.value}</strong>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HistoricalBaselineSection({ experience }: { experience: PublicExperience | null }) {
+  const baseline = historicalOperatingBaseline;
+  const liveCycle = experience?.activity?.platformStatus === "OPERATIONAL" ? "Monitoring" : "Preparing";
+  const liveReports = experience?.activity?.reportsPending ? String(experience.activity.reportsPending) : "Available after verification";
+
+  return (
+    <section className="historical-baseline-section" aria-labelledby="historical-baseline-title">
+      <div className="metric-layer-heading">
+        <span>Layer A</span>
+        <strong>Historical FPF Legacy</strong>
+      </div>
+      <div className="historical-baseline-grid">
+        <article className="baseline-copy-card">
+          <p className="eyebrow">FPF Since {baseline.operationsStartedYear}</p>
+          <h2 id="historical-baseline-title">From manual intelligence community to secure digital performance OS.</h2>
+          <p>From a manually operated football intelligence community to a secure digital performance operating system.</p>
+          <p className="baseline-transparency-note">
+            These figures represent the founder-supplied historical record of FPF's manual operations before the digital platform launch. Live platform performance is tracked separately from the first verified digital cycle.
+          </p>
+        </article>
+        <div className="baseline-metric-grid">
+          <article><span>{baseline.operationsStartedYear}</span><strong>FPF operations began</strong></article>
+          <article><span>{baseline.historicalSubscribersDisplay}</span><strong>Historical subscribers reached</strong></article>
+          <article className="baseline-win-rate">
+            <span>{baseline.founderReportedHistoricalWinRate}%</span>
+            <strong>Founder-reported historical winning rate</strong>
+            <em>Based on the founder's manual operating records from the pre-platform period beginning in 2024. Subject to formal digital verification and migration.</em>
+          </article>
+          <article><span>{baseline.digitalPlatformLaunchYear}</span><strong>Digital FPF Intelligence Platform launched</strong></article>
+        </div>
+      </div>
+      <div className="growth-pulse-grid">
+        <article className="growth-journey-card">
+          <div className="panel-title-row">
+            <strong>FPF Growth Journey</strong>
+            <span>Milestone-based</span>
+          </div>
+          <div className="growth-timeline" aria-label="FPF milestone growth journey">
+            <div className="growth-node">
+              <span>{baseline.operationsStartedYear}</span>
+              <strong>Manual FPF operations began</strong>
+              <small>Historical manual record starts</small>
+            </div>
+            <div className="growth-line" aria-hidden="true"><i /></div>
+            <div className="growth-node">
+              <span>{baseline.historicalSubscribersDisplay}</span>
+              <strong>Founder-supplied cumulative historical reach</strong>
+              <small>Pre-platform baseline, pending formal migration</small>
+            </div>
+            <div className="growth-line verified" aria-hidden="true"><i /></div>
+            <div className="growth-node live">
+              <span>{baseline.digitalPlatformLaunchYear}</span>
+              <strong>Verified digital tracking begins</strong>
+              <small>Live metrics extend from production system data</small>
+            </div>
+          </div>
+        </article>
+        <article className="platform-pulse-card">
+          <div className="panel-title-row">
+            <strong>Platform Pulse</strong>
+            <span className="pulse-dot">Live layer</span>
+          </div>
+          <div className="pulse-grid">
+            <span><b>{baseline.historicalSubscribersDisplay}</b>Historical community</span>
+            <span><b>{baseline.operationsStartedYear}</b>Manual operations since</span>
+            <span><b>Active</b>Digital system</span>
+            <span><b>{liveCycle}</b>Current cycle</span>
+            <span><b>Protected</b>Member intelligence</span>
+            <span><b>{liveReports}</b>Reports</span>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: PublicExperience | null; onNavigate: (path: string, id?: string) => void }) {
+  const fixtures = experience?.intelligencePreview?.fixtures ?? [];
+  const visibleFixtures = fixtures.slice(0, 4);
+  const results = experience?.performance?.liveVerifiedResults ?? [];
+  const currentPeriod = experience?.performance?.currentReportingPeriod;
+  const marketsCovered = Math.max(1, new Set(results.map((item) => item.market).filter(Boolean)).size);
+  const competitionsCovered = Math.max(1, new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size);
+  const weeklyOperations = [
+    { label: "Opportunities Published This Week", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Protected publication" },
+    { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Analyst queue" },
+    { label: "Opportunities Approved", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Admin controlled" },
+    { label: "Opportunities Settled", value: String(currentPeriod?.positionsSettled ?? results.length), status: results.length ? "Verified cycle" : "Awaiting first cycle" },
+    { label: "Average Confidence", value: experience?.activity?.approvedOpportunities ? "Calculated in portal" : "Pending live data", status: "Model separated" },
+    { label: "Markets Covered", value: String(marketsCovered), status: "Operational scope" },
+    { label: "Competitions Covered", value: String(competitionsCovered), status: "Live scanner" },
+    { label: "Analyst Reviews Completed", value: String(experience?.activity?.analystReviewsCompleted ?? 0), status: "Review workflow" },
+  ];
+  const reportCards = [
+    { title: "Daily Intelligence Briefing", date: "Today", status: "Available to Subscribers" },
+    { title: "Weekly Performance Report", date: "This week", status: "Available to Subscribers" },
+    { title: "Market Trends Report", date: "Current cycle", status: "Available to Subscribers" },
+    { title: "League Performance Review", date: "Updated weekly", status: "Available to Subscribers" },
+    { title: "Risk Analysis Report", date: "Active monitoring", status: "Available to Subscribers" },
+    { title: "Confidence Distribution Report", date: "After verification", status: "Available to Subscribers" },
+  ];
+  return (
+    <section className="public-command-grid" id="what-fpf-is">
+      <article className="why-panel">
+        <div className="panel-title-row"><strong>Why FPF?</strong><button type="button" onClick={() => onNavigate("/about", "what-fpf-is")}>Learn More</button></div>
+        {[
+          ["AI + Analyst Verification", "Every published opportunity is reviewed before member access."],
+          ["Live In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
+          ["Performance Transparency", "Results and reports stay tied to verified records."],
+        ].map(([title, body]) => (
+          <div className="why-line" key={title}><span aria-hidden="true" /><div><strong>{title}</strong><p>{body}</p></div></div>
+        ))}
+      </article>
+      <article className="weekly-panel">
+        <div className="panel-title-row"><strong>This Week's Performance</strong><button type="button" onClick={() => onNavigate("/performance", "performance")}>View Report</button></div>
+        <div className="operational-performance-grid">
+          {weeklyOperations.map((item) => (
+            <div key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.status}</em>
+            </div>
+          ))}
+        </div>
+        <p className="dashboard-integrity-note">
+          Operational metrics show current platform activity. Verified betting performance starts only after digitally settled selections.
+        </p>
+      </article>
+      <article className="reports-panel">
+        <div className="panel-title-row"><strong>Latest Performance Reports</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button></div>
+        {reportCards.map((report) => (
+          <div className="report-row premium-report-row" key={report.title}>
+            <span aria-hidden="true" />
+            <div>
+              <strong>{report.title}</strong>
+              <small>{report.date}</small>
+            </div>
+            <em>{report.status}</em>
+            <button type="button" onClick={() => onNavigate("/login", "auth")}>View Report</button>
+          </div>
+        ))}
+      </article>
+      <article className="community-panel" id="community-preview">
+        <div className="panel-title-row"><strong>Community</strong><span>Coming Soon</span></div>
+        <p>Community highlights stay hidden until the feature is active and approved for public display.</p>
+      </article>
+      <article className="fixtures-panel">
+        <div className="panel-title-row"><strong>Upcoming Intelligence</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>Protected</button></div>
+        {visibleFixtures.length ? visibleFixtures.map((fixture) => (
+          <div className="fixture-row" key={`${fixture.match}-${fixture.kickoffTime}`}>
+            <div><strong>{fixture.match}</strong><span>{fixture.league} · {fixture.country}</span></div>
+            <em>{fixture.publicationStatus}</em>
+          </div>
+        )) : <p className="empty-state">No public live fixtures are available yet. Member intelligence appears after verified publication.</p>}
+      </article>
+    </section>
+  );
+}
+
+function PublicAuthPage({ authPanel }: { authPanel: ReactNode }) {
+  return (
+    <section className="public-auth-page" id="main-content">
+      <div>
+        <p className="eyebrow">Secure Access</p>
+        <h1>Enter the FPF operating system.</h1>
+        <p>One secure account routes subscribers, Performance Partners, analysts, Country Partners and administrators into the correct protected workspace.</p>
+        <div className="auth-benefit-grid">
+          <article><strong>One account</strong><span>Role-based routing after login</span></article>
+          <article><strong>Protected access</strong><span>Private workspaces stay private</span></article>
+          <article><strong>Global preferences</strong><span>Language, currency and timezone support</span></article>
+          <article><strong>Preview ready</strong><span>3-Day Preview flow prepared for activation</span></article>
+        </div>
+      </div>
+      <div className="public-auth-card" id="auth">{authPanel}</div>
     </section>
   );
 }
@@ -302,170 +543,65 @@ function LiveActivityBar({ experience }: { experience: PublicExperience | null }
 function PublicSection({ children, eyebrow, id, title }: { children: ReactNode; eyebrow: string; id: string; title: string }) {
   return (
     <section className="public-section" id={id}>
-      <p className="eyebrow">{eyebrow}</p>
-      <h2>{title}</h2>
+      <div className="section-heading">
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
+      </div>
       {children}
     </section>
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  return <span className={`status-pill status-${status.toLowerCase().replace(/_/g, "-")}`}>{statusLabel(status)}</span>;
+function StatusPill({ children }: { children: ReactNode }) {
+  return <span className="status-pill">{children}</span>;
 }
 
-function PerformanceCenter({ experience }: { experience: PublicExperience | null }) {
+function WhatFpfIs() {
   return (
-    <PublicSection id="performance" eyebrow="Verified performance center" title="Verified results and simulations never mix">
-      <div className="performance-grid">
-        <article>
-          <h3>Live verified results</h3>
-          {experience?.performance.liveVerifiedResults.length ? (
-            <p>Verified selections are available in the reporting ledger.</p>
-          ) : (
-            <p>First verified results will appear after official launch selections are published, settled, and reconciled.</p>
-          )}
-        </article>
-        <article>
-          <h3>Pre-launch model testing</h3>
-          <p>{experience?.performance.preLaunchModelTesting.notice ?? "Simulation only. No real company capital deployed."}</p>
-          <small>{experience?.performance.preLaunchModelTesting.methodology}</small>
-        </article>
-        <article>
-          <h3>Current reporting period</h3>
-          <p>{experience?.performance.currentReportingPeriod.reconciliationStatus ?? "Reporting cycle preparing."}</p>
-          <small>Settled: {experience?.performance.currentReportingPeriod.positionsSettled ?? 0} - Pending: {experience?.performance.currentReportingPeriod.positionsPending ?? 0}</small>
-        </article>
+    <PublicSection id="what-fpf-is" eyebrow="What FPF Is" title="A private football intelligence operating system.">
+      <div className="split-layout premium-split">
+        <div className="feature-panel feature-panel-lead">
+          <StatusPill>Not a tips site</StatusPill>
+          <p>
+            Football Performance Fund turns football data, analyst review and disciplined publishing rules into member-ready intelligence.
+          </p>
+          <p>
+            Public pages explain the model. The protected platform handles subscriptions, partner workspaces, reporting and operational controls.
+          </p>
+        </div>
+        <div className="intelligence-stack" aria-label="FPF intelligence operating layers">
+          {[
+            ["01", "Football context", "Fixtures, form, markets and match signals are normalised."],
+            ["02", "Intelligence review", "Confidence, risk and value are assessed before publication."],
+            ["03", "Member workspace", "Only approved information reaches eligible authenticated users."],
+          ].map(([step, title, body]) => (
+            <article key={title}>
+              <span>{step}</span>
+              <strong>{title}</strong>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </PublicSection>
   );
 }
 
-function PublicRouteCoverage({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
-  const publicPages = [
-    {
-      id: "about",
-      eyebrow: "About FPF",
-      title: "A disciplined football intelligence company, not a public tipster feed",
-      body: "FPF combines normalized football data, AI scoring, internal analyst workflow, admin approval, and transparent reporting. Production authentication, role permissions, payments, treasury, and monitoring remain connected to the existing backend.",
-      action: ["How FPF Works", "/how-fpf-works", "how-fpf-works"],
-    },
-    {
-      id: "platform",
-      eyebrow: "Unified platform",
-      title: "One website and operating system",
-      body: "Guests, subscribers, investors, analysts, admins, and executives enter through one production app shell. Each role receives the correct protected workspace after login.",
-      action: ["Sign In", "/login", "auth"],
-    },
-    {
-      id: "technology",
-      eyebrow: "Technology",
-      title: "Built around the Intelligence Core",
-      body: "Football data, scoring engines, decision outputs, reports, payments, notifications, and monitoring flow through production services rather than visual-only mock data.",
-      action: ["Explore Intelligence", "/ai-intelligence", "intelligence-preview"],
-    },
-    {
-      id: "ai-intelligence",
-      eyebrow: "AI intelligence",
-      title: "Explainable confidence, risk, value, and opportunity scoring",
-      body: "FPF intelligence is designed to show why an opportunity is being considered, what changed, and what risks remain before publication.",
-      action: ["View Pricing", "/pricing", "pricing"],
-    },
-    {
-      id: "analyst-applications",
-      eyebrow: "Analyst pathway",
-      title: "Professional internal analysts, never public tipsters",
-      body: "Analysts work inside a protected workspace with assignments, rulebooks, discipline metrics, War Room context, and admin-controlled publication.",
-      action: ["Create Analyst Account", "/register", "auth"],
-    },
-    {
-      id: "investor-packages",
-      eyebrow: "Investor packages",
-      title: "Investment education with risk-first placeholders",
-      body: "Investor pages explain minimums, lock periods, simulator assumptions, weekly distributions, and reporting while real payment and treasury rules stay in production services.",
-      action: ["Investor Overview", "/investors", "investor-transparency"],
-    },
-    {
-      id: "blog",
-      eyebrow: "Insights",
-      title: "Launch updates and market education",
-      body: "The publishing surface is ready for verified updates, market education, platform announcements, and operating notes without exposing private selections.",
-      action: ["Media Center", "/media", "media"],
-    },
-    {
-      id: "media",
-      eyebrow: "Media",
-      title: "Press, announcements, and public communication",
-      body: "Public communication points to approved FPF messaging. Internal campaigns and approvals remain inside the Admin Media Command Center.",
-      action: ["Contact", "/contact", "contact"],
-    },
-    {
-      id: "careers",
-      eyebrow: "Careers",
-      title: "Analysts, operations, engineering, and support",
-      body: "FPF is prepared for future hiring and contracted expert workflows without exposing internal analyst identities to subscribers.",
-      action: ["Apply as Analyst", "/analyst-applications", "analyst-applications"],
-    },
-    {
-      id: "contact",
-      eyebrow: "Contact",
-      title: "Support and partnership entry points",
-      body: "Subscribers, investors, analysts, partners, and media can start from the public app and route into the correct authenticated workflow when needed.",
-      action: ["Sign In", "/login", "auth"],
-    },
-  ] as const;
-
-  return (
-    <PublicSection id="public-route-center" eyebrow="Public website routes" title="Every public route resolves inside one production experience">
-      <div className="route-grid">
-        {publicPages.map((page) => (
-          <article id={page.id} key={page.id}>
-            <span>{page.eyebrow}</span>
-            <strong>{page.title}</strong>
-            <p>{page.body}</p>
-            <button type="button" onClick={() => onNavigate(page.action[1], page.action[2])}>{page.action[0]}</button>
-          </article>
-        ))}
-      </div>
-    </PublicSection>
-  );
-}
-
-function TrustCenter({ experience }: { experience: PublicExperience | null }) {
-  const trust = experience?.trust;
-  const rows = [
-    ["Website", trust?.websiteStatus ?? "OPERATIONAL"],
-    ["Backend", trust?.backendStatus ?? "OPERATIONAL"],
-    ["Payments", trust?.paymentProviderStatus ?? "PREPARING"],
-    ["Football data", trust?.footballDataStatus ?? "PROVIDER_PENDING"],
-    ["Notifications", trust?.notificationProviderStatus ?? "PREPARING"],
-    ["Treasury reconciliation", trust?.treasuryReconciliationStatus ?? "PREPARING"],
+function HowItWorks() {
+  const steps = [
+    "Football data is collected",
+    "Intelligence opportunities are identified",
+    "Professional analysts verify each opportunity",
+    "Approved intelligence is published to eligible members",
   ];
   return (
-    <PublicSection id="security" eyebrow="Public trust center" title="Transparent status without exposing private operations">
-      <div className="trust-grid">
-        {rows.map(([label, status]) => (
-          <article key={label}><span>{label}</span><StatusPill status={status} /></article>
-        ))}
-      </div>
-      <div className="trust-copy">
-        <p>{trust?.riskManagementPolicy}</p>
-        <p>{trust?.responsibleParticipationPolicy}</p>
-        <p>{trust?.privacySummary}</p>
-        <small>Last platform update: {formatPublicDate(trust?.lastPlatformUpdate)}</small>
-      </div>
-    </PublicSection>
-  );
-}
-
-function MilestoneTimeline({ experience }: { experience: PublicExperience | null }) {
-  return (
-    <PublicSection id="milestones" eyebrow="Verified development timeline" title="Platform milestones">
-      <div className="timeline">
-        {(experience?.milestones ?? []).map((milestone) => (
-          <article key={milestone.title}>
-            <StatusPill status={milestone.status} />
-            <strong>{milestone.title}</strong>
-            <span>{milestone.date ?? "Preparing"}</span>
+    <PublicSection id="how-fpf-works" eyebrow="How FPF Works" title="A simple public model with protected internal controls.">
+      <div className="workflow-grid public-workflow-grid">
+        {steps.map((step, index) => (
+          <article key={step}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{step}</strong>
+            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Human review keeps the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
           </article>
         ))}
       </div>
@@ -473,78 +609,148 @@ function MilestoneTimeline({ experience }: { experience: PublicExperience | null
   );
 }
 
-function FoundingMembers({ experience }: { experience: PublicExperience | null }) {
+function SubscriberMembership({ onNavigate, plans }: { onNavigate: (path: string, id?: string) => void; plans: CommercialStructure["subscriberPlans"] }) {
   return (
-    <PublicSection id="founding-members" eyebrow="Founding members" title="Early access for launch-stage users">
-      <div className="split-layout">
-        <div className="feature-panel">
-          <p>{experience?.foundingMembers.message ?? "Founding access is open while launch operations are prepared."}</p>
-          <p className="policy-note">No scarcity counter is displayed unless Admin configures a real seat limit.</p>
-        </div>
-        <div className="value-grid compact">
-          {(experience?.foundingMembers.benefits ?? []).map((benefit) => <article key={benefit}>{benefit}</article>)}
-        </div>
+    <PublicSection id="subscribers" eyebrow="Subscriber Membership" title="Member access to approved football intelligence.">
+      <div className="value-grid">
+        {["Match Intelligence", "Confidence and risk context", "Opportunity Center", "Performance reporting", "Alerts and briefings", "Responsible participation guidance"].map((item) => (
+          <article key={item}><StatusPill>Included</StatusPill><strong>{item}</strong></article>
+        ))}
       </div>
-    </PublicSection>
-  );
-}
-
-function PricingSection({ onNavigate, paymentConfigured, plans }: { onNavigate: (path: string, id?: string) => void; paymentConfigured: boolean; plans: CommercialStructure["subscriberPlans"] }) {
-  return (
-    <PublicSection id="pricing" eyebrow="Membership plans" title="Choose your intelligence access">
-      <div className="pricing-grid">
-        {plans.filter((plan) => plan.monthlyPriceCents > 0).slice(0, 4).map((plan) => (
+      <div className="pricing-grid public-pricing-preview" id="pricing">
+        {plans.filter((plan) => plan.monthlyPriceCents > 0).slice(0, 3).map((plan) => (
           <article className={plan.highlighted ? "featured" : ""} key={plan.code}>
+            {plan.highlighted ? <StatusPill>Most Selected</StatusPill> : null}
             <span>{plan.name}</span>
             <strong>{money(plan.monthlyPriceCents)}<small>/month</small></strong>
-            <ul>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
-            <button type="button" onClick={() => onNavigate(paymentConfigured ? "/register" : "/get-started", "auth")}>
-              {paymentConfigured ? "Create Account" : "Join Launch List"}
-            </button>
+            <ul>{plan.features.slice(0, 5).map((feature) => <li key={feature}>{feature}</li>)}</ul>
+            <button type="button" onClick={() => onNavigate("/register", "auth")}>{plan.highlighted ? "Start 3-Day Preview" : "Register Interest"}</button>
           </article>
         ))}
       </div>
-      {!paymentConfigured ? <p className="policy-note">Secure checkout is being activated. Join the launch list or create your account to receive access updates.</p> : null}
+    </PublicSection>
+  );
+}
+
+function PerformancePartnerProgramme({
+  commercialStructure,
+  experience,
+  onNavigate,
+}: {
+  commercialStructure: CommercialStructure;
+  experience: PublicExperience | null;
+  onNavigate: (path: string, id?: string) => void;
+}) {
+  return (
+    <PublicSection id="performance-partners" eyebrow="Performance Partner Programme" title="A risk-aware partnership programme with clear separation from membership.">
+      <div className="split-layout premium-split">
+        <div className="feature-panel">
+          <StatusPill>Risk First</StatusPill>
+          <p>
+            Performance Partners can explore participation options, reporting and simulator tools after account access. Licence fees, contributions and subscriber revenue are treated separately by the internal platform.
+          </p>
+          <p className="policy-note">Simulation only. Returns are not guaranteed. Final payment and payout workflows remain controlled inside protected systems.</p>
+          <div className="partner-benefit-row">
+            {["Season-based participation", "Private reporting", "Capital separation", "No guaranteed returns"].map((item) => <span key={item}>{item}</span>)}
+          </div>
+          <button className="inline-public-action" type="button" onClick={() => onNavigate("/register", "auth")}>Explore Performance Partnership</button>
+        </div>
+        <div className="signal-grid">
+          <div><span>Minimum participation</span><strong>{money(experience?.commercial?.minimumInvestmentCents ?? commercialStructure.minimumInvestmentCents ?? publicCommercialFallback.minimumInvestmentCents)}</strong></div>
+          <div><span>Plans</span><strong>Season-based</strong></div>
+          <div><span>Reporting</span><strong>Member portal</strong></div>
+          <div><span>Risk notice</span><strong>No guarantees</strong></div>
+        </div>
+      </div>
+    </PublicSection>
+  );
+}
+
+function TrustSection() {
+  return (
+    <PublicSection id="security" eyebrow="Security and Transparency" title="Premium intelligence with strict operating boundaries.">
+      <div className="trust-grid public-trust-grid">
+        {[
+          ["Controlled publication", "Only approved intelligence reaches eligible members."],
+          ["Privacy by design", "Public pages do not expose private selections, analyst identities or member data."],
+          ["Risk-first language", "FPF never guarantees outcomes or fixed returns."],
+          ["One secure platform", "Role-based access keeps each workspace separated."],
+        ].map(([title, body]) => (
+          <article key={title}><StatusPill>FPF Control</StatusPill><strong>{title}</strong><p>{body}</p></article>
+        ))}
+      </div>
+    </PublicSection>
+  );
+}
+
+function PerformancePreview({ experience }: { experience: PublicExperience | null }) {
+  const results = experience?.performance?.liveVerifiedResults ?? [];
+  const wins = results.filter((item) => item.result.toLowerCase().includes("win")).length;
+  const total = results.length;
+  const trend = results.slice(-3).map((item) => item.result).join(" / ");
+  return (
+    <PublicSection id="performance" eyebrow="Verified Performance" title="A public results preview without private model data.">
+      <div className="performance-grid public-performance-grid">
+        <article><StatusPill>Verified</StatusPill><span>Total verified selections</span><strong>{total ? String(total) : "No verified public results yet"}</strong></article>
+        <article><StatusPill>Historical</StatusPill><span>Win rate</span><strong>{total ? `${Math.round((wins / total) * 100)}%` : "Pending verified results"}</strong></article>
+        <article><StatusPill>Trend</StatusPill><span>Recent result trend</span><strong>{trend || "Awaiting first settled cycle"}</strong></article>
+        <article><StatusPill>Updated</StatusPill><span>Last updated</span><strong>{formatPublicDate(experience?.generatedAt)}</strong></article>
+      </div>
+      <p className="policy-note">Performance information is historical and informational. It does not guarantee future outcomes, profit or payout timing.</p>
     </PublicSection>
   );
 }
 
 function FAQSection() {
   return (
-    <PublicSection id="faq" eyebrow="Questions" title="Clear answers before you join">
+    <PublicSection id="faq" eyebrow="FAQ" title="Clear answers before you join.">
       <div className="faq-grid">
-        <article><strong>Does FPF guarantee outcomes?</strong><p>No. Football intelligence supports decisions, but outcomes are never guaranteed.</p></article>
-        <article><strong>Are analysts public tipsters?</strong><p>No. Analysts are internal staff or approved contracted experts.</p></article>
-        <article><strong>Are simulations real returns?</strong><p>No. Simulations are projection-only and separated from verified live results.</p></article>
-        <article><strong>When are selections visible?</strong><p>Only Admin-approved intelligence is published to members.</p></article>
+        <article><strong>Does FPF guarantee outcomes?</strong><p>No. Football outcomes are never guaranteed.</p></article>
+        <article><strong>What do subscribers receive?</strong><p>Eligible subscribers receive approved Match Intelligence with context, confidence and risk information.</p></article>
+        <article><strong>Are analysts public tipsters?</strong><p>No. Analysts are internal professionals or approved contracted experts.</p></article>
+        <article><strong>Are simulations real returns?</strong><p>No. Simulations are illustrative only and do not promise performance.</p></article>
       </div>
     </PublicSection>
   );
 }
 
-function LegalDisclosures() {
+function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
   return (
-    <section className="legal-strip" id="risk-disclosure">
-      <strong>Legal and risk disclosures</strong>
-      <p>FPF does not guarantee football outcomes, fixed returns, investor profits, or payout timing. Public pages do not show private selections, investor identities, analyst identities, treasury balances, API keys, or internal logs.</p>
-      <div className="legal-route-grid">
-        <article id="privacy-policy">
-          <strong>Privacy Policy</strong>
-          <p>FPF uses account, preference, security, and operational data only to run the platform experience and protected role workspaces.</p>
-        </article>
-        <article id="terms-and-conditions">
-          <strong>Terms and Conditions</strong>
-          <p>Membership, investor, analyst, and admin workflows are governed by platform rules, risk disclosures, and production authorization controls.</p>
-        </article>
-        <article id="responsible-participation">
-          <strong>Responsible Participation</strong>
-          <p>Football intelligence is informational. Users must manage risk responsibly and understand that outcomes are never guaranteed.</p>
-        </article>
-        <article id="cookie-policy">
-          <strong>Cookie Policy</strong>
-          <p>Theme, language, currency, timezone, and authenticated session preferences are used to keep the app consistent across visits.</p>
-        </article>
+    <PublicSection id="contact" eyebrow="Contact" title="Start with the right FPF pathway.">
+      <div className="split-layout premium-split">
+        <div className="feature-panel">
+          <p>For subscriber access, partnership enquiries, media or analyst applications, start with a secure FPF account or contact the team through the official channel.</p>
+        </div>
+        <div className="value-grid compact">
+          <article><strong>Members</strong><span>Use Sign In</span></article>
+          <article><strong>New users</strong><span>Register Interest</span></article>
+          <article><strong>Partners</strong><span>Performance Partnership</span></article>
+          <article><strong>Questions</strong><span>Review the FAQ first</span></article>
+        </div>
       </div>
-    </section>
+      <div className="section-actions">
+        <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
+        <button type="button" onClick={() => onNavigate("/register", "auth")}>Register</button>
+      </div>
+    </PublicSection>
+  );
+}
+
+function PublicFooter({ onNavigate }: { onNavigate: (path: string, id?: string) => void }) {
+  return (
+    <footer className="public-footer">
+      <div className="public-footer-brand">
+        <img src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="48" height="48" />
+        <span>
+          <strong>Football Performance Fund</strong>
+          <span>Global football intelligence, built for disciplined performance.</span>
+        </span>
+      </div>
+      <div>
+        <button type="button" onClick={() => onNavigate("/privacy-policy", "security")}>Privacy</button>
+        <button type="button" onClick={() => onNavigate("/risk-disclosure", "performance")}>Risk Disclosure</button>
+        <button type="button" onClick={() => onNavigate("/contact", "contact")}>Contact</button>
+      </div>
+    </footer>
   );
 }

@@ -21,6 +21,36 @@ const dashboardRoutes: Record<UserRole, DashboardRoute> = {
     path: "/dashboard/admin",
     title: "Admin Dashboard",
   },
+  CEO: {
+    role: "CEO",
+    path: "/dashboard/company-capital",
+    title: "Company Capital Desk",
+  },
+  FINANCE: {
+    role: "FINANCE",
+    path: "/dashboard/company-capital",
+    title: "Company Capital Desk",
+  },
+  RISK_MANAGER: {
+    role: "RISK_MANAGER",
+    path: "/dashboard/company-capital",
+    title: "Company Capital Desk",
+  },
+  CAPITAL_MANAGER: {
+    role: "CAPITAL_MANAGER",
+    path: "/dashboard/company-capital",
+    title: "Company Capital Desk",
+  },
+  SUPER_ADMINISTRATOR: {
+    role: "SUPER_ADMINISTRATOR",
+    path: "/dashboard/company-capital",
+    title: "Company Capital Desk",
+  },
+  COUNTRY_PARTNER: {
+    role: "COUNTRY_PARTNER",
+    path: "/dashboard/country-partner",
+    title: "Country Partner Portal",
+  },
 };
 
 export function getDashboardRoute(role: UserRole) {

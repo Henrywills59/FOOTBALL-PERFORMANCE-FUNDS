@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -13,6 +14,12 @@ enum UserRole {
   INVESTOR
   ANALYST
   ADMIN
+  CEO
+  FINANCE
+  RISK_MANAGER
+  CAPITAL_MANAGER
+  SUPER_ADMINISTRATOR
+  COUNTRY_PARTNER
 }
 
 enum AccountStatus {
@@ -44,6 +51,56 @@ enum PredictionDataQualityStatus {
   READY
   INSUFFICIENT_DATA
   STALE_ODDS
+}
+
+enum AiIntelligenceStatus {
+  SCANNED
+  QUALIFIED
+  REQUIRES_REVIEW
+  APPROVED_SUBSCRIBER
+  APPROVED_COMPANY
+  APPROVED_BOTH
+  REJECTED
+  PUBLISHED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum IntelligenceReviewDecision {
+  APPROVE_SUBSCRIBER
+  APPROVE_COMPANY
+  APPROVE_BOTH
+  REJECT
+  REQUEST_MORE_ANALYSIS
+  WITHDRAW
+}
+
+enum SubscriberPublicationStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum CompanyBetPlacementStatus {
+  PENDING_APPROVAL
+  APPROVED
+  READY_TO_PLACE
+  PLACED
+  CANCELLED
+  EXPIRED
+  SETTLED
+}
+
+enum BettingLedgerResult {
+  PENDING
+  WON
+  LOST
+  VOID
+  PARTIAL_WIN
+  PARTIAL_LOSS
+  CANCELLED
 }
 
 enum InvestmentStatus {
@@ -105,6 +162,37 @@ enum PaymentReconciliationStatus {
   RECONCILED
 }
 
+enum FpfSeasonStatus {
+  REGISTRATION
+  ACTIVE
+  SETTLEMENT
+  CLOSING
+  NEXT_REGISTRATION
+}
+
+enum ParticipationPlanCode {
+  HALF_SEASON
+  FULL_SEASON
+  REMAINING_SEASON
+}
+
+enum ParticipationAgreementStatus {
+  DRAFT
+  ACTIVE
+  SETTLEMENT
+  COMPLETED
+  RENEWAL_OPEN
+  EXPIRED
+  CANCELLED
+}
+
+enum FinancialConstitutionAllocationType {
+  PERFORMANCE_PARTNER_DISTRIBUTION_POOL
+  ANALYST_PERFORMANCE_POOL
+  RISK_STABILITY_RESERVE
+  COMPANY_GROWTH_OPERATIONS_FUND
+}
+
 enum AnalystAssignmentStatus {
   ASSIGNED
   COMPLETED
@@ -142,6 +230,72 @@ model User {
   intelligenceSubmissions AnalystIntelligenceSubmission[]
   analystProfile AnalystProfile?
   globalPreference UserGlobalPreference?
+  performancePartnerParticipations PerformancePartnerParticipation[]
+  countryPartnerProfile CountryPartnerProfile?
+}
+
+model FpfSeason {
+  id                       String                              @id @default(uuid())
+  name                     String                              @unique
+  status                   FpfSeasonStatus                     @default(REGISTRATION)
+  registrationOpensAt      DateTime
+  seasonStartsAt           DateTime
+  seasonEndsAt             DateTime
+  settlementStartsAt       DateTime
+  closingStartsAt          DateTime
+  nextRegistrationOpensAt  DateTime?
+  totalWeeks               Int                                 @default(38)
+  notes                    String?
+  createdAt                DateTime                            @default(now())
+  updatedAt                DateTime                            @updatedAt
+  participationAgreements  PerformancePartnerParticipation[]
+  financialConstitution    SeasonFinancialConstitution[]
+
+  @@index([status])
+  @@index([seasonStartsAt, seasonEndsAt])
+  @@map("fpf_seasons")
+}
+
+model PerformancePartnerParticipation {
+  id                         String                         @id @default(uuid())
+  userId                     String
+  seasonId                   String
+  planCode                   ParticipationPlanCode
+  status                     ParticipationAgreementStatus    @default(DRAFT)
+  participationAmountCents   Int
+  startsAt                   DateTime
+  expiresAt                  DateTime
+  remainingWeeks             Int                             @default(0)
+  remainingDistributions     Int                             @default(0)
+  noRetroactiveDistribution  Boolean                         @default(true)
+  contractualPayoutNotice    String                          @default("The contractual payout represents the complete financial obligation under the participation agreement. No additional capital repayment is due after completion.")
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
+  user                       User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season                     FpfSeason                       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([seasonId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("performance_partner_participations")
+}
+
+model SeasonFinancialConstitution {
+  id                String                                @id @default(uuid())
+  seasonId          String
+  allocationType    FinancialConstitutionAllocationType
+  label             String
+  percent           Float
+  distributable     Boolean                               @default(false)
+  purpose           String
+  effectiveFrom     DateTime                              @default(now())
+  createdAt         DateTime                              @default(now())
+  season            FpfSeason                             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, allocationType])
+  @@index([seasonId])
+  @@map("season_financial_constitution")
 }
 
 model PasswordResetToken {
@@ -216,6 +370,7 @@ model FootballFixture {
   predictions          MatchPrediction[]
   analystAssignments   AnalystAssignment[]
   intelligenceSubmissions AnalystIntelligenceSubmission[]
+  aiIntelligence       AiIntelligence[]
 
   @@index([kickoffAt])
   @@index([status])
@@ -453,6 +608,159 @@ model PredictionNotification {
   @@index([channel])
   @@index([status])
   @@map("prediction_notifications")
+}
+
+model AiIntelligence {
+  id                    String               @id @default(uuid())
+  fixtureId             String
+  matchLabel            String
+  leagueName            String
+  kickoffAt             DateTime?
+  source                String               @default("AI_DECISION_ENGINE")
+  scanStatus            AiIntelligenceStatus @default(SCANNED)
+  confidenceScore       Float                @default(0)
+  riskScore             Float                @default(0)
+  valueScore            Float                @default(0)
+  opportunityScore      Float                @default(0)
+  recommendedMarket     String
+  predictedOutcome      String
+  reasoningSummary      String
+  supportingMetrics     Json                 @default("{}")
+  riskFactors           Json                 @default("[]")
+  alternativeMarkets    Json                 @default("[]")
+  operationsNotes       String?
+  subscriberSummary     String?
+  dataQualityStatus     PredictionDataQualityStatus @default(INSUFFICIENT_DATA)
+  decisionEngineRunId   String?
+  createdByUserId       String?
+  lastReviewedByUserId  String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  reviewedAt            DateTime?
+  expiresAt             DateTime?
+  fixture               FootballFixture      @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  reviews               AiIntelligenceReview[]
+  subscriberPublications SubscriberPublication[]
+  companyBets           CompanyBet[]
+
+  @@index([fixtureId])
+  @@index([scanStatus])
+  @@index([leagueName])
+  @@index([kickoffAt])
+  @@index([confidenceScore])
+  @@index([riskScore])
+  @@index([createdAt])
+  @@map("ai_intelligence")
+}
+
+model AiIntelligenceReview {
+  id             String                     @id @default(uuid())
+  intelligenceId String
+  reviewerUserId String?
+  decision       IntelligenceReviewDecision
+  previousStatus AiIntelligenceStatus
+  nextStatus     AiIntelligenceStatus
+  notes          String?
+  createdAt      DateTime                   @default(now())
+  intelligence   AiIntelligence             @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
+
+  @@index([intelligenceId])
+  @@index([reviewerUserId])
+  @@index([decision])
+  @@index([createdAt])
+  @@map("ai_intelligence_reviews")
+}
+
+model SubscriberPublication {
+  id                 String                      @id @default(uuid())
+  intelligenceId     String
+  status             SubscriberPublicationStatus @default(DRAFT)
+  title              String
+  summary            String
+  recommendedMarket  String
+  predictedOutcome   String
+  confidenceScore    Float
+  riskScore          Float
+  valueScore         Float
+  opportunityScore   Float
+  riskGrade          String
+  visibleFrom        DateTime?
+  publishedAt        DateTime?
+  withdrawnAt        DateTime?
+  createdByUserId    String?
+  updatedByUserId    String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  intelligence       AiIntelligence              @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
+
+  @@index([intelligenceId])
+  @@index([status])
+  @@index([publishedAt])
+  @@map("subscriber_publications")
+}
+
+model CompanyBet {
+  id                    String                    @id @default(uuid())
+  intelligenceId         String
+  status                CompanyBetPlacementStatus @default(PENDING_APPROVAL)
+  market                String
+  selection             String
+  requestedStakeCents   Int                       @default(0)
+  approvedStakeCents    Int                       @default(0)
+  currency              String                    @default("USD")
+  targetOdds            Float?
+  finalOdds             Float?
+  bookmaker             String?
+  exposureCents         Int                       @default(0)
+  maxLossCents          Int                       @default(0)
+  expectedReturnCents   Int                       @default(0)
+  riskGrade             String                    @default("MEDIUM")
+  approvedByUserId      String?
+  placedByUserId        String?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  approvedAt            DateTime?
+  placedAt              DateTime?
+  cancelledAt           DateTime?
+  intelligence          AiIntelligence            @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
+  ledgerEntry           BettingLedgerEntry?
+
+  @@index([intelligenceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("company_bets")
+}
+
+model BettingLedgerEntry {
+  id                    String              @id @default(uuid())
+  companyBetId          String              @unique
+  fixtureId             String
+  market                String
+  selection             String
+  stakeCents            Int
+  currency              String              @default("USD")
+  odds                  Float
+  potentialReturnCents  Int
+  settledReturnCents    Int                 @default(0)
+  profitLossCents       Int                 @default(0)
+  result                BettingLedgerResult @default(PENDING)
+  bookmaker             String?
+  placedAt              DateTime?
+  settledAt             DateTime?
+  reconciliationStatus  String              @default("PENDING")
+  externalBetReference  String?
+  createdByUserId       String?
+  settledByUserId       String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  companyBet            CompanyBet          @relation(fields: [companyBetId], references: [id], onDelete: Cascade)
+
+  @@index([fixtureId])
+  @@index([result])
+  @@index([reconciliationStatus])
+  @@index([createdAt])
+  @@map("betting_ledger_entries")
 }
 
 model AuditLog {
@@ -1319,6 +1627,167 @@ model CampaignReport {
   @@map("campaign_reports")
 }
 
+model CountryPartnerProfile {
+  id                    String                    @id @default(uuid())
+  userId                String                    @unique
+  partnerName           String
+  countryCode           String
+  countryName           String
+  region                String?
+  licenceStatus         String                    @default("PENDING")
+  licenceStartedAt      DateTime?
+  licenceExpiresAt      DateTime?
+  entryFeeCents         Int                       @default(300000)
+  renewalFeeCents       Int                       @default(300000)
+  currency              String                    @default("USD")
+  level                 String                    @default("Emerging")
+  complianceScore       Int                       @default(80)
+  localContactDetails   Json                      @default("{}")
+  allowedCustomFields   Json                      @default("[\"contactDetails\",\"language\",\"currency\"]")
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads                 CountryPartnerLead[]
+  commissions           CountryPartnerCommission[]
+  marketingAssets       CountryPartnerMarketingAsset[]
+  localServices         CountryPartnerLocalService[]
+
+  @@index([countryCode])
+  @@index([licenceStatus])
+  @@index([level])
+  @@map("country_partner_profiles")
+}
+
+model CountryPartnerCommissionRule {
+  id          String   @id @default(uuid())
+  ruleCode    String   @unique
+  label       String
+  revenueType String
+  percent     Float
+  active      Boolean  @default(true)
+  notes       String   @default("")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+  @@index([revenueType])
+  @@map("country_partner_commission_rules")
+}
+
+model CountryPartnerLevelThreshold {
+  level           String   @id
+  minimumCbvCents Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active])
+  @@map("country_partner_level_thresholds")
+}
+
+model CountryPartnerLead {
+  id                  String                @id @default(uuid())
+  partnerId           String
+  name                String
+  email               String?
+  phone               String?
+  countryCode         String
+  interestType        String                @default("SUBSCRIPTION")
+  status              String                @default("NEW")
+  estimatedValueCents Int                   @default(0)
+  notes               String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  partner             CountryPartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([countryCode])
+  @@index([status])
+  @@map("country_partner_leads")
+}
+
+model CountryPartnerCommission {
+  id               String                @id @default(uuid())
+  partnerId        String
+  sourceType       String
+  sourceId         String?
+  baseRevenueCents Int
+  commissionCents  Int
+  currency         String                @default("USD")
+  status           String                @default("PENDING_APPROVAL")
+  calculatedAt     DateTime              @default(now())
+  approvedAt       DateTime?
+  paidAt           DateTime?
+  metadata         Json                  @default("{}")
+  partner          CountryPartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([sourceType])
+  @@index([status])
+  @@map("country_partner_commissions")
+}
+
+model CountryPartnerLocalService {
+  id             String                @id @default(uuid())
+  partnerId      String
+  serviceName    String
+  revenueCents   Int
+  currency       String                @default("USD")
+  status         String                @default("PENDING")
+  verifiedAt     DateTime?
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  partner        CountryPartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([status])
+  @@map("country_partner_local_services")
+}
+
+model CountryPartnerMarketingAsset {
+  id             String                 @id @default(uuid())
+  partnerId      String?
+  countryCode    String
+  language       String                 @default("en")
+  platform       String
+  contentType    String
+  campaignType   String
+  title          String
+  body           String
+  caption        String
+  script         String?
+  localisation   Json                   @default("{}")
+  approvedByHq   Boolean                @default(true)
+  status         String                 @default("APPROVED")
+  createdAt      DateTime               @default(now())
+  partner        CountryPartnerProfile? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId])
+  @@index([countryCode])
+  @@index([platform])
+  @@index([status])
+  @@map("country_partner_marketing_assets")
+}
+
+model CountryPartnerAuditLog {
+  id          String   @id @default(uuid())
+  partnerId   String?
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([partnerId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("country_partner_audit_logs")
+}
+
 model MonitoringEvent {
   id        String   @id @default(uuid())
   component String
@@ -2134,6 +2603,309 @@ model WeeklyClosureReport {
 
   @@index([weeklyPeriodId])
   @@map("weekly_closure_reports")
+}
+
+model FinancialEngineRun {
+  id                              String   @id @default(uuid())
+  weekLabel                       String
+  seasonId                        String?
+  grossReturnsCents               Int      @default(0)
+  returnedStakeCents              Int      @default(0)
+  totalStakeCents                 Int      @default(0)
+  totalLossesCents                Int      @default(0)
+  operatingAdjustmentsCents       Int      @default(0)
+  eligibleProfitCents             Int      @default(0)
+  status                          String   @default("CALCULATED")
+  calculationInput                Json     @default("{}")
+  calculationOutput               Json     @default("{}")
+  calculatedBy                    String
+  calculatedAt                    DateTime @default(now())
+  allocations                     FinancialEngineAllocation[]
+  partnerDistributions            FinancialPartnerDistribution[]
+  analystRewards                  FinancialAnalystReward[]
+  reserveLedgerEntries            FinancialReserveLedger[]
+  companyGrowthLedgerEntries      FinancialCompanyGrowthLedger[]
+  reports                         FinancialReport[]
+  auditRecords                    FinancialAuditRecord[]
+
+  @@index([weekLabel])
+  @@index([seasonId])
+  @@index([status])
+  @@index([calculatedAt])
+  @@map("financial_engine_runs")
+}
+
+model FinancialEngineAllocation {
+  id                String   @id @default(uuid())
+  runId             String
+  allocationType    String
+  label             String
+  percent           Float
+  amountCents       Int      @default(0)
+  distributable     Boolean  @default(false)
+  auditExplanation  String
+  createdAt         DateTime @default(now())
+  run               FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([allocationType])
+  @@map("financial_engine_allocations")
+}
+
+model FinancialPartnerDistribution {
+  id                   String   @id @default(uuid())
+  runId                String
+  participationId      String?
+  userId               String?
+  participationWeight  Float    @default(0)
+  distributionCents    Int      @default(0)
+  status               String   @default("CALCULATED")
+  explanation          String
+  createdAt            DateTime @default(now())
+  run                  FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([participationId])
+  @@index([userId])
+  @@index([status])
+  @@map("financial_partner_distributions")
+}
+
+model FinancialAnalystReward {
+  id                 String   @id @default(uuid())
+  runId              String
+  analystId          String
+  analystName        String
+  contributionWeight Float    @default(0)
+  rewardCents        Int      @default(0)
+  status             String   @default("CALCULATED")
+  breakdown          Json     @default("[]")
+  createdAt          DateTime @default(now())
+  run                FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([analystId])
+  @@index([status])
+  @@map("financial_analyst_rewards")
+}
+
+model FinancialReserveLedger {
+  id                String   @id @default(uuid())
+  runId             String
+  direction         String
+  amountCents       Int      @default(0)
+  balanceAfterCents Int      @default(0)
+  classification    String
+  notes             String
+  createdBy         String
+  createdAt         DateTime @default(now())
+  run               FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([classification])
+  @@map("financial_reserve_ledger")
+}
+
+model FinancialCompanyGrowthLedger {
+  id                String   @id @default(uuid())
+  runId             String
+  direction         String
+  amountCents       Int      @default(0)
+  balanceAfterCents Int      @default(0)
+  classification    String
+  notes             String
+  createdBy         String
+  createdAt         DateTime @default(now())
+  run               FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([classification])
+  @@map("financial_company_growth_ledger")
+}
+
+model FinancialReport {
+  id             String   @id @default(uuid())
+  runId          String
+  reportType     String
+  title          String
+  summary        String
+  metrics        Json     @default("{}")
+  generatedBy    String
+  generatedAt    DateTime @default(now())
+  run            FinancialEngineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([reportType])
+  @@map("financial_reports")
+}
+
+model FinancialAuditRecord {
+  id             String   @id @default(uuid())
+  runId          String?
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String?
+  beforeState    Json?
+  afterState     Json?
+  calculationRef String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  run            FinancialEngineRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("financial_audit_records")
+}
+
+model CompanyCapitalPortfolio {
+  id                    String   @id @default(uuid())
+  name                  String
+  baseCurrency          String   @default("USD")
+  openingBalanceCents   Int      @default(0)
+  availableCapitalCents Int      @default(0)
+  allocatedCapitalCents Int      @default(0)
+  exposureCents         Int      @default(0)
+  settledProfitCents    Int      @default(0)
+  settledLossCents      Int      @default(0)
+  status                String   @default("ACTIVE")
+  createdBy             String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  allocations           CompanyCapitalAllocation[]
+
+  @@index([status])
+  @@map("company_capital_portfolios")
+}
+
+model CompanyCapitalAllocation {
+  id                      String   @id @default(uuid())
+  portfolioId             String
+  candidateId             String?
+  fixtureId               String?
+  matchLabel              String
+  market                  String
+  selection               String
+  recommendedStakeCents   Int      @default(0)
+  approvedStakeCents      Int      @default(0)
+  maxStakeCents           Int      @default(0)
+  odds                    Float    @default(0)
+  riskGrade               String   @default("MEDIUM")
+  exposureCents           Int      @default(0)
+  status                  String   @default("DRAFT")
+  approvalStatus          String   @default("PENDING")
+  analystApprovalStatus   String   @default("PENDING")
+  intelligenceStatus      String   @default("PENDING_REVIEW")
+  rationale               String?
+  createdBy               String
+  approvedBy              String?
+  approvedAt              DateTime?
+  rejectedBy              String?
+  rejectedAt              DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  portfolio               CompanyCapitalPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  stakes                  CompanyCapitalStake[]
+  settlements             CompanyCapitalSettlement[]
+  riskEvents              CompanyCapitalRiskEvent[]
+
+  @@index([portfolioId])
+  @@index([candidateId])
+  @@index([fixtureId])
+  @@index([status])
+  @@index([approvalStatus])
+  @@map("company_capital_allocations")
+}
+
+model CompanyCapitalStake {
+  id             String   @id @default(uuid())
+  allocationId   String
+  stakeCents     Int      @default(0)
+  odds           Float    @default(0)
+  bookmaker      String   @default("Manual execution placeholder")
+  reference      String?
+  status         String   @default("PENDING_PLACEMENT")
+  placedBy       String?
+  placedAt       DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  allocation     CompanyCapitalAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  settlements    CompanyCapitalSettlement[]
+
+  @@index([allocationId])
+  @@index([status])
+  @@map("company_capital_stakes")
+}
+
+model CompanyCapitalSettlement {
+  id                String   @id @default(uuid())
+  allocationId      String
+  stakeId           String?
+  outcome           String
+  grossReturnCents  Int      @default(0)
+  profitCents       Int      @default(0)
+  lossCents         Int      @default(0)
+  netResultCents    Int      @default(0)
+  settlementStatus  String   @default("RECORDED")
+  settledBy         String
+  settledAt         DateTime @default(now())
+  notes             String?
+  allocation        CompanyCapitalAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  stake             CompanyCapitalStake? @relation(fields: [stakeId], references: [id], onDelete: SetNull)
+
+  @@index([allocationId])
+  @@index([stakeId])
+  @@map("company_capital_settlements")
+}
+
+model CompanyCapitalRiskEvent {
+  id            String   @id @default(uuid())
+  allocationId  String?
+  severity      String
+  status        String   @default("OPEN")
+  message       String
+  createdBy     String
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+  allocation    CompanyCapitalAllocation? @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  @@index([allocationId])
+  @@index([severity])
+  @@index([status])
+  @@map("company_capital_risk_events")
+}
+
+model CompanyCapitalReport {
+  id           String   @id @default(uuid())
+  periodType   String
+  periodLabel  String
+  summary      String
+  metrics      Json     @default("{}")
+  generatedBy  String
+  generatedAt  DateTime @default(now())
+
+  @@index([periodType, periodLabel])
+  @@map("company_capital_reports")
+}
+
+model CompanyCapitalAuditRecord {
+  id           String   @id @default(uuid())
+  actorUserId  String?
+  action       String
+  entityType   String
+  entityId     String?
+  beforeState  Json?
+  afterState   Json?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("company_capital_audit_records")
 }
 
 model AnalyticsSnapshot {

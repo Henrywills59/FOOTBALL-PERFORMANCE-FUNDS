@@ -48,6 +48,8 @@ function isAllowedOrigin(origin?: string) {
   const configured = [
     "http://localhost:5173",
     "http://localhost:4173",
+    "https://footballperformancefund.com",
+    "https://www.footballperformancefund.com",
     "https://football-performance-fund-frontend.vercel.app",
     "https://football-performance-funds-frontend.vercel.app",
     "https://we-are-starting-football-performanc.vercel.app",

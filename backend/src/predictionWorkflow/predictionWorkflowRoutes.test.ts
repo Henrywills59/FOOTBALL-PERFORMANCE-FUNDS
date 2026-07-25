@@ -1,5 +1,6 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
+import jwt from "jsonwebtoken";
 import { createApp } from "../app.js";
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryAnalystRepository } from "../analyst/inMemoryAnalystRepository.js";
@@ -13,8 +14,9 @@ import { InMemoryPredictionWorkflowRepository } from "./inMemoryPredictionWorkfl
 function buildApp() {
   const footballRepository = new InMemoryFootballRepository();
   const workflowRepository = new InMemoryPredictionWorkflowRepository();
+  const userRepository = new InMemoryUserRepository();
   const app = createApp({
-    userRepository: new InMemoryUserRepository(),
+    userRepository,
     footballRepository,
     predictionRepository: new InMemoryPredictionRepository([]),
     predictionWorkflowRepository: workflowRepository,
@@ -26,10 +28,14 @@ function buildApp() {
     startFootballJobs: false,
   });
 
-  return { app, footballRepository, workflowRepository };
+  return { app, footballRepository, workflowRepository, userRepository };
 }
 
 async function register(app: ReturnType<typeof createApp>, role: "SUBSCRIBER" | "INVESTOR" | "ANALYST") {
+  if (role === "ANALYST") {
+    throw new Error("Use seedInternalUser for internal analyst test accounts.");
+  }
+
   const response = await request(app)
     .post("/api/auth/register")
     .send({
@@ -41,6 +47,26 @@ async function register(app: ReturnType<typeof createApp>, role: "SUBSCRIBER" | 
     .expect(201);
 
   return response.body.token as string;
+}
+
+function seedInternalUser(users: InMemoryUserRepository, role: "ANALYST" | "ADMIN") {
+  const suffix = Math.random().toString(36).slice(2);
+  const id = `${role.toLowerCase()}-${suffix}`;
+  const email = `${role.toLowerCase()}-${suffix}@example.com`;
+  users.seedUser({
+    id,
+    name: `${role} User`,
+    email,
+    passwordHash: "not-used",
+    role,
+    status: "ACTIVE",
+    createdAt: new Date().toISOString(),
+  });
+
+  return jwt.sign({ role, email }, "test-secret", {
+    subject: id,
+    expiresIn: "1d",
+  });
 }
 
 describe("prediction workflow routes", () => {
@@ -56,7 +82,7 @@ describe("prediction workflow routes", () => {
   }, 15000);
 
   it("creates candidates from the Decision Engine and transitions lifecycle status", async () => {
-    const { app, footballRepository } = buildApp();
+    const { app, footballRepository, userRepository } = buildApp();
     await footballRepository.upsertFixture({
       apiFootballFixtureId: 10001,
       league: { apiFootballLeagueId: 39, name: "Premier League", country: "England", season: 2026 },
@@ -67,7 +93,7 @@ describe("prediction workflow routes", () => {
       status: "SCHEDULED",
       raw: {},
     });
-    const analystToken = await register(app, "ANALYST");
+    const analystToken = seedInternalUser(userRepository, "ANALYST");
 
     const queue = await request(app)
       .get("/api/prediction-workflow/queue?sort=priority")

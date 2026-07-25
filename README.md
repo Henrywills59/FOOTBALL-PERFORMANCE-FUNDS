@@ -1,6 +1,10 @@
 # Football Performance Fund
 
-Clean Phase 1 scaffold for the Football Performance Fund platform.
+Football Performance Fund (FPF) is a global football performance intelligence company.
+
+The internal technology platform is **FPF OS**: the Football Performance Fund Operating System.
+
+This repository is an incremental production codebase. Do not rebuild working modules from scratch; extend them through the architecture and migration guidance in [FPF Master Implementation Gap Analysis](docs/fpf-master-implementation-gap-analysis.md).
 
 ## Tech Stack
 
@@ -91,9 +95,9 @@ To avoid putting the admin password in the command, the script uses the seeded d
 
 The script does not require local `DATABASE_URL` entry for normal deployments. If Vercel does not expose sensitive production secrets through `vercel env pull`, the script seeds the admin password through a protected backend endpoint that runs inside Vercel, where the backend already has access to `DATABASE_URL`.
 
-## Phase 1 Scope
+## Platform Scope
 
-Included:
+Current platform foundation:
 
 - Clean monorepo scaffold
 - Frontend placeholder
@@ -103,19 +107,19 @@ Included:
 - Prediction generation and admin review
 - Subscriber dashboard, match center, smart slip, opportunities, and profile
 - Secure admin dashboard, audit logs, settings, and platform controls
-- Professional investor portal with plans, portfolio, reports, and withdrawal requests
+- Professional Performance Partner foundation, currently implemented through the legacy investor module names for compatibility
 - Shared types package
 - Prisma database package
 - Environment templates
 - Docker setup
 - Documentation starter
 
-Not included yet:
+Provider-backed and financial integrations remain staged behind safe placeholders unless explicitly configured:
 
-- Payments
-- Football APIs
-- AI features
-- Investor features
+- Live payment execution
+- External AI provider calls
+- Final Performance Partner season contracts
+- Final Financial Constitution allocation engine
 
 ## Football Data
 
@@ -127,25 +131,25 @@ Phase 4 adds a prediction engine that reads stored football fixtures, standings,
 
 ## Subscriber Platform
 
-Phase 5 adds the subscriber workspace: dashboard, match center, smart bet slip, daily opportunities, prediction details, and profile/password management. It uses approved predictions only and does not add payment, wallet, investor, or admin portal features.
+The subscriber workspace provides verified football intelligence, match center views, opportunities, intelligence details, notifications, settings, and profile/password management. Subscriber-facing surfaces must not expose internal analyst discussions, company capital positions, or private confidence calculations.
 
 ## Admin Dashboard
 
 Phase 6 adds admin-only platform management for users, predictions, fixtures, audit logs, settings, and system health. Investor management, payments, and wallet functionality remain out of scope.
 
-## Investor Platform
+## Performance Partner Platform
 
-Phase 7 adds a conventional investor portal with investment plans, portfolio tracking, reports, and withdrawal requests. It does not include payment gateways, NOWPayments, wallet functionality, or cryptocurrency features.
+The current Performance Partner foundation is implemented under legacy investor module names for compatibility with existing roles, APIs, tests, and data. The migration target is season-based Performance Partner participation with Half Season, Full Season, and Remaining Season plans.
 
 ## Wallet & NOWPayments
 
-Phase 8 adds investor wallet balances, transaction history, NOWPayments deposit invoices, verified IPN handling, confirmed-only wallet credits, and admin-approved wallet withdrawals. API keys remain backend-only.
+Phase 8 adds partner wallet balances, transaction history, NOWPayments deposit invoices, verified IPN handling, confirmed-only wallet credits, and admin-approved wallet withdrawals. API keys remain backend-only.
 
 ## Authentication
 
 Phase 2 adds:
 
-- Public registration for Subscriber, Investor, and Analyst roles
+- Public registration for Subscriber, Performance Partner, and Analyst journeys. Internally, the Performance Partner role currently maps to the legacy `INVESTOR` role value until a non-destructive role migration is introduced.
 - Admin role support without public Admin registration
 - Login with JWT sessions and a remember me option
 - Forgot/reset password token flow with a placeholder email handoff
