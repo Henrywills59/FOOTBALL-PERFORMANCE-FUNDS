@@ -14,7 +14,10 @@ const checks = [
   },
   {
     name: "public registration excludes internal analyst role",
-    pass: app.includes('PUBLIC_USER_ROLES.filter((role) => role !== "ANALYST")') && app.includes("publicRegistrationRoles.map"),
+    pass:
+      app.includes("const publicRegistrationRoles = PUBLIC_USER_ROLES") &&
+      app.includes("publicRegistrationRoles.map") &&
+      !readFileSync(join(root, "src", "types.ts"), "utf8").includes('PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"]'),
   },
   {
     name: "stored sessions are validated against the backend profile endpoint",

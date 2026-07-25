@@ -1,11 +1,23 @@
 import { Router } from "express";
 import { z } from "zod";
-import { USER_ROLES } from "@fpf/shared";
 import { requireAuth, requireRole } from "../auth/authMiddleware.js";
 import type { AuthService } from "../auth/authService.js";
 import type { AdminService } from "../admin/adminService.js";
 import type { OperationsService } from "./service.js";
 import type { AnnouncementCreateInput, IncidentCreateInput } from "./types.js";
+
+const USER_ROLES = [
+  "SUBSCRIBER",
+  "INVESTOR",
+  "ANALYST",
+  "ADMIN",
+  "CEO",
+  "FINANCE",
+  "RISK_MANAGER",
+  "CAPITAL_MANAGER",
+  "SUPER_ADMINISTRATOR",
+  "COUNTRY_PARTNER",
+] as const;
 
 const reportTypeSchema = z.enum([
   "SUBSCRIBER",
@@ -51,6 +63,12 @@ const preferencesSchema = z.object({
   marketingEnabled: z.boolean().default(true),
   financialEnabled: z.boolean().default(true),
   predictionEnabled: z.boolean().default(true),
+});
+const deliveryTestSchema = z.object({
+  channel: z.enum(["EMAIL", "SMS", "PUSH"]),
+  to: z.string().min(2).max(300),
+  title: z.string().min(2).max(200).default("FPF delivery test"),
+  message: z.string().min(2).max(1000).default("Football Performance Fund notification provider test."),
 });
 
 const targetRoleSchema = z.enum([...USER_ROLES, "ALL", "EXECUTIVE", "MEDIA_TEAM"] as [string, ...string[]]);
@@ -190,6 +208,31 @@ export function createOperationsRouter(input: {
   router.get("/notifications/preferences", signedIn, async (request, response, next) => {
     try {
       response.status(200).json(await input.operationsService.getNotificationPreferences(request.user!.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/notifications/providers", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json(input.operationsService.notificationDeliveryStatus());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/admin/notifications/test", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = deliveryTestSchema.parse(request.body);
+      const result = await input.operationsService.sendNotificationTest(body.channel, {
+        to: body.to,
+        title: body.title,
+        message: body.message,
+        purpose: "ADMIN_TEST",
+        metadata: { requestedBy: request.user!.id, source: "admin_notification_test" },
+      });
+      await input.adminService.audit(request.user!.id, "NOTIFICATION_PROVIDER_TESTED", "NOTIFICATION_PROVIDER", body.channel);
+      response.status(200).json(result);
     } catch (error) {
       next(error);
     }

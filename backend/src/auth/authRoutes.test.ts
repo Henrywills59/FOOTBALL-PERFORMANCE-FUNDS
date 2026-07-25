@@ -353,6 +353,8 @@ describe("auth routes", () => {
 
   it("accepts auth preflight requests from production and preview frontend domains by default", async () => {
     const productionOrigins = [
+      "https://footballperformancefund.com",
+      "https://www.footballperformancefund.com",
       "https://football-performance-fund-frontend.vercel.app",
       "https://football-performance-funds-frontend.vercel.app",
       "https://we-are-starting-football-performanc.vercel.app",

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Football Performance Fund logo</title>
+  <desc id="desc">FPF monogram inside a premium emerald football intelligence crest.</desc>
+  <defs>
+    <linearGradient id="crest" x1="14" y1="10" x2="82" y2="86" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d399"/>
+      <stop offset="0.55" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="35%" cy="22%" r="70%">
+      <stop stop-color="#d1fae5" stop-opacity="0.8"/>
+      <stop offset="0.35" stop-color="#34d399" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="96" height="96" rx="28" fill="#020617"/>
+  <rect x="7" y="7" width="82" height="82" rx="24" fill="url(#crest)" opacity="0.16"/>
+  <rect x="11" y="11" width="74" height="74" rx="22" fill="#07111f" stroke="url(#crest)" stroke-width="2"/>
+  <circle cx="48" cy="48" r="26" fill="url(#glow)" stroke="#34d399" stroke-opacity="0.45" stroke-width="1.5"/>
+  <path d="M33 34h27c5 0 9 4 9 9s-4 9-9 9H43v14H33V34Zm10 8v3h16c1 0 2-1 2-2s-1-1-2-1H43Z" fill="#d1fae5"/>
+  <path d="M33 58h30v8H33v-8Zm10-12h17v8H43v-8Z" fill="#34d399"/>
+  <path d="M28 26c10-9 31-9 41 0M26 70c12 8 32 8 44 0" fill="none" stroke="#a7f3d0" stroke-linecap="round" stroke-opacity="0.72" stroke-width="2"/>
+</svg>

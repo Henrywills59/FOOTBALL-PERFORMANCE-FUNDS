@@ -101,6 +101,7 @@ export class InMemoryFootballRepository implements FootballRepository {
   async upsertOdd(input: OddUpsert): Promise<void> {
     if (!input.fixtureApiId) return;
     const fixture = this.fixtures.get(String(input.fixtureApiId));
+    const existing = fixture?.odds.find((odd) => odd.bookmaker === input.bookmaker && odd.market === input.market && odd.outcome === input.outcome);
     if (fixture) {
       fixture.odds = fixture.odds.filter((odd) => !(odd.bookmaker === input.bookmaker && odd.market === input.market && odd.outcome === input.outcome));
     }
@@ -110,7 +111,7 @@ export class InMemoryFootballRepository implements FootballRepository {
         market: input.market,
         outcome: input.outcome,
         price: input.price,
-        updatedAt: new Date().toISOString(),
+        updatedAt: (input.retrievedAt ?? new Date()).toISOString(),
       });
   }
 

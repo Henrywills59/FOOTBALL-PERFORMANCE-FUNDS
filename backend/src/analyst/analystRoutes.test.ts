@@ -175,8 +175,24 @@ describe("analyst intelligence routes", () => {
     const analystToken = seedUser(users, "ANALYST");
     const subscriberToken = seedUser(users, "SUBSCRIBER");
 
+    await request(app)
+      .post("/api/analyst-applications")
+      .send({
+        fullName: "Internal Candidate",
+        email: "candidate@example.com",
+        country: "Uganda",
+        footballExperience: "Ten years studying European and African football markets.",
+        preferredLeagues: ["Premier League", "La Liga"],
+        yearsOfExperience: 10,
+        countriesCovered: ["Uganda", "England", "Spain"],
+        predictionStyle: "Risk-managed market analysis",
+        motivationStatement: "I want to contribute disciplined internal intelligence to the FPF platform.",
+      })
+      .expect(401);
+
     const application = await request(app)
       .post("/api/analyst-applications")
+      .set("Authorization", `Bearer ${adminToken}`)
       .send({
         fullName: "Internal Candidate",
         email: "candidate@example.com",

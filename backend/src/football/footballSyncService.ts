@@ -96,6 +96,10 @@ export class FootballSyncService {
     };
   }
 
+  oddsProviderStatus() {
+    return this.oddsApi.status();
+  }
+
   async probeProvider() {
     if (!this.apiFootball.isConfigured()) {
       return {
@@ -131,6 +135,73 @@ export class FootballSyncService {
         fixture,
       },
       providerStatus: this.providerStatus(),
+    };
+  }
+
+  async diagnoseOddsProvider() {
+    const status = this.oddsProviderStatus();
+    if (!this.oddsApi.isConfigured()) {
+      return {
+        ok: false,
+        provider: "The Odds API",
+        message: "The Odds API is not configured.",
+        status,
+      };
+    }
+    try {
+      const diagnostic = await this.oddsApi.diagnosticOdds();
+      return {
+        ok: true,
+        provider: "The Odds API",
+        competitionsRead: Array.isArray(diagnostic.competitions.data) ? diagnostic.competitions.data.length : 0,
+        oddsRead: Array.isArray(diagnostic.odds.data) ? diagnostic.odds.data.length : 0,
+        supportedMarkets: this.oddsApi.supportedMarkets(),
+        ignoredMarkets: this.oddsApi.ignoredMarkets(),
+        diagnosticRequest: diagnostic.request,
+        status: this.oddsProviderStatus(),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: "The Odds API",
+        message: error instanceof Error ? error.message : "Odds provider unavailable.",
+        safeFallback: {
+          competitionsRead: 0,
+          oddsRead: 0,
+          supportedMarkets: this.oddsApi.supportedMarkets(),
+          ignoredMarkets: this.oddsApi.ignoredMarkets(),
+          note: "Odds diagnostics use safe fallback when provider competition, market, or region is unavailable.",
+        },
+        status: this.oddsProviderStatus(),
+      };
+    }
+  }
+
+  async listOddsCompetitions() {
+    if (!this.oddsApi.isConfigured()) {
+      return {
+        ok: false,
+        provider: "The Odds API",
+        competitions: [],
+        status: this.oddsProviderStatus(),
+        message: "The Odds API is not configured.",
+      };
+    }
+
+    const result = await this.oddsApi.soccerCompetitions();
+    return {
+      ok: true,
+      provider: "The Odds API",
+      competitions: result.data,
+      status: this.oddsProviderStatus(),
+    };
+  }
+
+  oddsMarkets() {
+    return {
+      provider: "The Odds API",
+      markets: this.oddsApi.supportedMarkets(),
+      status: this.oddsProviderStatus(),
     };
   }
 
@@ -321,9 +392,11 @@ export class FootballSyncService {
       }
 
       const result = await this.oddsApi.odds();
+      const retrievedAt = new Date();
       recordsRead = result.data.length;
       for (const raw of result.data) {
         const item = asRecord(raw);
+        const fixtureApiId = parseOddsFixtureId(item);
         const bookmakers = Array.isArray(item.bookmakers) ? item.bookmakers : [];
         for (const bookmakerRaw of bookmakers) {
           const bookmaker = asRecord(bookmakerRaw);
@@ -335,11 +408,14 @@ export class FootballSyncService {
               const outcome = asRecord(outcomeRaw);
               if (!outcome.name || !outcome.price) continue;
               await this.repository.upsertOdd({
-                fixtureApiId: item.fixture_id ? Number(item.fixture_id) : null,
+                fixtureApiId,
                 bookmaker: String(bookmaker.title ?? bookmaker.key ?? "Unknown bookmaker"),
                 market: String(market.key ?? "h2h"),
                 outcome: String(outcome.name),
                 price: Number(outcome.price),
+                retrievedAt,
+                providerSport: this.config.oddsApiSport,
+                quota: result.quota,
                 raw,
               });
               recordsSaved += 1;
@@ -415,4 +491,12 @@ function nextDateWindow(days: number) {
     dates.push(date.toISOString().slice(0, 10));
   }
   return dates;
+}
+
+function parseOddsFixtureId(item: Record<string, any>) {
+  const direct = item.fixture_id ?? item.fixtureId ?? item.apiFootballFixtureId;
+  if (direct && Number.isFinite(Number(direct))) return Number(direct);
+  const id = typeof item.id === "string" ? item.id : "";
+  const match = id.match(/\d{4,}/);
+  return match ? Number(match[0]) : null;
 }

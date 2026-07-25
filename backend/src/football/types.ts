@@ -96,6 +96,9 @@ export type OddUpsert = {
   market: string;
   outcome: string;
   price: number;
+  retrievedAt?: Date;
+  providerSport?: string;
+  quota?: Record<string, string | null | undefined>;
   raw: unknown;
 };
 

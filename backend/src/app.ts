@@ -16,11 +16,25 @@ import type { AnalystRepository } from "./analyst/types.js";
 import { createAnalyticsRouter } from "./analytics/analyticsRoutes.js";
 import { AnalyticsService } from "./analytics/analyticsService.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
+import { CompanyCapitalService } from "./companyCapital/companyCapitalService.js";
+import { InMemoryCompanyCapitalRepository } from "./companyCapital/inMemoryCompanyCapitalRepository.js";
+import { PrismaCompanyCapitalRepository } from "./companyCapital/companyCapitalRepository.js";
+import { createCompanyCapitalRouter } from "./companyCapital/companyCapitalRoutes.js";
+import type { CompanyCapitalRepository } from "./companyCapital/types.js";
 import { createCommercialRouter } from "./commercial/routes.js";
 import { CommercialService } from "./commercial/service.js";
+import { PrismaCountryPartnerRepository } from "./countryPartner/repository.js";
+import { createCountryPartnerRouter } from "./countryPartner/routes.js";
+import { CountryPartnerService } from "./countryPartner/service.js";
+import type { CountryPartnerRepository } from "./countryPartner/types.js";
 import { PrismaUserRepository } from "./auth/prismaUserRepository.js";
 import type { UserRepository } from "./auth/types.js";
 import { checkPrismaConnection, isDatabaseUrlConfigured } from "./database/prismaClient.js";
+import { FinancialEngineService } from "./financial/financialEngineService.js";
+import { InMemoryFinancialRepository } from "./financial/inMemoryFinancialRepository.js";
+import { PrismaFinancialRepository } from "./financial/financialRepository.js";
+import { createFinancialRouter } from "./financial/financialRoutes.js";
+import type { FinancialRepository } from "./financial/types.js";
 import { ApiFootballClient } from "./football/apiFootballClient.js";
 import { getFootballConfig } from "./football/config.js";
 import { FootballJobScheduler } from "./football/footballJobs.js";
@@ -37,13 +51,17 @@ import { InfrastructureService } from "./infrastructure/infrastructureService.js
 import { InMemoryIntelligenceWorkflowRepository } from "./intelligenceWorkflow/inMemoryIntelligenceWorkflowRepository.js";
 import { PrismaIntelligenceWorkflowRepository } from "./intelligenceWorkflow/intelligenceWorkflowRepository.js";
 import { createIntelligenceWorkflowRouter } from "./intelligenceWorkflow/intelligenceWorkflowRoutes.js";
-import { IntelligenceWorkflowService } from "./intelligenceWorkflow/intelligenceWorkflowService.js";
+import { IntelligenceWorkflowService as SubscriberPublishingWorkflowService } from "./intelligenceWorkflow/intelligenceWorkflowService.js";
 import type { IntelligenceWorkflowRepository } from "./intelligenceWorkflow/types.js";
+import { OpenAiProvider } from "./integrations/openAiProvider.js";
+import { NotificationDeliveryService } from "./integrations/notificationProviders.js";
+import { createAiIntelligenceRouter } from "./intelligence/aiRoutes.js";
 import { MemoryCacheStore } from "./intelligence/cache.js";
 import { DecisionEngineService } from "./intelligence/decision/decisionService.js";
 import { IntelligenceRepositoryAdapter } from "./intelligence/repository.js";
 import { createIntelligenceRouter } from "./intelligence/routes.js";
 import { IntelligenceService } from "./intelligence/service.js";
+import { IntelligenceWorkflowService as IntelligenceScanWorkflowService } from "./intelligence/workflowService.js";
 import { PrismaInvestorRepository } from "./investor/investorRepository.js";
 import { createInvestorRouter } from "./investor/investorRoutes.js";
 import { InvestorService } from "./investor/investorService.js";
@@ -71,8 +89,14 @@ import { PrismaPredictionWorkflowRepository } from "./predictionWorkflow/predict
 import { createPredictionWorkflowRouter } from "./predictionWorkflow/predictionWorkflowRoutes.js";
 import { PredictionWorkflowService } from "./predictionWorkflow/predictionWorkflowService.js";
 import type { PredictionWorkflowRepository } from "./predictionWorkflow/types.js";
+import { createPreviewSeedRouter } from "./preview/previewSeedRoutes.js";
 import { createPublicExperienceRouter } from "./public/publicExperienceRoutes.js";
 import { PublicExperienceService } from "./public/publicExperienceService.js";
+import { createSeasonRouter } from "./season/seasonRoutes.js";
+import { InMemorySeasonRepository } from "./season/inMemorySeasonRepository.js";
+import { PrismaSeasonRepository } from "./season/seasonRepository.js";
+import { SeasonService } from "./season/seasonService.js";
+import type { SeasonRepository } from "./season/types.js";
 import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
 import { createTreasuryRouter } from "./treasury/treasuryRoutes.js";
@@ -88,6 +112,8 @@ const defaultJwtSecret = "development-only-change-me";
 const defaultFrontendOrigins = [
   "http://localhost:5173",
   "http://localhost:4173",
+  "https://footballperformancefund.com",
+  "https://www.footballperformancefund.com",
   "https://football-performance-fund-frontend.vercel.app",
   "https://football-performance-funds-frontend.vercel.app",
   "https://we-are-starting-football-performanc.vercel.app",
@@ -168,6 +194,42 @@ function getSafeConfigStatus() {
   };
 }
 
+function getProductionProviderValidation() {
+  const variables = {
+    infobipApiKey: Boolean(process.env.INFOBIP_API_KEY?.trim()),
+    infobipBaseUrl: Boolean(process.env.INFOBIP_BASE_URL?.trim()),
+    openAiApiKey: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    openAiModel: Boolean(process.env.OPENAI_MODEL?.trim()),
+    oddsApiKey: Boolean(process.env.ODDS_API_KEY?.trim()),
+    oddsApiBaseUrl: Boolean(process.env.ODDS_API_BASE_URL?.trim()),
+  };
+  const missingVariables = [
+    !variables.infobipApiKey ? "INFOBIP_API_KEY" : null,
+    !variables.infobipBaseUrl ? "INFOBIP_BASE_URL" : null,
+    !variables.openAiApiKey ? "OPENAI_API_KEY" : null,
+    !variables.openAiModel ? "OPENAI_MODEL" : null,
+    !variables.oddsApiKey ? "ODDS_API_KEY" : null,
+    !variables.oddsApiBaseUrl ? "ODDS_API_BASE_URL" : null,
+  ].filter((item): item is string => Boolean(item));
+  return {
+    configured: missingVariables.length === 0,
+    variables,
+    missingVariables,
+  };
+}
+
+function logStartupProviderValidation() {
+  const validation = getProductionProviderValidation();
+  if (validation.configured) {
+    console.info("PROVIDER_STARTUP_VALIDATION", { status: "READY" });
+    return;
+  }
+  console.warn("PROVIDER_STARTUP_VALIDATION", {
+    status: "ACTION_REQUIRED",
+    missingVariables: validation.missingVariables,
+  });
+}
+
 function isAllowedOrigin(origin?: string) {
   if (!origin) return true;
   const normalizedOrigin = normalizeOrigin(origin);
@@ -198,17 +260,25 @@ export function createApp(options?: {
   analystRepository?: AnalystRepository;
   operationsRepository?: OperationsRepository;
   mediaRepository?: MediaRepository;
+  seasonRepository?: SeasonRepository;
+  financialRepository?: FinancialRepository;
+  companyCapitalRepository?: CompanyCapitalRepository;
   paymentRepository?: PaymentRepository;
+  countryPartnerRepository?: CountryPartnerRepository;
   nowPaymentsProvider?: NowPaymentsProvider;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
   const app = express();
   app.set("trust proxy", 1);
+  logStartupProviderValidation();
   const footballConfig = getFootballConfig();
+  const openAiProvider = new OpenAiProvider();
+  const notificationDeliveryService = new NotificationDeliveryService();
   const authService = new AuthService(
     options?.userRepository ?? new PrismaUserRepository(),
     options?.jwtSecret ?? getJwtSecret(),
+    notificationDeliveryService,
   );
   const footballRepository = options?.footballRepository ?? new PrismaFootballRepository();
   const predictionRepository = options?.predictionRepository ?? new PrismaPredictionRepository();
@@ -238,11 +308,6 @@ export function createApp(options?: {
     new NowPaymentsClient(getNowPaymentsConfig()),
     adminService,
   );
-  const analystService = new AnalystService(
-    analystRepository,
-    footballRepository,
-    adminService,
-  );
   const intelligenceWorkflowRepository = options?.intelligenceWorkflowRepository ?? (
     process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
       ? new InMemoryIntelligenceWorkflowRepository()
@@ -264,7 +329,7 @@ export function createApp(options?: {
     decisionEngineService,
     new PlaceholderPredictionNotificationService(),
   );
-  const intelligenceWorkflowService = new IntelligenceWorkflowService(
+  const subscriberPublishingWorkflowService = new SubscriberPublishingWorkflowService(
     intelligenceWorkflowRepository,
     (auditInput) => adminService.audit(
       auditInput.actorUserId,
@@ -274,12 +339,24 @@ export function createApp(options?: {
       auditInput.details,
     ),
   );
+  const analystService = new AnalystService(
+    analystRepository,
+    footballRepository,
+    adminService,
+    predictionWorkflowService,
+    openAiProvider,
+  );
+  const intelligenceScanWorkflowService = new IntelligenceScanWorkflowService(
+    footballRepository,
+    decisionEngineService,
+    predictionWorkflowService,
+  );
   const operationsRepository = options?.operationsRepository ?? (
     process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
       ? new InMemoryOperationsRepository()
       : new PrismaOperationsRepository()
   );
-  const operationsService = new OperationsService(operationsRepository);
+  const operationsService = new OperationsService(operationsRepository, notificationDeliveryService);
   const mediaRepository = options?.mediaRepository ?? (
     process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
       ? new InMemoryMediaRepository()
@@ -290,6 +367,25 @@ export function createApp(options?: {
   const analyticsService = new AnalyticsService();
   const infrastructureService = new InfrastructureService();
   const publicExperienceService = new PublicExperienceService();
+  const seasonRepository = options?.seasonRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemorySeasonRepository()
+      : new PrismaSeasonRepository()
+  );
+  const seasonService = new SeasonService(seasonRepository);
+  const financialRepository = options?.financialRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryFinancialRepository()
+      : new PrismaFinancialRepository()
+  );
+  const financialEngineService = new FinancialEngineService(financialRepository);
+  const companyCapitalRepository = options?.companyCapitalRepository ?? (
+    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+      ? new InMemoryCompanyCapitalRepository()
+      : new PrismaCompanyCapitalRepository()
+  );
+  const companyCapitalService = new CompanyCapitalService(companyCapitalRepository, predictionWorkflowService);
+  const countryPartnerService = new CountryPartnerService(options?.countryPartnerRepository ?? new PrismaCountryPartnerRepository());
 
   if (options?.startFootballJobs ?? true) {
     footballScheduler.start();
@@ -394,6 +490,37 @@ export function createApp(options?: {
     response.status(200).json(getSafeConfigStatus());
   });
 
+  app.get("/api/production/readiness", async (_request, response) => {
+    const database = await checkPrismaConnection();
+    const config = getSafeConfigStatus();
+    const providers = {
+      apiFootball: footballSyncService.providerStatus(),
+      odds: footballSyncService.oddsProviderStatus(),
+      openAi: openAiProvider.status(),
+      notifications: notificationDeliveryService.status(),
+      nowPayments: safeNowPaymentsConfigStatus(),
+      productionProviderValidation: getProductionProviderValidation(),
+    };
+    const required = [
+      config.requiredEnvironment.databaseUrl,
+      config.requiredEnvironment.jwtSecret,
+      database.ok,
+      providers.nowPayments.configured,
+      providers.productionProviderValidation.configured,
+    ];
+    response.status(required.every(Boolean) ? 200 : 503).json({
+      status: required.every(Boolean) ? "READY" : "ACTION_REQUIRED",
+      service: "football-performance-fund-api",
+      database,
+      config,
+      providers,
+      deployment: {
+        commitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
+      },
+    });
+  });
+
   app.use(
     "/api",
     createPublicExperienceRouter({
@@ -401,6 +528,12 @@ export function createApp(options?: {
     }),
   );
   app.use("/api", createAuthRouter(authService));
+  app.use(
+    "/api",
+    createPreviewSeedRouter({
+      authService,
+    }),
+  );
   app.use(
     "/api",
     createOperationsRouter({
@@ -426,6 +559,27 @@ export function createApp(options?: {
   );
   app.use(
     "/api",
+    createSeasonRouter({
+      authService,
+      seasonService,
+    }),
+  );
+  app.use(
+    "/api",
+    createFinancialRouter({
+      authService,
+      financialEngineService,
+    }),
+  );
+  app.use(
+    "/api",
+    createCompanyCapitalRouter({
+      authService,
+      companyCapitalService,
+    }),
+  );
+  app.use(
+    "/api",
     createPaymentRouter({
       authService,
       paymentService,
@@ -444,6 +598,13 @@ export function createApp(options?: {
     createGlobalizationRouter({
       authService,
       globalizationService,
+    }),
+  );
+  app.use(
+    "/api",
+    createCountryPartnerRouter({
+      authService,
+      countryPartnerService,
     }),
   );
   app.use(
@@ -475,7 +636,7 @@ export function createApp(options?: {
     "/api",
     createIntelligenceWorkflowRouter({
       authService,
-      intelligenceWorkflowService,
+      intelligenceWorkflowService: subscriberPublishingWorkflowService,
     }),
   );
   app.use(
@@ -514,6 +675,15 @@ export function createApp(options?: {
       authService,
       intelligenceService,
       decisionEngineService,
+      intelligenceWorkflowService: intelligenceScanWorkflowService,
+    }),
+  );
+  app.use(
+    "/api",
+    createAiIntelligenceRouter({
+      authService,
+      openAiProvider,
+      intelligenceService,
     }),
   );
   app.use(

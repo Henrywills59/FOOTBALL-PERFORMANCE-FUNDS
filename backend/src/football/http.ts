@@ -17,9 +17,23 @@ export class ProviderRequestError extends Error {
     message: string,
     readonly statusCode?: number,
     readonly rateLimited = false,
+    readonly responseBody?: unknown,
   ) {
     super(message);
     this.name = "ProviderRequestError";
+  }
+}
+
+async function readSafeResponseBody(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    const text = await response.text();
+    return text.slice(0, 1000);
+  } catch {
+    return undefined;
   }
 }
 
@@ -50,11 +64,16 @@ export async function fetchWithRetry<T>(
       };
 
       if (response.status === 429 || response.status >= 500) {
-        throw new ProviderRequestError(`Provider returned ${response.status}`, response.status, response.status === 429);
+        throw new ProviderRequestError(
+          `Provider returned ${response.status}`,
+          response.status,
+          response.status === 429,
+          await readSafeResponseBody(response),
+        );
       }
 
       if (!response.ok) {
-        throw new ProviderRequestError(`Provider request failed with ${response.status}`, response.status);
+        throw new ProviderRequestError(`Provider request failed with ${response.status}`, response.status, false, await readSafeResponseBody(response));
       }
 
       return {

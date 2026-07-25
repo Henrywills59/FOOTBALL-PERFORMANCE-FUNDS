@@ -1,4 +1,5 @@
 import type { BillingCycle, SubscriberPlanCode } from "@fpf/shared";
+import type { PaymentNetwork } from "./config.js";
 
 export type PaymentPurpose =
   | "SUBSCRIPTION"
@@ -63,6 +64,7 @@ export type CreateSubscriptionPaymentInput = {
   planCode: SubscriberPlanCode;
   billingCycle: BillingCycle;
   purpose?: Extract<PaymentPurpose, "SUBSCRIPTION" | "SUBSCRIPTION_RENEWAL" | "SUBSCRIPTION_UPGRADE">;
+  paymentNetwork?: PaymentNetwork;
 };
 
 export type CreateInvestorFundingInput = {
@@ -71,6 +73,7 @@ export type CreateInvestorFundingInput = {
   amountCents: number;
   acknowledgementsAccepted: boolean;
   termsAccepted: boolean;
+  paymentNetwork?: PaymentNetwork;
 };
 
 export type NowPaymentsCreatePaymentRequest = {
@@ -160,8 +163,17 @@ export type PaymentRepository = {
     providerPayload?: Record<string, unknown>;
   }): Promise<PaymentOrder>;
   createManualReview(input: { orderId: string; reason: string; createdByUserId?: string | null; notes?: string | null }): Promise<void>;
-  activateSubscription(input: { order: PaymentOrder; receiptId?: string | null }): Promise<void>;
-  activateInvestorFunding(input: { order: PaymentOrder; receiptId?: string | null }): Promise<void>;
+  activateSubscription(input: { order: PaymentOrder; receiptId?: string | null }): Promise<{ treasuryLedgerTransactionId?: string | null } | void>;
+  activateInvestorFunding(input: { order: PaymentOrder; receiptId?: string | null }): Promise<{ treasuryLedgerTransactionId?: string | null } | void>;
+  linkConfirmedPayment(input: {
+    orderId: string;
+    paymentNetwork: PaymentNetwork;
+    payoutWalletReference: string;
+    treasuryLedgerTransactionId?: string | null;
+    paymentPurpose: PaymentPurpose;
+    transactionHash?: string | null;
+    receiptId?: string | null;
+  }): Promise<PaymentOrder>;
   addAdminNote(input: { orderId: string; actorUserId: string; note: string }): Promise<void>;
 };
 
