@@ -3691,17 +3691,46 @@ function ExecutiveSituationRoomView({ situation }: { situation: ExecutiveSituati
 }
 
 function ExecutiveGlobalCommandWallPlaceholder() {
+  const commandSignals = [
+    ["AI Processing", "Ready", 82],
+    ["Prediction Pipeline", "Review", 64],
+    ["System Health", "Healthy", 96],
+    ["Infrastructure", "Stable", 91],
+    ["Security", "Guarded", 98],
+    ["Reporting", "Live", 76],
+  ] as const;
+
   return (
     <CommandCenterLayout
-      eyebrow="Module 7 reserved"
+      eyebrow="Executive command layer"
       title="Executive Global Command Wall"
-      summary="The navigation slot, route handler, and shared layout are ready. The module remains disabled unless VITE_ENABLE_EXECUTIVE_GLOBAL_COMMAND_WALL is explicitly enabled."
+      summary="A protected executive operating surface for platform telemetry, system readiness, intelligence flow, and governance signals. This view remains admin-only and uses existing production data controls."
     >
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard title="Access" value="Admin / Executive only" detail="Protected by the existing admin shell and role guard." />
-        <StatusCard title="Data source" value="Pending final module" detail="Will connect to production APIs without replacing current dashboards." />
-        <StatusCard title="Release state" value="Feature-flagged" detail="Safe to add later without rebuilding the app shell." />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {commandSignals.map(([title, state, value]) => (
+          <article className="executive-command-card" key={title}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{title}</p>
+                <strong className="mt-2 block text-lg text-white">{state}</strong>
+              </div>
+              <span className="live-status-pill">Live</span>
+            </div>
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
+                <span>Signal strength</span>
+                <span className="font-mono text-emerald-300">{value}%</span>
+              </div>
+              <div className="executive-progress-track"><i style={{ width: `${value}%` }} /></div>
+            </div>
+          </article>
+        ))}
       </div>
+      <section className="executive-command-footer">
+        <StatusCard title="Access" value="Admin / Executive only" detail="Protected by the existing admin shell and role guard." />
+        <StatusCard title="Data source" value="Production adapters" detail="Connects through existing APIs without replacing the dashboard architecture." />
+        <StatusCard title="Release state" value="Review-ready" detail="Presentation layer is active; deeper telemetry remains provider-ready." />
+      </section>
     </CommandCenterLayout>
   );
 }
@@ -3763,6 +3792,58 @@ function CompactTreasuryList({ items }: { items: string[] }) {
         <p className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-300" key={item}>{item}</p>
       ))}
       {!items.length ? <p className="text-sm text-zinc-400">No records yet.</p> : null}
+    </div>
+  );
+}
+
+function InvestorPerformanceAreaChart({ points }: { points: Array<{ label: string; valueCents: number }> }) {
+  if (points.length < 2) {
+    return (
+      <div className="investor-area-chart empty">
+        <span>Awaiting performance history</span>
+      </div>
+    );
+  }
+
+  const width = 640;
+  const height = 220;
+  const values = points.map((point) => point.valueCents);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const step = width / Math.max(1, points.length - 1);
+  const coordinates = values.map((value, index) => {
+    const x = index * step;
+    const y = height - 24 - ((value - min) / range) * (height - 52);
+    return [x, y] as const;
+  });
+  const line = coordinates.map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${width},${height} L0,${height} Z`;
+
+  return (
+    <div className="investor-area-chart" aria-label="Performance Partner performance chart">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img">
+        <defs>
+          <linearGradient id="investor-performance-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.42" />
+            <stop offset="60%" stopColor="#34d399" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0.22, 0.44, 0.66, 0.88].map((row) => (
+          <line className="investor-chart-grid" key={row} x1="0" x2={width} y1={height * row} y2={height * row} />
+        ))}
+        <path d={area} fill="url(#investor-performance-fill)" />
+        <path className="investor-chart-line" d={line} fill="none" />
+        {coordinates.map(([x, y], index) => (
+          <circle className="investor-chart-point" cx={x} cy={y} key={`${points[index].label}-${x}`} r={index === coordinates.length - 1 ? 4 : 2.6} />
+        ))}
+      </svg>
+      <div className="investor-chart-labels">
+        <span>{points[0]?.label}</span>
+        <strong>{money(values[values.length - 1] ?? 0)}</strong>
+        <span>{points[points.length - 1]?.label}</span>
+      </div>
     </div>
   );
 }
@@ -5103,13 +5184,8 @@ function InvestorPortal({
             <p className="mt-3 text-sm text-zinc-400">{dashboard?.transparencyNote ?? "Distribution values are placeholders pending real settlement integrations."}</p>
           </Panel>
           <Panel title="Performance Chart">
-            <div className="space-y-3">
-              {(dashboard?.performanceChart ?? []).map((point) => (
-                <div key={point.label}>
-                  <div className="mb-1 flex justify-between text-sm text-zinc-300"><span>{point.label}</span><span>{money(point.valueCents)}</span></div>
-                  <div className="h-2 rounded-full bg-zinc-800"><div className="h-2 rounded-full bg-emerald-300" style={{ width: `${Math.min(100, Math.max(8, point.valueCents / 10000))}%` }} /></div>
-                </div>
-              ))}
+            <div className="investor-chart-panel">
+              <InvestorPerformanceAreaChart points={dashboard?.performanceChart ?? []} />
               {!(dashboard?.performanceChart.length) ? <p className="text-sm text-zinc-400">Performance chart will populate as capital and distributions are recorded.</p> : null}
             </div>
           </Panel>
