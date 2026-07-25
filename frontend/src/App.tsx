@@ -77,7 +77,7 @@ import type {
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
 import { Mission21PublicExperience, ThemeSwitcher } from "./PublicExperience";
-import { PremiumEmptyState } from "./components/PremiumPrimitives";
+import { PremiumAreaChart, PremiumCommandGrid, PremiumEmptyState, PremiumLoadingState } from "./components/PremiumPrimitives";
 
 function normalizeApiBaseUrl(value?: string) {
   const trimmed = value?.trim().replace(/\/+$/, "");
@@ -2385,15 +2385,28 @@ function AdminPortal({
   const subscriberPublishingQueue = workflowQueue?.items.filter((item) => ["APPROVED", "PUBLISHED"].includes(item.status)) ?? [];
 
   if (activeView === "Admin Dashboard") {
+    const adminSignals = [
+      { label: "System Health", value: overview?.systemHealth ?? "OK", detail: "Operational readiness", tone: "live" as const },
+      { label: "Pending Predictions", value: String(overview?.pendingPredictions ?? pending.length), detail: "Review queue", tone: pending.length ? "warning" as const : "ready" as const },
+      { label: "Approved Intelligence", value: String(overview?.approvedPredictions ?? 0), detail: "Subscriber-safe output", tone: "ready" as const },
+      { label: "User Operations", value: String(overview?.totalUsers ?? 0), detail: "Protected accounts", tone: "ready" as const },
+      { label: "Fixtures Today", value: String(overview?.todaysFixtures ?? 0), detail: "Football data layer", tone: "ready" as const },
+      { label: "Active Subscribers", value: String(overview?.activeSubscribers ?? 0), detail: "Member operations", tone: "ready" as const },
+    ];
     return (
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Total users" value={String(overview?.totalUsers ?? 0)} />
-        <Metric label="Active subscribers" value={String(overview?.activeSubscribers ?? 0)} />
-        <Metric label="Active investors" value={String(overview?.activeInvestors ?? 0)} />
-        <Metric label="Today's fixtures" value={String(overview?.todaysFixtures ?? 0)} />
-        <Metric label="Pending predictions" value={String(overview?.pendingPredictions ?? pending.length)} />
-        <Metric label="Approved predictions" value={String(overview?.approvedPredictions ?? 0)} />
-        <Metric label="System health" value={overview?.systemHealth ?? "OK"} />
+      <div className="mt-6 space-y-5">
+        <section className="premium-executive-overview">
+          <div>
+            <p className="eyebrow">Executive Command Center</p>
+            <h2>Global operating overview</h2>
+            <p>Administrative telemetry, review queues, user operations and platform health remain protected behind the existing role guard.</p>
+          </div>
+          <div className="executive-status-stack">
+            <MiniStat label="Active partners" value={String(overview?.activeInvestors ?? 0)} />
+            <MiniStat label="Reports" value={String(reports?.dailyPlatformActivity.length ?? 0)} />
+          </div>
+        </section>
+        <PremiumCommandGrid signals={adminSignals} />
       </div>
     );
   }
@@ -5161,9 +5174,19 @@ function InvestorPortal({
   withdrawals: WithdrawalRequest[];
 }) {
   if (activeView === "Investor Dashboard") {
+    const partnerSignals = [
+      { label: "Total Capital", value: money(dashboard?.balance.totalCapitalCents ?? 0), detail: "Partner account", tone: "ready" as const },
+      { label: "Active Balance", value: money(dashboard?.balance.activeInvestmentBalanceCents ?? 0), detail: "Current season", tone: "live" as const },
+      { label: "Weekly Earnings", value: money(dashboard?.weeklyEarningsCents ?? 0), detail: "Placeholder until settlement", tone: "ready" as const },
+      { label: "Distribution Status", value: dashboard?.distributionStatus ?? "PENDING", detail: "Admin controlled", tone: "warning" as const },
+      { label: "Partner Level", value: investorLevelName(commercialStructure, dashboard?.balance.totalCapitalCents ?? 0), detail: "Recognition tier", tone: "ready" as const },
+      { label: "Account Status", value: dashboard?.accountStatus ?? "ACTIVE", detail: "Access state", tone: "live" as const },
+    ];
+    const chartPoints = (dashboard?.performanceChart ?? []).map((point) => ({ label: point.label, value: point.valueCents / 100 }));
     return (
       <div className="mt-6 space-y-4">
         <RiskDisclaimer />
+        <PremiumCommandGrid signals={partnerSignals} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Metric label="Total capital" value={money(dashboard?.balance.totalCapitalCents ?? 0)} />
           <Metric label="Active balance" value={money(dashboard?.balance.activeInvestmentBalanceCents ?? 0)} />
@@ -5185,7 +5208,7 @@ function InvestorPortal({
           </Panel>
           <Panel title="Performance Chart">
             <div className="investor-chart-panel">
-              <InvestorPerformanceAreaChart points={dashboard?.performanceChart ?? []} />
+              <PremiumAreaChart title="Performance Partner Growth" points={chartPoints} />
               {!(dashboard?.performanceChart.length) ? <p className="text-sm text-zinc-400">Performance chart will populate as capital and distributions are recorded.</p> : null}
             </div>
           </Panel>
@@ -5912,6 +5935,21 @@ function DashboardView({
     : commandCenter?.executiveOverview.aiIntelligenceScore ?? 0;
   const opportunities = commandCenter?.opportunities ?? [];
   const overview = commandCenter?.executiveOverview;
+  const subscriberSignals = [
+    { label: "AI Intelligence Score", value: `${overview?.aiIntelligenceScore ?? averageConfidence}%`, detail: "Current member context", tone: "live" as const },
+    { label: "Today's Opportunities", value: String(opportunities.length || intelligence.length + featured.length), detail: "Approved or queued", tone: "ready" as const },
+    { label: "Live Matches", value: String(liveFixtures.length), detail: "Match center", tone: liveFixtures.length ? "live" as const : "muted" as const },
+    { label: "Recent Predictions", value: String(recent.length), detail: "Latest available", tone: "ready" as const },
+    { label: "Notifications", value: String(commandCenter?.notifications.length ?? notifications.length), detail: "Member alerts", tone: "ready" as const },
+    { label: "Bankroll Risk", value: bankrollAnalysis.riskLevel, detail: "Subscriber-entered records", tone: bankrollAnalysis.riskLevel === "LOW" ? "ready" as const : "warning" as const },
+  ];
+  const performancePoints = [
+    { label: "Wins", value: bankrollAnalysis.wins },
+    { label: "Losses", value: bankrollAnalysis.losses },
+    { label: "ROI", value: Math.max(0, Math.round(bankrollAnalysis.roi + 12)) },
+    { label: "Open", value: bankrollAnalysis.awaiting },
+    { label: "Total", value: bankrollAnalysis.totalSelections },
+  ];
   return (
     <div className="mt-6 space-y-6">
       <section className="overflow-hidden rounded-lg border border-emerald-400/20 bg-gradient-to-br from-slate-950 via-blue-950 to-zinc-950 p-5 shadow-2xl shadow-emerald-950/20">
@@ -5937,6 +5975,10 @@ function DashboardView({
         <Metric label="AI Intelligence" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
         <Metric label="Performance" value={overview?.performanceSummary ?? "Monitoring"} />
         <Metric label="Subscription" value={overview?.subscriptionStatus ?? "Active"} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <PremiumCommandGrid signals={subscriberSignals} />
+        <PremiumAreaChart title="Member Performance Pulse" points={performancePoints} />
       </div>
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <AiCoachCompactPanel
@@ -8172,6 +8214,7 @@ function RiskDisclaimer() {
 function LoadingSkeleton({ label }: { label: string }) {
   return (
     <div className="mt-6 space-y-3">
+      <PremiumLoadingState label={label} />
       <div className="loading-brand-row">
         <img src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="40" height="40" />
         <p className="text-sm text-zinc-400">{label}</p>

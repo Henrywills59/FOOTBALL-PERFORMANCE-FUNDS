@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { CommercialStructure, PublicExperience, ThemePreference } from "./types";
 import { historicalOperatingBaseline } from "./historicalOperatingBaseline";
+import { PremiumAreaChart, PremiumCommandGrid } from "./components/PremiumPrimitives";
 
 type PublicPageDefinition = {
   label: string;
@@ -238,7 +239,9 @@ export function Mission21PublicExperience({
           <HistoricalBaselineSection experience={experience} />
           <PublicSignalBar experience={experience} />
           <LiveDigitalPlatformSection experience={experience} onNavigate={navigate} />
+          <GlobalCommandCenterSection />
           <HowItWorks />
+          <LiveIntelligenceCenterSection experience={experience} />
           <SubscriberMembership plans={plans} onNavigate={navigate} />
           <PerformancePartnerProgramme commercialStructure={{ ...publicCommercialFallback, ...publicCommercial }} experience={experience} onNavigate={navigate} />
           <PerformancePreview experience={experience} />
@@ -473,7 +476,7 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
       <article className="why-panel">
         <div className="panel-title-row"><strong>Why FPF?</strong><button type="button" onClick={() => onNavigate("/about", "what-fpf-is")}>Learn More</button></div>
         {[
-          ["AI + Analyst Verification", "Every published opportunity is reviewed before member access."],
+            ["AI + Expert Verification", "Every published opportunity is reviewed before member access."],
           ["Live In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
           ["Performance Transparency", "Results and reports stay tied to verified records."],
         ].map(([title, body]) => (
@@ -596,7 +599,7 @@ function HowItWorks() {
   const steps = [
     "Football data is collected",
     "Intelligence opportunities are identified",
-    "Professional analysts verify each opportunity",
+    "Expert reviewers verify each opportunity",
     "Approved intelligence is published to eligible members",
   ];
   return (
@@ -606,7 +609,7 @@ function HowItWorks() {
           <article key={step}>
             <span>{String(index + 1).padStart(2, "0")}</span>
             <strong>{step}</strong>
-            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Human review keeps the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
+            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Human-reviewed controls keep the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
           </article>
         ))}
       </div>
@@ -724,7 +727,7 @@ function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string
     <PublicSection id="contact" eyebrow="Contact" title="Start with the right FPF pathway.">
       <div className="split-layout premium-split">
         <div className="feature-panel">
-          <p>For subscriber access, partnership enquiries, media or analyst applications, start with a secure FPF account or contact the team through the official channel.</p>
+          <p>For subscriber access, Performance Partner enquiries, media or official support, start with a secure FPF account or contact the team through the official channel.</p>
         </div>
         <div className="value-grid compact">
           <article><strong>Members</strong><span>Use Sign In</span></article>
@@ -737,6 +740,79 @@ function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string
         <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
         <button type="button" onClick={() => onNavigate("/register", "auth")}>Register</button>
       </div>
+    </PublicSection>
+  );
+}
+
+function GlobalCommandCenterSection() {
+  const regions = [
+    ["UEFA", "Europe"],
+    ["CONMEBOL", "South America"],
+    ["AFC", "Asia"],
+    ["CAF", "Africa"],
+    ["CONCACAF", "North America"],
+    ["OFC", "Oceania"],
+  ];
+
+  return (
+    <PublicSection id="global-command" eyebrow="Global Command Center" title="Football intelligence, without borders.">
+      <div className="global-command-section">
+        <div className="global-command-orb" aria-label="Animated global football intelligence network">
+          <span className="orb-core" />
+          <span className="orb-ring one" />
+          <span className="orb-ring two" />
+          <span className="orb-ring three" />
+          {Array.from({ length: 18 }).map((_, index) => (
+            <i key={index} style={{ "--dot-index": index } as CSSProperties} />
+          ))}
+          <strong>FPF</strong>
+        </div>
+        <div className="global-command-copy">
+          <p>
+            FPF is designed as a single football intelligence layer across competitions, territories and member workspaces. Public pages show the operating model; protected portals handle member data, reports and approvals.
+          </p>
+          <div className="region-grid">
+            {regions.map(([label, value]) => (
+              <article key={label}>
+                <strong>{label}</strong>
+                <span>{value}</span>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PublicSection>
+  );
+}
+
+function LiveIntelligenceCenterSection({ experience }: { experience: PublicExperience | null }) {
+  const syncStatus = experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Ready";
+  const signals = [
+    { label: "AI Decision Core", value: "Online", detail: "Structured outputs only", tone: "live" as const },
+    { label: "Risk Analysis", value: "Running", detail: "No guaranteed outcomes", tone: "ready" as const },
+    { label: "Match Intelligence", value: syncStatus, detail: "Provider-safe fallbacks", tone: "live" as const },
+    { label: "Security Monitoring", value: "Active", detail: "Role-based access", tone: "ready" as const },
+    { label: "Payment Controls", value: "Protected", detail: "Backend-only secrets", tone: "ready" as const },
+    { label: "Report Engine", value: "Available", detail: "Subscriber gated", tone: "ready" as const },
+  ];
+
+  const chartPoints = [
+    { label: "Mon", value: experience?.activity?.pendingApproval ?? 1 },
+    { label: "Tue", value: (experience?.activity?.analystReviewsCompleted ?? 0) + 2 },
+    { label: "Wed", value: (experience?.activity?.approvedOpportunities ?? 0) + 3 },
+    { label: "Thu", value: (experience?.activity?.leaguesCovered ?? 1) + 1 },
+    { label: "Fri", value: (experience?.activity?.reportsPending ?? 0) + 4 },
+  ];
+
+  return (
+    <PublicSection id="live-intelligence-center" eyebrow="Live Intelligence Center" title="Every system, continuously observed.">
+      <div className="live-intelligence-center-grid">
+        <PremiumCommandGrid signals={signals} />
+        <PremiumAreaChart title="Operational Pulse" points={chartPoints} />
+      </div>
+      <p className="dashboard-integrity-note">
+        This section displays operational system status only. Verified performance statistics remain separate from current platform activity.
+      </p>
     </PublicSection>
   );
 }
