@@ -3580,3 +3580,227 @@ body,
 .fpf-app-shell .rounded-lg {
   overflow-wrap: anywhere;
 }
+
+/* Lovable V1 UI integration polish: graphite/emerald source-of-truth */
+[data-theme="dark"] {
+  --fpf-bg: #111418;
+  --fpf-surface: rgba(17, 20, 24, 0.88);
+  --fpf-panel: rgba(24, 28, 33, 0.95);
+  --fpf-card: rgba(31, 36, 42, 0.84);
+  --fpf-border: rgba(148, 163, 184, 0.18);
+  --fpf-strong-border: rgba(52, 211, 153, 0.34);
+  --fpf-glow: rgba(52, 211, 153, 0.16);
+}
+
+.fpf-public {
+  background:
+    radial-gradient(58rem 36rem at 12% -8%, rgba(52, 211, 153, 0.08), transparent 62%),
+    radial-gradient(52rem 34rem at 100% 4%, rgba(59, 130, 246, 0.1), transparent 58%),
+    linear-gradient(180deg, var(--fpf-bg) 0%, #080b10 48%, var(--fpf-bg) 100%);
+}
+
+.public-nav {
+  backdrop-filter: blur(22px) saturate(145%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1.2rem 3.5rem rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(52, 211, 153, 0.05);
+}
+
+.public-nav button,
+.public-nav a,
+.mobile-public-menu button {
+  min-height: 2.75rem;
+}
+
+.hero-media img {
+  object-position: center;
+  transform-origin: center;
+}
+
+.hero-intelligence-card,
+.activity-track,
+.public-card,
+.premium-report-row,
+.operational-performance-grid article,
+.dashboard-preview-card,
+.pricing-card {
+  backdrop-filter: blur(18px) saturate(145%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 1.4rem 3.6rem rgba(0, 0, 0, 0.26);
+}
+
+.hero-intelligence-card:hover,
+.public-card:hover,
+.dashboard-preview-card:hover,
+.pricing-card:hover {
+  border-color: rgba(52, 211, 153, 0.42);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1.8rem 4.2rem rgba(0, 0, 0, 0.34),
+    0 0 2.6rem rgba(52, 211, 153, 0.08);
+}
+
+.chart-line {
+  position: relative;
+  isolation: isolate;
+}
+
+.chart-line::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 100% 25%, 18% 100%;
+  content: "";
+}
+
+.mobile-public-menu {
+  max-height: min(74dvh, 34rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.mobile-public-menu button {
+  display: flex;
+  align-items: center;
+}
+
+.executive-command-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 1rem;
+  background:
+    linear-gradient(145deg, rgba(31, 36, 42, 0.88), rgba(10, 13, 18, 0.8)),
+    radial-gradient(circle at top right, rgba(52, 211, 153, 0.12), transparent 12rem);
+  padding: 1rem;
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.24);
+}
+
+.executive-command-card::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: 100% 25%, 22% 100%;
+  content: "";
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.78), transparent);
+}
+
+.executive-progress-track {
+  overflow: hidden;
+  height: 0.42rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.executive-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.45), #34d399);
+  box-shadow: 0 0 1rem rgba(52, 211, 153, 0.55);
+}
+
+.executive-command-footer {
+  display: grid;
+  gap: 1rem;
+}
+
+.investor-chart-panel {
+  min-height: 15rem;
+}
+
+.investor-area-chart {
+  position: relative;
+  overflow: hidden;
+  min-height: 14rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(17, 24, 39, 0.7), rgba(2, 6, 23, 0.58)),
+    radial-gradient(circle at 18% 10%, rgba(52, 211, 153, 0.1), transparent 16rem);
+  padding: 0.85rem;
+}
+
+.investor-area-chart.empty {
+  display: grid;
+  place-items: center;
+  color: var(--fpf-subtle);
+  font-size: 0.82rem;
+}
+
+.investor-area-chart svg {
+  display: block;
+  width: 100%;
+  height: 12rem;
+}
+
+.investor-chart-grid {
+  stroke: rgba(148, 163, 184, 0.12);
+  stroke-dasharray: 3 7;
+}
+
+.investor-chart-line {
+  stroke: #34d399;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 0.45rem rgba(52, 211, 153, 0.58));
+}
+
+.investor-chart-point {
+  fill: #34d399;
+  filter: drop-shadow(0 0 0.35rem rgba(52, 211, 153, 0.68));
+}
+
+.investor-chart-labels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--fpf-subtle);
+  font-size: 0.72rem;
+}
+
+.investor-chart-labels strong {
+  color: #d1fae5;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 480px) {
+  .public-nav {
+    width: calc(100% - 1rem);
+  }
+
+  .brand-copy strong {
+    max-width: 8.5rem;
+  }
+
+  .preview-nav-action {
+    padding-inline: 0.7rem;
+    font-size: 0.72rem;
+  }
+
+  .hero-copy h1 {
+    max-width: 22rem;
+    font-size: clamp(2.1rem, 13vw, 3.1rem);
+  }
+
+  .hero-support {
+    max-width: 21rem;
+  }
+
+  .public-section,
+  .activity-bar {
+    width: min(100% - 1rem, 82rem);
+  }
+}

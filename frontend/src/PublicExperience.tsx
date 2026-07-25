@@ -23,18 +23,23 @@ type Props = {
 const heroSlides = [
   {
     title: "Matchday Intelligence",
-    image: "https://images.unsplash.com/photo-1517747614396-d21a78b850e8?auto=format&fit=crop&w=1800&q=82",
-    caption: "Matchday Intelligence",
+    image: "/hero/stadium.jpg",
+    caption: "Global Matchday Intelligence",
   },
   {
-    title: "Professional Analysis",
-    image: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1800&q=82",
-    caption: "Analyst Review",
+    title: "AI-Verified Football Intelligence",
+    image: "/hero/ai-pitch.jpg",
+    caption: "AI-Verified Intelligence",
   },
   {
-    title: "Tactical Control",
-    image: "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1800&q=82",
-    caption: "Operational Discipline",
+    title: "Expert-Reviewed Performance",
+    image: "/hero/striker.jpg",
+    caption: "Human-Reviewed Intelligence",
+  },
+  {
+    title: "Performance Discipline",
+    image: "/hero/trophy.jpg",
+    caption: "Performance Discipline",
   },
 ];
 
@@ -317,9 +322,9 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
       <div className="war-room-mini" id="war-room-preview">
         <div className="war-room-screen" aria-hidden="true"><i /><i /><i /><i /></div>
         <div>
-          <span>FPF Intelligence War Room</span>
-          <strong>Real-time match analysis and internal review workspace.</strong>
-          <button type="button" onClick={() => onNavigate("/login", "auth")}>Enter War Room</button>
+          <span>FPF Intelligence Briefing</span>
+          <strong>AI-verified football intelligence with human-reviewed context.</strong>
+          <button type="button" onClick={() => onNavigate("/login", "auth")}>View Intelligence Briefing</button>
         </div>
       </div>
     </aside>
@@ -336,7 +341,7 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
     { label: "Live Match Scanner", value: "Active" },
     { label: "Competitions Monitored", value: experience?.activity?.leaguesCovered ? `${experience.activity.leaguesCovered} live` : `${monitoredCompetitions} live` },
     { label: "Data Synchronisation", value: experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Launch monitoring active" },
-    { label: "Analyst Review Queue", value: "Active" },
+    { label: "Expert Review Layer", value: "Active" },
     { label: "Opportunity Engine", value: "Processing" },
     { label: "Platform Status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Operational" : "Operational" },
     { label: "Intelligence Cycle", value: "Live" },
