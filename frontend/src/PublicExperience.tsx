@@ -33,9 +33,9 @@ const heroSlides = [
     caption: "AI-Verified Intelligence",
   },
   {
-    title: "Expert-Reviewed Performance",
+    title: "FPF Verified Performance",
     image: "/hero/striker.jpg",
-    caption: "Human-Reviewed Intelligence",
+    caption: "FPF Verified Intelligence",
   },
   {
     title: "Performance Discipline",
@@ -276,7 +276,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
           <p className="eyebrow hero-kicker">AI-Powered Football Intelligence</p>
           <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
           <p className="hero-support">
-            AI-powered predictions, live in-play intelligence and professional analyst insight in one disciplined football operating system.
+            AI-powered predictions, live in-play intelligence and proprietary FPF intelligence in one disciplined football operating system.
           </p>
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
@@ -326,7 +326,7 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
         <div className="war-room-screen" aria-hidden="true"><i /><i /><i /><i /></div>
         <div>
           <span>FPF Intelligence Briefing</span>
-          <strong>AI-verified football intelligence with human-reviewed context.</strong>
+          <strong>AI-verified football intelligence with FPF quality controls.</strong>
           <button type="button" onClick={() => onNavigate("/login", "auth")}>View Intelligence Briefing</button>
         </div>
       </div>
@@ -344,7 +344,7 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
     { label: "Live Match Scanner", value: "Active" },
     { label: "Competitions Monitored", value: experience?.activity?.leaguesCovered ? `${experience.activity.leaguesCovered} live` : `${monitoredCompetitions} live` },
     { label: "Data Synchronisation", value: experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Launch monitoring active" },
-    { label: "Expert Review Layer", value: "Active" },
+    { label: "Intelligence Quality Layer", value: "Active" },
     { label: "Opportunity Engine", value: "Processing" },
     { label: "Platform Status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Operational" : "Operational" },
     { label: "Intelligence Cycle", value: "Live" },
@@ -455,13 +455,13 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
   const competitionsCovered = Math.max(1, new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size);
   const weeklyOperations = [
     { label: "Opportunities Published This Week", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Protected publication" },
-    { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Analyst queue" },
+    { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Intelligence queue" },
     { label: "Opportunities Approved", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Admin controlled" },
     { label: "Opportunities Settled", value: String(currentPeriod?.positionsSettled ?? results.length), status: results.length ? "Verified cycle" : "Awaiting first cycle" },
     { label: "Average Confidence", value: experience?.activity?.approvedOpportunities ? "Calculated in portal" : "Pending live data", status: "Model separated" },
     { label: "Markets Covered", value: String(marketsCovered), status: "Operational scope" },
     { label: "Competitions Covered", value: String(competitionsCovered), status: "Live scanner" },
-    { label: "Analyst Reviews Completed", value: String(experience?.activity?.analystReviewsCompleted ?? 0), status: "Review workflow" },
+    { label: "Intelligence Reviews Completed", value: String(experience?.activity?.intelligenceReviewsCompleted ?? experience?.activity?.analysisJobsCompletedToday ?? 0), status: "Intelligence governance" },
   ];
   const reportCards = [
     { title: "Daily Intelligence Briefing", date: "Today", status: "Available to Subscribers" },
@@ -476,7 +476,7 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
       <article className="why-panel">
         <div className="panel-title-row"><strong>Why FPF?</strong><button type="button" onClick={() => onNavigate("/about", "what-fpf-is")}>Learn More</button></div>
         {[
-            ["AI + Expert Verification", "Every published opportunity is reviewed before member access."],
+            ["FPF Intelligence Verification", "Each opportunity passes FPF's proprietary intelligence verification process before member access."],
           ["Live In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
           ["Performance Transparency", "Results and reports stay tied to verified records."],
         ].map(([title, body]) => (
@@ -535,7 +535,7 @@ function PublicAuthPage({ authPanel }: { authPanel: ReactNode }) {
       <div>
         <p className="eyebrow">Secure Access</p>
         <h1>Enter the FPF operating system.</h1>
-        <p>One secure account routes subscribers, Performance Partners, analysts, Country Partners and administrators into the correct protected workspace.</p>
+        <p>One secure account routes subscribers, Performance Partners, Country Partners and administrators into the correct protected workspace.</p>
         <div className="auth-benefit-grid">
           <article><strong>One account</strong><span>Role-based routing after login</span></article>
           <article><strong>Protected access</strong><span>Private workspaces stay private</span></article>
@@ -571,7 +571,7 @@ function WhatFpfIs() {
         <div className="feature-panel feature-panel-lead">
           <StatusPill>Not a tips site</StatusPill>
           <p>
-            Football Performance Fund turns football data, analyst review and disciplined publishing rules into member-ready intelligence.
+            Football Performance Fund turns football data, proprietary intelligence controls and disciplined publishing rules into member-ready intelligence.
           </p>
           <p>
             Public pages explain the model. The protected platform handles subscriptions, partner workspaces, reporting and operational controls.
@@ -599,7 +599,7 @@ function HowItWorks() {
   const steps = [
     "Football data is collected",
     "Intelligence opportunities are identified",
-    "Expert reviewers verify each opportunity",
+    "Every opportunity passes FPF intelligence verification",
     "Approved intelligence is published to eligible members",
   ];
   return (
@@ -609,7 +609,7 @@ function HowItWorks() {
           <article key={step}>
             <span>{String(index + 1).padStart(2, "0")}</span>
             <strong>{step}</strong>
-            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Human-reviewed controls keep the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
+            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Multi-layer intelligence controls keep the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
           </article>
         ))}
       </div>
@@ -680,7 +680,7 @@ function TrustSection() {
       <div className="trust-grid public-trust-grid">
         {[
           ["Controlled publication", "Only approved intelligence reaches eligible members."],
-          ["Privacy by design", "Public pages do not expose private selections, analyst identities or member data."],
+          ["Privacy by design", "Public pages do not expose private selections, internal identities or member data."],
           ["Risk-first language", "FPF never guarantees outcomes or fixed returns."],
           ["One secure platform", "Role-based access keeps each workspace separated."],
         ].map(([title, body]) => (
@@ -715,7 +715,7 @@ function FAQSection() {
       <div className="faq-grid">
         <article><strong>Does FPF guarantee outcomes?</strong><p>No. Football outcomes are never guaranteed.</p></article>
         <article><strong>What do subscribers receive?</strong><p>Eligible subscribers receive approved Match Intelligence with context, confidence and risk information.</p></article>
-        <article><strong>Are analysts public tipsters?</strong><p>No. Analysts are internal professionals or approved contracted experts.</p></article>
+        <article><strong>Is FPF a public picks platform?</strong><p>No. FPF is a proprietary football intelligence operating system with controlled publication standards.</p></article>
         <article><strong>Are simulations real returns?</strong><p>No. Simulations are illustrative only and do not promise performance.</p></article>
       </div>
     </PublicSection>
@@ -798,7 +798,7 @@ function LiveIntelligenceCenterSection({ experience }: { experience: PublicExper
 
   const chartPoints = [
     { label: "Mon", value: experience?.activity?.pendingApproval ?? 1 },
-    { label: "Tue", value: (experience?.activity?.analystReviewsCompleted ?? 0) + 2 },
+    { label: "Tue", value: (experience?.activity?.intelligenceReviewsCompleted ?? experience?.activity?.analysisJobsCompletedToday ?? 0) + 2 },
     { label: "Wed", value: (experience?.activity?.approvedOpportunities ?? 0) + 3 },
     { label: "Thu", value: (experience?.activity?.leaguesCovered ?? 1) + 1 },
     { label: "Fri", value: (experience?.activity?.reportsPending ?? 0) + 4 },

@@ -230,11 +230,11 @@ type PublicPageDefinition = {
 const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Home", path: "/", id: "home", description: "Cinematic FPF homepage and launch gateway." },
   { label: "About", path: "/about", id: "about", description: "The Football Performance Fund mission and operating model." },
-  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, analyst, and admin platform." },
-  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How football data, intelligence identification, professional review, and member publishing work." },
+  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, Performance Partner, Country Partner, and admin platform." },
+  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How football data, intelligence identification, proprietary verification, and member publishing work." },
   { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
   { label: "Performance Partners", path: "/investors", id: "investors", description: "Performance Partner transparency, simulator, reports, and risk-first controls." },
-  { label: "Expert Review", path: "/expert-review", id: "expert-review", description: "Human-reviewed intelligence and internal quality controls." },
+  { label: "Intelligence Governance", path: "/intelligence-governance", id: "intelligence-governance", description: "FPF intelligence quality controls and proprietary governance." },
   { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
   { label: "Advanced Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Advanced football intelligence, confidence context, risk context, and value signals." },
   { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
@@ -243,7 +243,7 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Security", path: "/security", id: "security", description: "Authentication, authorization, privacy, and risk controls." },
   { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and launch-stage insights." },
   { label: "Media", path: "/media", id: "media", description: "Media center, announcements, and press resources." },
-  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal analyst pathway, and partner programmes." },
+  { label: "Careers", path: "/careers", id: "careers", description: "Careers, operations pathways, and partner programmes." },
   { label: "Contact", path: "/contact", id: "contact", description: "Contact and support entry points." },
   { label: "FAQ", path: "/faq", id: "faq", description: "Frequently asked questions." },
   { label: "Privacy Policy", path: "/privacy-policy", id: "privacy-policy", description: "Privacy and data preference information." },
@@ -258,8 +258,6 @@ const publicPathAliases: Record<string, string> = {
   "/for-investors": "/investors",
   "/partners": "/investors",
   "/performance-partners": "/investors",
-  "/for-analysts": "/ai-intelligence",
-  "/analyst-applications": "/ai-intelligence",
   "/legal": "/terms-and-conditions",
   "/privacy": "/privacy-policy",
   "/terms": "/terms-and-conditions",
@@ -831,7 +829,7 @@ export default function App() {
         : isAuthRoute
           ? authTitle
         : "Page Not Found | Football Performance Fund";
-    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, investor, analyst, treasury, and executive operating system.");
+    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, Performance Partner, treasury, and executive operating system.");
     setMetaTag("robots", isPrivate ? "noindex,nofollow" : "index,follow");
     setMetaTag("og:title", publicPage ? `${publicPage.label} | Football Performance Fund` : "Football Performance Fund", "property");
     setMetaTag("og:description", publicPage?.description ?? "We Don't Chase Luck. We Build Performance.", "property");
@@ -2921,7 +2919,7 @@ function AnalystAcademyView({
 }) {
   return (
     <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_380px]">
-      <Panel title="FPF Expert Training Academy">
+      <Panel title="FPF Intelligence Training Academy">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MiniStat label="Status" value={performance?.academy?.status ?? "Pending academy activation"} />
           <MiniStat label="Duration" value={`${performance?.academy?.durationDays ?? 14} days`} />
@@ -3060,7 +3058,7 @@ function AdminAnalystCommandCenter({
       </div>
       <AnalystCommandCentrePanel commandCentre={commandCentre} />
       <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="Expert Review Applications">
+        <Panel title="Intelligence Applications">
           <div className="space-y-3">
             {control.applications.map((application) => (
               <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={application.id}>

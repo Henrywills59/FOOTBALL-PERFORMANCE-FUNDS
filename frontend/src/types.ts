@@ -757,7 +757,7 @@ export type PublicExperience = {
     fixturesMonitored: number;
     liveMatches: number;
     analysisJobsCompletedToday: number;
-    analystReviewsCompleted: number;
+    intelligenceReviewsCompleted?: number;
     pendingApproval: number;
     reportsPending: number;
     leaguesCovered: number;
