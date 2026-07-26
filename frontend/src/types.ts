@@ -139,6 +139,24 @@ export type AdminSettings = {
   defaultPlatformFeePercent?: number;
 };
 
+export type HistoricalArchiveRecord = {
+  id: string;
+  metricKey: string;
+  label: string;
+  value: string;
+  valueType: "YEAR" | "COUNT" | "PERCENT" | "TEXT";
+  displayValue: string;
+  reportingPeriod: string | null;
+  archiveNotes: string | null;
+  evidenceReference: string | null;
+  visible: boolean;
+  reviewStatus: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  lastReviewedAt: string | null;
+  updatedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SubscriberPlanCode = "FREE_TRIAL" | "STARTER" | "PRO" | "PROFESSIONAL" | "PREMIUM" | "ENTERPRISE" | "ELITE";
 
 export type SubscriberPlan = {
@@ -753,6 +771,10 @@ export type PublicPlatformStatus = "OPERATIONAL" | "PREPARING" | "DEGRADED" | "M
 
 export type PublicExperience = {
   generatedAt: string;
+  historicalArchive: {
+    operatingHistory: HistoricalArchiveRecord[];
+    disclosure: string;
+  };
   activity: {
     fixturesMonitored: number;
     liveMatches: number;
@@ -794,6 +816,16 @@ export type PublicExperience = {
       netResultUnit: number;
       verificationStatus: string;
     }>;
+    digitalSummary?: {
+      status: string;
+      totalSettledSelections: number;
+      digitalWins: number;
+      digitalLosses: number;
+      voidSelections: number;
+      digitalWinRate: number | null;
+      latestVerifiedUpdate: string | null;
+      message: string;
+    };
     preLaunchModelTesting: {
       label: string;
       status: string;

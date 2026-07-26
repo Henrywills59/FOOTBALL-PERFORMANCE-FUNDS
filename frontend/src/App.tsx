@@ -7,6 +7,7 @@ import type {
   AdminInvestorManagement,
   AdminSettings,
   AdminUser,
+  HistoricalArchiveRecord,
   AdminAnalystControlCenter,
   AnalystCommandCentre,
   AnalystApplication,
@@ -671,6 +672,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [historicalArchive, setHistoricalArchive] = useState<HistoricalArchiveRecord[]>([]);
   const [adminReports, setAdminReports] = useState<AdminReports | null>(null);
   const [platformHealth, setPlatformHealth] = useState<PlatformHealth | null>(null);
   const [adminInvestorManagement, setAdminInvestorManagement] = useState<AdminInvestorManagement | null>(null);
@@ -1176,6 +1178,7 @@ export default function App() {
       const usersData = await apiGet<{ users: AdminUser[] }>("/admin/users", token);
       const logsData = await apiGet<{ logs: AuditLogEntry[] }>("/admin/audit-logs", token);
       const settingsData = await apiGet<AdminSettings>("/admin/settings", token);
+      const historicalArchiveData = await apiGet<{ records: HistoricalArchiveRecord[] }>("/admin/historical-archive", token);
       const syncData = await apiGet<{ logs: AuditLogEntry[] }>("/admin/fixtures/sync-logs", token);
       const intelligenceData = await apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token);
       const reportsData = await apiGet<AdminReports>("/admin/reports", token);
@@ -1214,6 +1217,7 @@ export default function App() {
       setAdminUsers(usersData.users);
       setAuditLogs(logsData.logs);
       setAdminSettings(settingsData);
+      setHistoricalArchive(historicalArchiveData.records);
       setSyncLogs(syncData.logs);
       setAdminIntelligence(intelligenceData.submissions);
       setAdminReports(reportsData);
@@ -1396,6 +1400,8 @@ export default function App() {
   async function adminAction(path: string, body?: object) {
     if (!session) return;
     const method = path.includes("/admin/country-partners/settings")
+      ? "PUT"
+      : path.includes("/admin/historical-archive/")
       ? "PUT"
       : path.includes("/settings") ||
       path.includes("/notes") ||
@@ -2000,6 +2006,7 @@ export default function App() {
               reports={adminReports}
               settings={adminSettings}
               health={platformHealth}
+              historicalArchive={historicalArchive}
               syncLogs={syncLogs}
               users={adminUsers}
               onAction={adminAction}
@@ -2288,6 +2295,7 @@ function AdminPortal({
   decisions,
   fixtures,
   health,
+  historicalArchive,
   intelligence,
   investorManagement,
   warRoom,
@@ -2323,6 +2331,7 @@ function AdminPortal({
   decisions: DecisionEngineOutput[];
   fixtures: FootballFixtureSummary[];
   health: PlatformHealth | null;
+  historicalArchive: HistoricalArchiveRecord[];
   intelligence: AnalystIntelligenceSubmission[];
   investorManagement: AdminInvestorManagement | null;
   warRoom: WarRoomDashboard | null;
@@ -2654,6 +2663,10 @@ function AdminPortal({
           commercialStructure={commercialStructure}
           onAction={onAction}
           settings={settings}
+        />
+        <AdminHistoricalArchiveControls
+          records={historicalArchive}
+          onAction={onAction}
         />
         <GlobalPreferencesForm
           currencies={globalization.currencies}
@@ -7997,6 +8010,78 @@ function AdminGlobalizationControls({
         </div>
         <SubmitButton>Save globalization controls</SubmitButton>
       </form>
+    </Panel>
+  );
+}
+
+function AdminHistoricalArchiveControls({
+  onAction,
+  records,
+}: {
+  onAction: (path: string, body?: object) => Promise<void>;
+  records: HistoricalArchiveRecord[];
+}) {
+  return (
+    <Panel title="Historical Archive Management">
+      <p className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+        Historical operating figures require an evidence or internal-reference field before public visibility can be enabled. Digital performance remains separate.
+      </p>
+      <div className="space-y-3">
+        {records.map((record) => (
+          <form
+            className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+            key={record.metricKey}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction(`/admin/historical-archive/${record.metricKey}`, {
+                label: form.get("label"),
+                value: form.get("value"),
+                valueType: form.get("valueType"),
+                displayValue: form.get("displayValue"),
+                reportingPeriod: form.get("reportingPeriod"),
+                archiveNotes: form.get("archiveNotes"),
+                evidenceReference: form.get("evidenceReference"),
+                reviewStatus: form.get("reviewStatus"),
+                visible: form.get("visible") === "on",
+              });
+            }}
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              <TextField label="Label" name="label" type="text" value={record.label} />
+              <TextField label="Display value" name="displayValue" type="text" value={record.displayValue} />
+              <TextField label="Raw value" name="value" type="text" value={record.value} />
+              <SelectField
+                label="Value type"
+                name="valueType"
+                value={record.valueType}
+                options={["YEAR", "COUNT", "PERCENT", "TEXT"].map((value) => ({ value, label: value }))}
+              />
+              <TextField label="Reporting period" name="reportingPeriod" type="text" value={record.reportingPeriod ?? ""} />
+              <TextField label="Evidence/internal reference" name="evidenceReference" type="text" value={record.evidenceReference ?? ""} />
+              <SelectField
+                label="Review status"
+                name="reviewStatus"
+                value={record.reviewStatus}
+                options={["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"].map((value) => ({ value, label: value.replace(/_/g, " ") }))}
+              />
+              <label className="flex items-center gap-3 pt-7 text-sm text-zinc-300">
+                <input defaultChecked={record.visible} name="visible" type="checkbox" />
+                Publicly visible
+              </label>
+              <label className="md:col-span-2 block text-sm font-medium text-zinc-200">
+                Archive notes
+                <textarea className="mt-2 min-h-24 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none transition focus:border-emerald-300" defaultValue={record.archiveNotes ?? ""} name="archiveNotes" />
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+              <span>Last reviewed: {record.lastReviewedAt ? formatDateTime(record.lastReviewedAt) : "Not reviewed"}</span>
+              <SubmitButton>Save archive record</SubmitButton>
+            </div>
+          </form>
+        ))}
+        {!records.length ? <EmptyState message="No historical archive records are configured yet." /> : null}
+      </div>
     </Panel>
   );
 }

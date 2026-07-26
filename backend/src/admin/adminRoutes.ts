@@ -31,6 +31,32 @@ const settingsSchema = z.object({
   defaultLanguage: z.string().optional(),
   defaultCurrency: z.string().optional(),
 });
+const historicalArchiveSchema = z.object({
+  label: z.string().min(2).max(120).optional(),
+  value: z.string().min(1).max(80).optional(),
+  valueType: z.enum(["YEAR", "COUNT", "PERCENT", "TEXT"]).optional(),
+  displayValue: z.string().min(1).max(80).optional(),
+  reportingPeriod: z.string().max(160).nullable().optional(),
+  archiveNotes: z.string().max(1000).nullable().optional(),
+  evidenceReference: z.string().max(240).nullable().optional(),
+  visible: z.boolean().optional(),
+  reviewStatus: z.enum(["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"]).optional(),
+}).superRefine((value, context) => {
+  if (value.visible && !value.evidenceReference?.trim()) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Evidence or internal reference is required before a historical figure can be publicly enabled.",
+      path: ["evidenceReference"],
+    });
+  }
+  if (value.visible && value.reviewStatus !== "APPROVED") {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Only approved historical archive records can be made public.",
+      path: ["reviewStatus"],
+    });
+  }
+});
 
 export function createAdminRouter(input: {
   adminService: AdminService;
@@ -109,6 +135,25 @@ export function createAdminRouter(input: {
   router.get("/admin/settings", ...adminOnly, async (_request, response, next) => {
     try {
       response.status(200).json(await input.adminService.settings());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/admin/historical-archive", ...adminOnly, async (_request, response, next) => {
+    try {
+      response.status(200).json({ records: await input.adminService.historicalArchive() });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/admin/historical-archive/:metricKey", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = historicalArchiveSchema.parse(request.body);
+      response.status(200).json({
+        record: await input.adminService.updateHistoricalArchive(request.user!.id, request.params.metricKey, body),
+      });
     } catch (error) {
       next(error);
     }

@@ -4193,7 +4193,8 @@ body,
   gap: 2rem;
 }
 
-.global-command-orb {
+.global-command-orb,
+.global-network-orb {
   position: relative;
   display: grid;
   place-items: center;
@@ -4203,7 +4204,8 @@ body,
   border-radius: 999px;
 }
 
-.global-command-orb .orb-core {
+.global-command-orb .orb-core,
+.global-network-orb .orb-core {
   position: absolute;
   inset: 16%;
   border: 1px solid rgba(52, 211, 153, 0.22);
@@ -4217,29 +4219,34 @@ body,
     0 2rem 5rem rgba(52, 211, 153, 0.12);
 }
 
-.global-command-orb .orb-ring {
+.global-command-orb .orb-ring,
+.global-network-orb .network-ring {
   position: absolute;
   border: 1px solid rgba(52, 211, 153, 0.17);
   border-radius: 999px;
   animation: orbit-spin 38s linear infinite;
 }
 
-.global-command-orb .orb-ring.one {
+.global-command-orb .orb-ring.one,
+.global-network-orb .network-ring.one {
   inset: 5%;
 }
 
-.global-command-orb .orb-ring.two {
+.global-command-orb .orb-ring.two,
+.global-network-orb .network-ring.two {
   inset: 11%;
   animation-direction: reverse;
   animation-duration: 52s;
 }
 
-.global-command-orb .orb-ring.three {
+.global-command-orb .orb-ring.three,
+.global-network-orb .network-ring.three {
   inset: 22%;
   animation-duration: 44s;
 }
 
-.global-command-orb i {
+.global-command-orb i,
+.global-network-orb .data-particle {
   --angle: calc(var(--dot-index) * 20deg);
   position: absolute;
   top: 50%;
@@ -4254,13 +4261,98 @@ body,
   animation-delay: calc(var(--dot-index) * 80ms);
 }
 
-.global-command-orb strong {
+.global-network-orb .data-particle {
+  --angle: calc(var(--dot-index) * 15deg);
+  width: 0.34rem;
+  height: 0.34rem;
+  transform: rotate(var(--angle)) translateX(13.1rem) rotate(calc(-1 * var(--angle)));
+  animation: network-particle 4.8s ease-in-out infinite;
+  animation-delay: calc(var(--dot-index) * 95ms);
+}
+
+.global-command-orb strong,
+.global-network-orb strong {
   position: relative;
   z-index: 1;
   color: #ecfdf5;
   font-size: clamp(2rem, 8vw, 4rem);
   letter-spacing: -0.08em;
   text-shadow: 0 0 2rem rgba(52, 211, 153, 0.3);
+}
+
+.global-network-orb::before,
+.global-network-orb::after {
+  position: absolute;
+  inset: 1.4rem;
+  border-radius: 999px;
+  pointer-events: none;
+  content: "";
+}
+
+.global-network-orb::before {
+  border: 1px solid rgba(52, 211, 153, 0.1);
+  background:
+    linear-gradient(90deg, transparent 49.6%, rgba(52, 211, 153, 0.18) 50%, transparent 50.4%),
+    linear-gradient(0deg, transparent 49.6%, rgba(52, 211, 153, 0.14) 50%, transparent 50.4%);
+  opacity: 0.64;
+}
+
+.global-network-orb::after {
+  background: conic-gradient(from 0deg, rgba(52, 211, 153, 0.32), transparent 18%, transparent 100%);
+  mask: radial-gradient(circle, transparent 0 24%, #000 25% 100%);
+  animation: radar-sweep 7s linear infinite;
+}
+
+.network-radar {
+  position: absolute;
+  inset: 28%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.22), transparent 68%);
+  animation: network-core-pulse 2.8s ease-in-out infinite;
+}
+
+.regional-node {
+  --node-angle: calc(var(--node-index) * 60deg - 90deg);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 3.9rem;
+  height: 3.9rem;
+  border: 1px solid rgba(52, 211, 153, 0.32);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(52, 211, 153, 0.22), rgba(2, 6, 23, 0.9));
+  color: #d1fae5;
+  box-shadow:
+    0 0 1.2rem rgba(52, 211, 153, 0.12),
+    inset 0 0 1rem rgba(52, 211, 153, 0.1);
+  transform: rotate(var(--node-angle)) translateX(12.15rem) rotate(calc(-1 * var(--node-angle)));
+  animation: regional-node-active 8.4s ease-in-out infinite;
+  animation-delay: calc(var(--node-index) * 420ms);
+}
+
+.regional-node::before {
+  position: absolute;
+  right: 50%;
+  width: 8.4rem;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.34), transparent);
+  content: "";
+  transform-origin: right center;
+}
+
+.regional-node b {
+  position: relative;
+  z-index: 1;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.network-status-line {
+  color: var(--fpf-accent) !important;
+  font-weight: 900;
 }
 
 .global-command-copy {
@@ -4314,6 +4406,52 @@ body,
   }
 }
 
+@keyframes radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes network-core-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes regional-node-active {
+  0%,
+  100% {
+    border-color: rgba(52, 211, 153, 0.22);
+    opacity: 0.78;
+  }
+  45%,
+  55% {
+    border-color: rgba(52, 211, 153, 0.76);
+    opacity: 1;
+    box-shadow:
+      0 0 1.6rem rgba(52, 211, 153, 0.32),
+      inset 0 0 1.2rem rgba(52, 211, 153, 0.18);
+  }
+}
+
+@keyframes network-particle {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: rotate(var(--angle)) translateX(10.4rem) rotate(calc(-1 * var(--angle)));
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateX(13.1rem) rotate(calc(-1 * var(--angle)));
+  }
+}
+
 @media (min-width: 1024px) {
   .premium-executive-overview,
   .global-command-section,
@@ -4338,8 +4476,33 @@ body,
     min-height: 8rem;
   }
 
-  .global-command-orb i {
+  .global-command-orb i,
+  .global-network-orb .data-particle {
     transform: rotate(var(--angle)) translateX(min(39vw, 9.8rem)) rotate(calc(-1 * var(--angle)));
+  }
+
+  .regional-node {
+    width: 3rem;
+    height: 3rem;
+    transform: rotate(var(--node-angle)) translateX(min(36vw, 9.15rem)) rotate(calc(-1 * var(--node-angle)));
+  }
+
+  .regional-node::before {
+    width: min(28vw, 6.4rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-network-orb::after,
+  .global-network-orb .network-ring,
+  .global-network-orb .data-particle,
+  .network-radar,
+  .regional-node {
+    animation: none !important;
+  }
+
+  .global-network-orb .data-particle {
+    opacity: 0.48;
   }
 }
 

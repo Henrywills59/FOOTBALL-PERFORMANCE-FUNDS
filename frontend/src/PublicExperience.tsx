@@ -290,7 +290,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
             <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
           </div>
           <div className="hero-controls" aria-label="Hero slide indicators">
-            <span className="active">AI Verified<small>Every insight reviewed</small></span>
+            <span className="active">AI Verified<small>Every insight scored</small></span>
             <span>Performance Focused<small>Data over emotion</small></span>
             <span>Secure & Transparent<small>Role-protected access</small></span>
           </div>
@@ -376,6 +376,11 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
 
 function HistoricalBaselineSection({ experience }: { experience: PublicExperience | null }) {
   const baseline = historicalOperatingBaseline;
+  const archive = experience?.historicalArchive?.operatingHistory ?? [];
+  const disclosure = experience?.historicalArchive?.disclosure ??
+    "Historical figures relate to FPF operations before automated digital tracking. Digital platform performance is recorded separately from the first settled production cycle.";
+  const archiveValue = (metricKey: string, fallback: string) =>
+    archive.find((record) => record.metricKey === metricKey)?.displayValue ?? fallback;
   const liveCycle = experience?.activity?.platformStatus === "OPERATIONAL" ? "Monitoring" : "Preparing";
   const liveReports = experience?.activity?.reportsPending ? String(experience.activity.reportsPending) : "Available after verification";
 
@@ -383,26 +388,26 @@ function HistoricalBaselineSection({ experience }: { experience: PublicExperienc
     <section className="historical-baseline-section" aria-labelledby="historical-baseline-title">
       <div className="metric-layer-heading">
         <span>Layer A</span>
-        <strong>Historical FPF Legacy</strong>
+        <strong>Historical FPF Operating Record</strong>
       </div>
       <div className="historical-baseline-grid">
         <article className="baseline-copy-card">
-          <p className="eyebrow">FPF Since {baseline.operationsStartedYear}</p>
-          <h2 id="historical-baseline-title">From manual intelligence community to secure digital performance OS.</h2>
-          <p>From a manually operated football intelligence community to a secure digital performance operating system.</p>
+          <p className="eyebrow">FPF Operations Since {archiveValue("operations_established", String(baseline.operationsStartedYear))}</p>
+          <h2 id="historical-baseline-title">Established intelligence methodology, now digitally verified.</h2>
+          <p>FPF presents two reporting layers: a historical operating archive and a separate verified digital reporting cycle.</p>
           <p className="baseline-transparency-note">
-            These figures represent the founder-supplied historical record of FPF's manual operations before the digital platform launch. Live platform performance is tracked separately from the first verified digital cycle.
+            {disclosure}
           </p>
         </article>
         <div className="baseline-metric-grid">
-          <article><span>{baseline.operationsStartedYear}</span><strong>FPF operations began</strong></article>
-          <article><span>{baseline.historicalSubscribersDisplay}</span><strong>Historical subscribers reached</strong></article>
+          <article><span>{archiveValue("operations_established", String(baseline.operationsStartedYear))}</span><strong>FPF football intelligence operations established</strong></article>
+          <article><span>{archiveValue("historical_community_reach", baseline.historicalSubscribersDisplay)}</span><strong>Historical community reach</strong></article>
           <article className="baseline-win-rate">
-            <span>{baseline.founderReportedHistoricalWinRate}%</span>
-            <strong>Founder-reported historical winning rate</strong>
-            <em>Based on the founder's manual operating records from the pre-platform period beginning in 2024. Subject to formal digital verification and migration.</em>
+            <span>{archiveValue("historical_operating_win_rate", `${baseline.historicalOperatingWinRate}%`)}</span>
+            <strong>Historical operating win rate</strong>
+            <em>Historical archive only. Digital platform performance is recorded separately from the first settled production cycle.</em>
           </article>
-          <article><span>{baseline.digitalPlatformLaunchYear}</span><strong>Digital FPF Intelligence Platform launched</strong></article>
+          <article><span>{archiveValue("digital_platform_introduced", String(baseline.digitalPlatformLaunchYear))}</span><strong>Digital performance verification introduced</strong></article>
         </div>
       </div>
       <div className="growth-pulse-grid">
@@ -414,19 +419,19 @@ function HistoricalBaselineSection({ experience }: { experience: PublicExperienc
           <div className="growth-timeline" aria-label="FPF milestone growth journey">
             <div className="growth-node">
               <span>{baseline.operationsStartedYear}</span>
-              <strong>Manual FPF operations began</strong>
-              <small>Historical manual record starts</small>
+              <strong>FPF operating history begins</strong>
+              <small>Historical operating archive starts</small>
             </div>
             <div className="growth-line" aria-hidden="true"><i /></div>
             <div className="growth-node">
               <span>{baseline.historicalSubscribersDisplay}</span>
-              <strong>Founder-supplied cumulative historical reach</strong>
-              <small>Pre-platform baseline, pending formal migration</small>
+              <strong>Historical community reach</strong>
+              <small>Pre-platform performance archive</small>
             </div>
             <div className="growth-line verified" aria-hidden="true"><i /></div>
             <div className="growth-node live">
               <span>{baseline.digitalPlatformLaunchYear}</span>
-              <strong>Verified digital tracking begins</strong>
+              <strong>Digital performance verification introduced</strong>
               <small>Live metrics extend from production system data</small>
             </div>
           </div>
@@ -698,18 +703,20 @@ function TrustSection() {
 
 function PerformancePreview({ experience }: { experience: PublicExperience | null }) {
   const results = experience?.performance?.liveVerifiedResults ?? [];
+  const digitalSummary = experience?.performance?.digitalSummary;
   const wins = results.filter((item) => item.result.toLowerCase().includes("win")).length;
   const total = results.length;
   const trend = results.slice(-3).map((item) => item.result).join(" / ");
   return (
-    <PublicSection id="performance" eyebrow="Verified Performance" title="A public results preview without private model data.">
+    <PublicSection id="performance" eyebrow="Verified Digital Performance" title="Digital reporting begins from the first settled production cycle.">
       <div className="performance-grid public-performance-grid">
-        <article><StatusPill>Verified</StatusPill><span>Total verified selections</span><strong>{total ? String(total) : "No verified public results yet"}</strong></article>
-        <article><StatusPill>Historical</StatusPill><span>Win rate</span><strong>{total ? `${Math.round((wins / total) * 100)}%` : "Pending verified results"}</strong></article>
-        <article><StatusPill>Trend</StatusPill><span>Recent result trend</span><strong>{trend || "Awaiting first settled cycle"}</strong></article>
-        <article><StatusPill>Updated</StatusPill><span>Last updated</span><strong>{formatPublicDate(experience?.generatedAt)}</strong></article>
+        <article><StatusPill>Digital</StatusPill><span>Total digitally settled selections</span><strong>{String(digitalSummary?.totalSettledSelections ?? total)}</strong></article>
+        <article><StatusPill>Digital</StatusPill><span>Digital wins</span><strong>{String(digitalSummary?.digitalWins ?? wins)}</strong></article>
+        <article><StatusPill>Digital</StatusPill><span>Digital losses / void</span><strong>{`${digitalSummary?.digitalLosses ?? 0} / ${digitalSummary?.voidSelections ?? 0}`}</strong></article>
+        <article><StatusPill>Cycle</StatusPill><span>Latest verified update</span><strong>{digitalSummary?.latestVerifiedUpdate ? formatPublicDate(digitalSummary.latestVerifiedUpdate) : "Awaiting first settled cycle"}</strong></article>
       </div>
-      <p className="policy-note">Performance information is historical and informational. It does not guarantee future outcomes, profit or payout timing.</p>
+      <p className="policy-note">{digitalSummary?.message ?? "Digital tracking active. No digitally verified result published yet. Historical operating record is shown separately."}</p>
+      {trend ? <p className="policy-note">Recent digital trend: {trend}. No result guarantees are made.</p> : null}
     </PublicSection>
   );
 }
@@ -760,21 +767,30 @@ function GlobalCommandCenterSection() {
   ];
 
   return (
-    <PublicSection id="global-command" eyebrow="Global Command Center" title="Football intelligence, without borders.">
+    <PublicSection id="global-command" eyebrow="Global Intelligence Network" title="Operational readiness across supported football regions.">
       <div className="global-command-section">
-        <div className="global-command-orb" aria-label="Animated global football intelligence network">
+        <div className="global-network-orb" aria-label="Animated global football intelligence network showing readiness across supported regions">
+          <span className="network-radar" />
           <span className="orb-core" />
-          <span className="orb-ring one" />
-          <span className="orb-ring two" />
-          <span className="orb-ring three" />
-          {Array.from({ length: 18 }).map((_, index) => (
-            <i key={index} style={{ "--dot-index": index } as CSSProperties} />
+          <span className="network-ring one" />
+          <span className="network-ring two" />
+          <span className="network-ring three" />
+          {regions.map(([label], index) => (
+            <span className="regional-node" key={label} style={{ "--node-index": index } as CSSProperties}>
+              <b>{label}</b>
+            </span>
+          ))}
+          {Array.from({ length: 24 }).map((_, index) => (
+            <i className="data-particle" key={index} style={{ "--dot-index": index } as CSSProperties} />
           ))}
           <strong>FPF</strong>
         </div>
         <div className="global-command-copy">
+          <StatusPill>Operational</StatusPill>
+          <h3>GLOBAL INTELLIGENCE NETWORK</h3>
+          <p className="network-status-line">Operational - monitoring supported football regions</p>
           <p>
-            FPF is designed as a single football intelligence layer across competitions, territories and member workspaces. Public pages show the operating model; protected portals handle member data, reports and approvals.
+            FPF is designed as a single football intelligence layer across competitions, territories and member workspaces. The animation represents network readiness and regional coverage, not a claim that a specific match or provider is currently active.
           </p>
           <div className="region-grid">
             {regions.map(([label, value]) => (
@@ -802,11 +818,11 @@ function LiveIntelligenceCenterSection({ experience }: { experience: PublicExper
   ];
 
   const chartPoints = [
-    { label: "Mon", value: experience?.activity?.pendingApproval ?? 1 },
-    { label: "Tue", value: (experience?.activity?.intelligenceReviewsCompleted ?? experience?.activity?.analysisJobsCompletedToday ?? 0) + 2 },
-    { label: "Wed", value: (experience?.activity?.approvedOpportunities ?? 0) + 3 },
-    { label: "Thu", value: (experience?.activity?.leaguesCovered ?? 1) + 1 },
-    { label: "Fri", value: (experience?.activity?.reportsPending ?? 0) + 4 },
+    { label: "Scanner", value: experience?.activity?.fixturesMonitored ?? 0 },
+    { label: "Review", value: experience?.activity?.pendingApproval ?? 0 },
+    { label: "Approved", value: experience?.activity?.approvedOpportunities ?? 0 },
+    { label: "Regions", value: experience?.activity?.leaguesCovered ?? 0 },
+    { label: "Reports", value: experience?.activity?.reportsPending ?? 0 },
   ];
 
   return (

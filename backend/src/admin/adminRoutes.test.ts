@@ -90,4 +90,40 @@ describe("admin routes", () => {
       "SETTINGS_UPDATED",
     ]);
   });
+
+  it("requires evidence before historical archive records can be public", async () => {
+    const { app, token } = testApp();
+
+    await request(app)
+      .put("/api/admin/historical-archive/historical_operating_win_rate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        label: "Historical operating win rate",
+        value: "85",
+        valueType: "PERCENT",
+        displayValue: "85%",
+        reviewStatus: "APPROVED",
+        visible: true,
+      })
+      .expect(400);
+
+    const response = await request(app)
+      .put("/api/admin/historical-archive/historical_operating_win_rate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        label: "Historical operating win rate",
+        value: "85",
+        valueType: "PERCENT",
+        displayValue: "85%",
+        reportingPeriod: "Pre-platform operating archive",
+        archiveNotes: "Management-approved archive entry.",
+        evidenceReference: "Internal historical archive baseline",
+        reviewStatus: "APPROVED",
+        visible: true,
+      })
+      .expect(200);
+
+    expect(response.body.record.visible).toBe(true);
+    expect(response.body.record.evidenceReference).toBe("Internal historical archive baseline");
+  });
 });

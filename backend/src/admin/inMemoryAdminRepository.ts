@@ -1,4 +1,4 @@
-import type { AccountStatus, AdminSettings, AdminUser, UserRole } from "@fpf/shared";
+import type { AccountStatus, AdminSettings, AdminUser, HistoricalArchiveRecord, HistoricalArchiveUpdateInput, UserRole } from "@fpf/shared";
 import type { AdminRepository, AuditInput } from "./types.js";
 
 const defaultSettings: AdminSettings = {
@@ -20,6 +20,25 @@ const defaultSettings: AdminSettings = {
 export class InMemoryAdminRepository implements AdminRepository {
   users: AdminUser[] = [];
   logs: Array<AuditInput & { id: string; createdAt: string }> = [];
+  historicalRecords: HistoricalArchiveRecord[] = [
+    {
+      id: "baseline-operations-established",
+      metricKey: "operations_established",
+      label: "FPF football intelligence operations established",
+      value: "2024",
+      valueType: "YEAR",
+      displayValue: "2024",
+      reportingPeriod: "Pre-platform operating archive",
+      archiveNotes: "Management-approved historical operating baseline.",
+      evidenceReference: "Internal historical archive baseline",
+      visible: true,
+      reviewStatus: "APPROVED",
+      lastReviewedAt: new Date(0).toISOString(),
+      updatedByUserId: null,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+    },
+  ];
   private currentSettings = { ...defaultSettings };
 
   constructor(users: AdminUser[] = []) {
@@ -101,6 +120,41 @@ export class InMemoryAdminRepository implements AdminRepository {
   async updateSettings(settings: Partial<AdminSettings>) {
     this.currentSettings = { ...this.currentSettings, ...settings };
     return this.currentSettings;
+  }
+
+  async historicalArchive() {
+    return this.historicalRecords;
+  }
+
+  async updateHistoricalArchive(metricKey: string, input: HistoricalArchiveUpdateInput & { updatedByUserId: string }) {
+    if (input.visible && (!input.evidenceReference?.trim() || input.reviewStatus !== "APPROVED")) {
+      throw new Error("Evidence reference and approved review status are required before public visibility.");
+    }
+    const now = new Date().toISOString();
+    const existing = this.historicalRecords.find((record) => record.metricKey === metricKey);
+    const updated: HistoricalArchiveRecord = {
+      id: existing?.id ?? `archive-${metricKey}`,
+      metricKey,
+      label: input.label ?? existing?.label ?? metricKey,
+      value: input.value ?? existing?.value ?? "",
+      valueType: input.valueType ?? existing?.valueType ?? "TEXT",
+      displayValue: input.displayValue ?? existing?.displayValue ?? input.value ?? "",
+      reportingPeriod: input.reportingPeriod ?? existing?.reportingPeriod ?? null,
+      archiveNotes: input.archiveNotes ?? existing?.archiveNotes ?? null,
+      evidenceReference: input.evidenceReference ?? existing?.evidenceReference ?? null,
+      visible: input.visible ?? existing?.visible ?? false,
+      reviewStatus: input.reviewStatus ?? existing?.reviewStatus ?? "DRAFT",
+      lastReviewedAt: input.reviewStatus === "APPROVED" ? now : existing?.lastReviewedAt ?? null,
+      updatedByUserId: input.updatedByUserId,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    if (existing) {
+      this.historicalRecords = this.historicalRecords.map((record) => record.metricKey === metricKey ? updated : record);
+    } else {
+      this.historicalRecords.push(updated);
+    }
+    return updated;
   }
 
   async audit(input: AuditInput) {

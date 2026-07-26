@@ -797,6 +797,28 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt
 }
 
+model HistoricalArchiveRecord {
+  id                  String   @id @default(uuid())
+  metricKey           String   @unique
+  label               String
+  value               String
+  valueType           String
+  displayValue        String
+  reportingPeriod     String?
+  archiveNotes        String?
+  evidenceReference   String?
+  visible             Boolean  @default(false)
+  reviewStatus        String   @default("DRAFT")
+  lastReviewedAt      DateTime?
+  updatedByUserId     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([visible])
+  @@index([reviewStatus])
+  @@map("historical_archive_records")
+}
+
 model InvestmentPlan {
   id                         String       @id @default(uuid())
   name                       String

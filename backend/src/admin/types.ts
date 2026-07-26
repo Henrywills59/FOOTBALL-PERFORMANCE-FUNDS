@@ -1,4 +1,4 @@
-import type { AdminOverview, AdminReports, AdminSettings, AdminUser, AuditLogEntry, UserRole } from "@fpf/shared";
+import type { AdminOverview, AdminReports, AdminSettings, AdminUser, AuditLogEntry, HistoricalArchiveRecord, HistoricalArchiveUpdateInput, UserRole } from "@fpf/shared";
 
 export type AuditInput = {
   actorUserId?: string | null;
@@ -17,6 +17,8 @@ export type AdminRepository = {
   settings(): Promise<AdminSettings>;
   reports(): Promise<AdminReports>;
   updateSettings(settings: Partial<AdminSettings>): Promise<AdminSettings>;
+  historicalArchive(): Promise<HistoricalArchiveRecord[]>;
+  updateHistoricalArchive(metricKey: string, input: HistoricalArchiveUpdateInput & { updatedByUserId: string }): Promise<HistoricalArchiveRecord>;
   audit(input: AuditInput): Promise<void>;
   auditLogs(): Promise<AuditLogEntry[]>;
   loginHistory(): Promise<AuditLogEntry[]>;

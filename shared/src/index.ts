@@ -16,7 +16,7 @@ export const USER_ROLES = [
   "SUPER_ADMINISTRATOR",
   "COUNTRY_PARTNER",
 ] as const;
-export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR", "ANALYST"] as const;
+export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR"] as const;
 export const COMPANY_CAPITAL_ROLES = ["CEO", "FINANCE", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"] as const;
 export const INTERNAL_PLATFORM_NAME = "FPF OS";
 export const PUBLIC_BRAND_NAME = "Football Performance Fund";
@@ -288,6 +288,36 @@ export type AdminSettings = {
   enabledLockPeriods?: string[];
   defaultSimulationWeeklyReturnPercent?: number;
   defaultPlatformFeePercent?: number;
+};
+
+export type HistoricalArchiveRecord = {
+  id: string;
+  metricKey: string;
+  label: string;
+  value: string;
+  valueType: "YEAR" | "COUNT" | "PERCENT" | "TEXT";
+  displayValue: string;
+  reportingPeriod: string | null;
+  archiveNotes: string | null;
+  evidenceReference: string | null;
+  visible: boolean;
+  reviewStatus: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  lastReviewedAt: string | null;
+  updatedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HistoricalArchiveUpdateInput = {
+  label?: string;
+  value?: string;
+  valueType?: HistoricalArchiveRecord["valueType"];
+  displayValue?: string;
+  reportingPeriod?: string | null;
+  archiveNotes?: string | null;
+  evidenceReference?: string | null;
+  visible?: boolean;
+  reviewStatus?: HistoricalArchiveRecord["reviewStatus"];
 };
 
 export type SubscriberPlanCode = "FREE_TRIAL" | "STARTER" | "PRO" | "PROFESSIONAL" | "PREMIUM" | "ENTERPRISE" | "ELITE";
