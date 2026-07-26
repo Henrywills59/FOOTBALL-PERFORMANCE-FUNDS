@@ -96,10 +96,6 @@ function apiEndpoint(path: string) {
   return `${apiUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-function backendEndpoint(path: string) {
-  return `${apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
 function sameOriginApiEndpoint(path: string) {
   return `/api${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -110,15 +106,22 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackUrl?: strin
     response = await fetch(url, init);
   } catch (error) {
     if (fallbackUrl) return fetchJson<T>(fallbackUrl, init);
-    throw new Error(
-      `Unable to reach Football Performance Fund API at ${url}. ${
-        error instanceof Error ? error.message : "Network request failed"
-      }`,
-    );
+    if (import.meta.env.DEV) {
+      console.warn("FPF_API_NETWORK_ERROR", {
+        url,
+        message: error instanceof Error ? error.message : "Network request failed",
+      });
+    }
+    throw new Error("We could not connect to the FPF service. Please try again.");
   }
 
   const data = (await response.json().catch(() => ({}))) as { error?: string } & T;
-  if (!response.ok) throw new Error(data.error ?? `Request failed with HTTP ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 401) throw new Error(data.error ?? "Your session has expired. Please sign in again.");
+    if (response.status === 403) throw new Error(data.error ?? "You do not have access to this FPF workspace.");
+    if (response.status >= 500) throw new Error("Account access is temporarily unavailable.");
+    throw new Error(data.error ?? "The service is reconnecting.");
+  }
   return data as T;
 }
 const navItems = [
@@ -631,7 +634,6 @@ export default function App() {
   const [activeCountryPartnerView, setActiveCountryPartnerView] = useState<CountryPartnerNavItem>("Country Partner Dashboard");
   const [adminMode, setAdminMode] = useState(() => getStoredSession()?.user.role === "ADMIN");
   const [message, setMessage] = useState("");
-  const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
   const [error, setError] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
   const [showLaunchCenter, setShowLaunchCenter] = useState(() => localStorage.getItem("fpf_launch_center_seen") !== "true");
@@ -1058,24 +1060,6 @@ export default function App() {
     const value = form.get(key);
     if (typeof value !== "string") return "";
     return options.trim === false ? value : value.trim();
-  }
-
-  async function testApiConnection() {
-    setApiCheck(`Checking ${apiEndpoint("/health")} ...`);
-    try {
-      const data = await fetchJson<{ status: string }>(
-        apiEndpoint("/health"),
-        undefined,
-        sameOriginApiEndpoint("/health"),
-      );
-      setApiCheck(`Backend API OK: ${apiEndpoint("/health")} returned ${data.status}`);
-    } catch (caughtError) {
-      setApiCheck(
-        `Backend API failed: ${apiEndpoint("/health")} - ${
-          caughtError instanceof Error ? caughtError.message : "Unable to connect"
-        }`,
-      );
-    }
   }
 
   async function apiGet<T>(path: string, token: string) {
@@ -1617,10 +1601,14 @@ export default function App() {
     setMessage("");
     const form = new FormData(event.currentTarget);
     const selectedRole = getFormString(form, "role");
+    const password = getFormString(form, "password", { trim: false });
+    const confirmPassword = getFormString(form, "confirmPassword", { trim: false });
+    if (password !== confirmPassword) throw new Error("Passwords do not match.");
+    if (form.get("termsAccepted") !== "on") throw new Error("Please accept the FPF terms and privacy policy to continue.");
     const data = (await postPublic("/auth/register", {
       name: getFormString(form, "name"),
       email: getFormString(form, "email").toLowerCase(),
-      password: getFormString(form, "password", { trim: false }),
+      password,
       role: publicRegistrationRoles.includes(selectedRole as (typeof publicRegistrationRoles)[number]) ? selectedRole : "SUBSCRIBER",
     })) as AuthResponse;
     storeSession(data, false);
@@ -1821,29 +1809,18 @@ export default function App() {
   if (!session) {
     return (
       <PublicLaunchExperience
-        apiCheck={apiCheck}
-        apiUrl={apiUrl}
         commercialStructure={commercialStructure}
-        currencies={currencies}
         error={error}
         experience={publicExperience}
-        languages={languages}
         message={message}
         mode={mode}
         currentPath={currentPath}
-        onApiTest={testApiConnection}
         onForgot={safelySubmit(handleForgotPassword)}
         onNavigate={navigatePublic}
-        onLocalPreferenceChange={(next) => {
-          const updated = { ...globalPreferences, ...next };
-          setGlobalPreferences(updated);
-          localStorage.setItem("fpf_global_preferences", JSON.stringify(updated));
-        }}
         onLogin={safelySubmit(handleLogin)}
         onRegister={safelySubmit(handleRegister)}
         onReset={safelySubmit(handleResetPassword)}
         onThemeChange={setThemePreference}
-        preferences={globalPreferences}
         setMode={setMode}
         theme={themePreference}
       />
@@ -5519,7 +5496,7 @@ function ProviderStatusPanel({ center }: { center: PaymentCenter | null }) {
       ) : (
         <p className="mt-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">Provider not configured: {(provider?.missingVariables ?? []).join(", ") || "environment variables missing"}.</p>
       )}
-      <p className="mt-3 break-all text-xs text-zinc-500">Production webhook URL: {provider?.webhookUrl ?? "https://football-performance-funds-backend.vercel.app/api/payments/nowpayments/webhook"}</p>
+      <p className="mt-3 break-all text-xs text-zinc-500">Webhook URL: {provider?.webhookUrl ?? "Configured by backend environment"}</p>
     </Panel>
   );
 }
@@ -5672,47 +5649,33 @@ function AdminPaymentCenterView({ center, onAction }: { center: PaymentCenter | 
 }
 
 function PublicLaunchExperience({
-  apiCheck,
-  apiUrl,
   commercialStructure,
-  currencies,
   currentPath,
   error,
   experience,
-  languages,
   message,
   mode,
-  onApiTest,
   onForgot,
-  onLocalPreferenceChange,
   onLogin,
   onNavigate,
   onRegister,
   onReset,
   onThemeChange,
-  preferences,
   setMode,
   theme,
 }: {
-  apiCheck: string;
-  apiUrl: string;
   commercialStructure: CommercialStructure;
-  currencies: CurrencySetting[];
   currentPath: string;
   error: string;
   experience: PublicExperience | null;
-  languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
-  onApiTest: () => void;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
-  onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onNavigate: (path: string, id?: string) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
   onReset: (event: FormEvent<HTMLFormElement>) => void;
   onThemeChange: (theme: ThemePreference) => void;
-  preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
   theme: ThemePreference;
 }) {
@@ -5725,17 +5688,13 @@ function PublicLaunchExperience({
     <Mission21PublicExperience
       authPanel={
         <AuthPanel
-          currencies={currencies}
           error={error}
-          languages={languages}
           message={message}
           mode={mode}
           onForgot={onForgot}
-          onLocalPreferenceChange={onLocalPreferenceChange}
           onLogin={onLogin}
           onRegister={onRegister}
           onReset={onReset}
-          preferences={preferences}
           setMode={setMode}
         />
       }
@@ -5798,95 +5757,101 @@ function AuthPanel({
   onRegister,
   onReset,
   setMode,
-  currencies,
-  languages,
-  onLocalPreferenceChange,
-  preferences,
 }: {
-  currencies: CurrencySetting[];
   error: string;
-  languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
-  onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
   onReset: (event: FormEvent<HTMLFormElement>) => void;
-  preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
 }) {
-  const availableLanguages = Array.isArray(languages) ? languages : [];
-  const availableCurrencies = Array.isArray(currencies) ? currencies : [];
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const heading =
+    mode === "register"
+      ? "Create secure access"
+      : mode === "forgot"
+        ? "Recover account access"
+        : mode === "reset"
+          ? "Set a new password"
+          : "Sign in to FPF";
+  const description =
+    mode === "register"
+      ? "Start with a protected subscriber or Performance Partner account. Internal roles are assigned by FPF administration only."
+      : mode === "forgot"
+        ? "Enter your account email and we will send password recovery instructions when email delivery is configured."
+        : mode === "reset"
+          ? "Use the secure reset token issued by FPF to update your password."
+          : "Access your private FPF workspace with your email and password.";
 
   return (
-    <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">
-      <div className="grid grid-cols-4 rounded-md bg-zinc-950 p-1 text-sm">
-        <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
-        <ModeButton active={mode === "register"} onClick={() => setMode("register")}>Register</ModeButton>
-        <ModeButton active={mode === "forgot"} onClick={() => setMode("forgot")}>Forgot</ModeButton>
-        <ModeButton active={mode === "reset"} onClick={() => setMode("reset")}>Reset</ModeButton>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-zinc-200">
-          Language
-          <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.language} onChange={(event) => onLocalPreferenceChange({ language: event.target.value as UserGlobalPreferences["language"] })}>
-            {(availableLanguages.length ? availableLanguages : [{ code: "en", name: "English", nativeName: "English", direction: "ltr", enabled: true } as LanguageSetting]).filter((item) => item.enabled).map((language) => (
-              <option key={language.code} value={language.code}>{language.nativeName}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium text-zinc-200">
-          Currency
-          <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.currency} onChange={(event) => onLocalPreferenceChange({ currency: event.target.value as UserGlobalPreferences["currency"] })}>
-            {(availableCurrencies.length ? availableCurrencies : [{ code: "USD", name: "US Dollar", symbol: "$", placeholderRateFromUsd: 1, enabled: true } as CurrencySetting]).filter((item) => item.enabled).map((currency) => (
-              <option key={currency.code} value={currency.code}>{currency.code}</option>
-            ))}
-          </select>
-        </label>
+    <section className="auth-panel-premium" aria-labelledby="auth-panel-title">
+      <div className="auth-panel-header">
+        <span>Secure FPF access</span>
+        <h2 id="auth-panel-title">{heading}</h2>
+        <p>{description}</p>
       </div>
       {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
       {message ? <p className="mt-4 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
       {mode === "login" ? (
         <form className="mt-6 space-y-4" onSubmit={onLogin}>
           <TextField label="Email" name="email" type="email" />
-          <TextField label="Password" name="password" type="password" />
-          <label className="flex items-center gap-3 text-sm text-zinc-300">
-            <input className="h-4 w-4 accent-emerald-400" name="rememberMe" type="checkbox" />
-            Remember me
-          </label>
-          <SubmitButton>Login</SubmitButton>
+          <PasswordField label="Password" name="password" show={showLoginPassword} onToggle={() => setShowLoginPassword((current) => !current)} />
+          <div className="auth-form-row">
+            <label className="flex items-center gap-3 text-sm text-zinc-300">
+              <input className="h-4 w-4 accent-emerald-400" name="rememberMe" type="checkbox" />
+              Remember me
+            </label>
+            <button className="auth-inline-link" type="button" onClick={() => setMode("forgot")}>Forgot password?</button>
+          </div>
+          <SubmitButton>Sign in</SubmitButton>
+          <p className="auth-switch-text">New to FPF? <button type="button" onClick={() => setMode("register")}>Create account</button></p>
         </form>
       ) : null}
       {mode === "register" ? (
         <form className="mt-6 space-y-4" onSubmit={onRegister}>
-          <TextField label="Name" name="name" type="text" />
+          <TextField label="Full name" name="name" type="text" />
           <TextField label="Email" name="email" type="email" />
-          <TextField label="Password" name="password" type="password" />
+          <PasswordField label="Password" name="password" show={showRegisterPassword} onToggle={() => setShowRegisterPassword((current) => !current)} />
+          <PasswordField label="Confirm password" name="confirmPassword" show={showRegisterPassword} onToggle={() => setShowRegisterPassword((current) => !current)} />
           <label className="block text-sm font-medium text-zinc-200">
-            Role
+            Account type
             <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" name="role" defaultValue="SUBSCRIBER">
               {publicRegistrationRoles.map((role) => (
                 <option key={role} value={role}>{roleLabels[role]}</option>
               ))}
             </select>
           </label>
-          <SubmitButton>Create account</SubmitButton>
+          <label className="flex items-start gap-3 text-sm leading-6 text-zinc-300">
+            <input className="mt-1 h-4 w-4 accent-emerald-400" name="termsAccepted" type="checkbox" />
+            <span>I agree to the FPF Terms, Privacy Policy and risk disclosure.</span>
+          </label>
+          <SubmitButton>Create secure account</SubmitButton>
+          <p className="auth-switch-text">Already have access? <button type="button" onClick={() => setMode("login")}>Sign in</button></p>
         </form>
       ) : null}
       {mode === "forgot" ? (
         <form className="mt-6 space-y-4" onSubmit={onForgot}>
           <TextField label="Email" name="email" type="email" />
           <SubmitButton>Send reset link</SubmitButton>
+          <p className="auth-switch-text">Remembered it? <button type="button" onClick={() => setMode("login")}>Back to sign in</button></p>
         </form>
       ) : null}
       {mode === "reset" ? (
         <form className="mt-6 space-y-4" onSubmit={onReset}>
           <TextField label="Reset token" name="token" type="text" />
-          <TextField label="New password" name="password" type="password" />
+          <PasswordField label="New password" name="password" show={showResetPassword} onToggle={() => setShowResetPassword((current) => !current)} />
           <SubmitButton>Reset password</SubmitButton>
+          <p className="auth-switch-text">Need a token? <button type="button" onClick={() => setMode("forgot")}>Request reset</button></p>
         </form>
       ) : null}
+      <div className="auth-security-strip">
+        <span>Encrypted session</span>
+        <span>Role-protected access</span>
+      </div>
     </section>
   );
 }
@@ -8352,6 +8317,35 @@ function TextField({
         value={onChange ? value : undefined}
         defaultValue={!onChange ? value : undefined}
       />
+    </label>
+  );
+}
+
+function PasswordField({
+  label,
+  name,
+  onToggle,
+  show,
+}: {
+  label: string;
+  name: string;
+  onToggle: () => void;
+  show: boolean;
+}) {
+  return (
+    <label className="block text-sm font-medium text-zinc-200">
+      {label}
+      <span className="password-field-shell">
+        <input
+          className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 pr-20 text-white outline-none transition focus:border-emerald-300"
+          name={name}
+          required
+          type={show ? "text" : "password"}
+        />
+        <button aria-label={show ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} type="button" onClick={onToggle}>
+          {show ? "Hide" : "Show"}
+        </button>
+      </span>
     </label>
   );
 }

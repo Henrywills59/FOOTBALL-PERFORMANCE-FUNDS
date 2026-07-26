@@ -112,6 +112,11 @@ function formatPublicDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function formatPublicDateTime(value: string | null | undefined) {
+  if (!value) return "Synchronisation pending";
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 export function ThemeSwitcher({ onChange, theme }: { onChange: (theme: ThemePreference) => void; theme: ThemePreference }) {
   const [open, setOpen] = useState(false);
   const activeLabel = theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light";
@@ -335,18 +340,16 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
 }
 
 function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
-  const monitoredCompetitions = Math.max(
-    1,
-    new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size,
-  );
+  const loading = !experience;
+  const monitoredCompetitions = new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size;
   const signals = [
-    { label: "AI Intelligence Engine", value: "Online" },
-    { label: "Live Match Scanner", value: "Active" },
-    { label: "Competitions Monitored", value: experience?.activity?.leaguesCovered ? `${experience.activity.leaguesCovered} live` : `${monitoredCompetitions} live` },
-    { label: "Data Synchronisation", value: experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Launch monitoring active" },
+    { label: "AI Intelligence Engine", value: loading ? "Checking" : "Online" },
+    { label: "Live Match Scanner", value: loading ? "Checking" : experience.activity.fixturesMonitored > 0 ? "Active" : "Awaiting data" },
+    { label: "Competitions Monitored", value: loading ? "Loading" : experience.activity.leaguesCovered ? `${experience.activity.leaguesCovered} live` : monitoredCompetitions ? `${monitoredCompetitions} ready` : "Pending data" },
+    { label: "Data Synchronisation", value: loading ? "Checking" : experience.activity.lastSuccessfulDataRefresh ? "Running" : "Pending provider cycle" },
     { label: "Intelligence Quality Layer", value: "Active" },
     { label: "Opportunity Engine", value: "Processing" },
-    { label: "Platform Status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Operational" : "Operational" },
+    { label: "Platform Status", value: loading ? "Checking" : experience.activity.platformStatus === "OPERATIONAL" ? "Operational" : "Degraded" },
     { label: "Intelligence Cycle", value: "Live" },
     { label: "Subscriber Portal", value: "Online" },
     { label: "Performance Partner Portal", value: "Online" },
@@ -366,6 +369,7 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
           </article>
         ))}
       </div>
+      <p className="public-data-freshness">Last public data refresh: {formatPublicDateTime(experience?.generatedAt)}</p>
     </section>
   );
 }
@@ -451,8 +455,8 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
   const visibleFixtures = fixtures.slice(0, 4);
   const results = experience?.performance?.liveVerifiedResults ?? [];
   const currentPeriod = experience?.performance?.currentReportingPeriod;
-  const marketsCovered = Math.max(1, new Set(results.map((item) => item.market).filter(Boolean)).size);
-  const competitionsCovered = Math.max(1, new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size);
+  const marketsCovered = new Set(results.map((item) => item.market).filter(Boolean)).size;
+  const competitionsCovered = new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size;
   const weeklyOperations = [
     { label: "Opportunities Published This Week", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Protected publication" },
     { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Intelligence queue" },
@@ -495,8 +499,9 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
           ))}
         </div>
         <p className="dashboard-integrity-note">
-          Operational metrics show current platform activity. Verified betting performance starts only after digitally settled selections.
+          Operational metrics come from the public FPF experience API. Verified betting performance starts only after digitally settled selections.
         </p>
+        <p className="public-data-freshness">Updated: {formatPublicDateTime(experience?.generatedAt)}</p>
       </article>
       <article className="reports-panel">
         <div className="panel-title-row"><strong>Latest Performance Reports</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button></div>
@@ -534,13 +539,13 @@ function PublicAuthPage({ authPanel }: { authPanel: ReactNode }) {
     <section className="public-auth-page" id="main-content">
       <div>
         <p className="eyebrow">Secure Access</p>
-        <h1>Enter the FPF operating system.</h1>
-        <p>One secure account routes subscribers, Performance Partners, Country Partners and administrators into the correct protected workspace.</p>
+        <h1>Enter the FPF intelligence operating system.</h1>
+        <p>One protected account gives eligible members access to the right private FPF workspace.</p>
         <div className="auth-benefit-grid">
-          <article><strong>One account</strong><span>Role-based routing after login</span></article>
-          <article><strong>Protected access</strong><span>Private workspaces stay private</span></article>
-          <article><strong>Global preferences</strong><span>Language, currency and timezone support</span></article>
-          <article><strong>Preview ready</strong><span>3-Day Preview flow prepared for activation</span></article>
+          <article><strong>Secure session</strong><span>Token-based protected access</span></article>
+          <article><strong>Private workspace</strong><span>Role-based routing after sign in</span></article>
+          <article><strong>FPF verified</strong><span>Approved intelligence only</span></article>
+          <article><strong>Preferences after login</strong><span>Personal settings live in Profile</span></article>
         </div>
       </div>
       <div className="public-auth-card" id="auth">{authPanel}</div>
