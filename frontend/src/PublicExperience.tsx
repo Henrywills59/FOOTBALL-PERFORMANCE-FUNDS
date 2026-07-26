@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { CommercialStructure, PublicExperience, ThemePreference } from "./types";
 import { historicalOperatingBaseline } from "./historicalOperatingBaseline";
+import { PremiumAreaChart, PremiumCommandGrid } from "./components/PremiumPrimitives";
 
 type PublicPageDefinition = {
   label: string;
@@ -32,9 +33,9 @@ const heroSlides = [
     caption: "AI-Verified Intelligence",
   },
   {
-    title: "Expert-Reviewed Performance",
+    title: "FPF Verified Performance",
     image: "/hero/striker.jpg",
-    caption: "Human-Reviewed Intelligence",
+    caption: "FPF Verified Intelligence",
   },
   {
     title: "Performance Discipline",
@@ -109,6 +110,11 @@ function money(cents: number) {
 function formatPublicDate(value: string | null | undefined) {
   if (!value) return "Awaiting first verified update";
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function formatPublicDateTime(value: string | null | undefined) {
+  if (!value) return "Synchronisation pending";
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 export function ThemeSwitcher({ onChange, theme }: { onChange: (theme: ThemePreference) => void; theme: ThemePreference }) {
@@ -238,7 +244,9 @@ export function Mission21PublicExperience({
           <HistoricalBaselineSection experience={experience} />
           <PublicSignalBar experience={experience} />
           <LiveDigitalPlatformSection experience={experience} onNavigate={navigate} />
+          <GlobalCommandCenterSection />
           <HowItWorks />
+          <LiveIntelligenceCenterSection experience={experience} />
           <SubscriberMembership plans={plans} onNavigate={navigate} />
           <PerformancePartnerProgramme commercialStructure={{ ...publicCommercialFallback, ...publicCommercial }} experience={experience} onNavigate={navigate} />
           <PerformancePreview experience={experience} />
@@ -273,7 +281,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
           <p className="eyebrow hero-kicker">AI-Powered Football Intelligence</p>
           <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
           <p className="hero-support">
-            AI-powered predictions, live in-play intelligence and professional analyst insight in one disciplined football operating system.
+            AI-powered predictions, live in-play intelligence and proprietary FPF intelligence in one disciplined football operating system.
           </p>
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
@@ -282,7 +290,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
             <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
           </div>
           <div className="hero-controls" aria-label="Hero slide indicators">
-            <span className="active">AI Verified<small>Every insight reviewed</small></span>
+            <span className="active">AI Verified<small>Every insight scored</small></span>
             <span>Performance Focused<small>Data over emotion</small></span>
             <span>Secure & Transparent<small>Role-protected access</small></span>
           </div>
@@ -323,7 +331,7 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
         <div className="war-room-screen" aria-hidden="true"><i /><i /><i /><i /></div>
         <div>
           <span>FPF Intelligence Briefing</span>
-          <strong>AI-verified football intelligence with human-reviewed context.</strong>
+          <strong>AI-verified football intelligence with FPF quality controls.</strong>
           <button type="button" onClick={() => onNavigate("/login", "auth")}>View Intelligence Briefing</button>
         </div>
       </div>
@@ -332,18 +340,16 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
 }
 
 function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
-  const monitoredCompetitions = Math.max(
-    1,
-    new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size,
-  );
+  const loading = !experience;
+  const monitoredCompetitions = new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size;
   const signals = [
-    { label: "AI Intelligence Engine", value: "Online" },
-    { label: "Live Match Scanner", value: "Active" },
-    { label: "Competitions Monitored", value: experience?.activity?.leaguesCovered ? `${experience.activity.leaguesCovered} live` : `${monitoredCompetitions} live` },
-    { label: "Data Synchronisation", value: experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Launch monitoring active" },
-    { label: "Expert Review Layer", value: "Active" },
+    { label: "AI Intelligence Engine", value: loading ? "Checking" : "Online" },
+    { label: "Live Match Scanner", value: loading ? "Checking" : experience.activity.fixturesMonitored > 0 ? "Active" : "Awaiting data" },
+    { label: "Competitions Monitored", value: loading ? "Loading" : experience.activity.leaguesCovered ? `${experience.activity.leaguesCovered} live` : monitoredCompetitions ? `${monitoredCompetitions} ready` : "Pending data" },
+    { label: "Data Synchronisation", value: loading ? "Checking" : experience.activity.lastSuccessfulDataRefresh ? "Running" : "Pending provider cycle" },
+    { label: "Intelligence Quality Layer", value: "Active" },
     { label: "Opportunity Engine", value: "Processing" },
-    { label: "Platform Status", value: experience?.activity?.platformStatus === "OPERATIONAL" ? "Operational" : "Operational" },
+    { label: "Platform Status", value: loading ? "Checking" : experience.activity.platformStatus === "OPERATIONAL" ? "Operational" : "Degraded" },
     { label: "Intelligence Cycle", value: "Live" },
     { label: "Subscriber Portal", value: "Online" },
     { label: "Performance Partner Portal", value: "Online" },
@@ -363,12 +369,18 @@ function PublicSignalBar({ experience }: { experience: PublicExperience | null }
           </article>
         ))}
       </div>
+      <p className="public-data-freshness">Last public data refresh: {formatPublicDateTime(experience?.generatedAt)}</p>
     </section>
   );
 }
 
 function HistoricalBaselineSection({ experience }: { experience: PublicExperience | null }) {
   const baseline = historicalOperatingBaseline;
+  const archive = experience?.historicalArchive?.operatingHistory ?? [];
+  const disclosure = experience?.historicalArchive?.disclosure ??
+    "Historical figures relate to FPF operations before automated digital tracking. Digital platform performance is recorded separately from the first settled production cycle.";
+  const archiveValue = (metricKey: string, fallback: string) =>
+    archive.find((record) => record.metricKey === metricKey)?.displayValue ?? fallback;
   const liveCycle = experience?.activity?.platformStatus === "OPERATIONAL" ? "Monitoring" : "Preparing";
   const liveReports = experience?.activity?.reportsPending ? String(experience.activity.reportsPending) : "Available after verification";
 
@@ -376,26 +388,26 @@ function HistoricalBaselineSection({ experience }: { experience: PublicExperienc
     <section className="historical-baseline-section" aria-labelledby="historical-baseline-title">
       <div className="metric-layer-heading">
         <span>Layer A</span>
-        <strong>Historical FPF Legacy</strong>
+        <strong>Historical FPF Operating Record</strong>
       </div>
       <div className="historical-baseline-grid">
         <article className="baseline-copy-card">
-          <p className="eyebrow">FPF Since {baseline.operationsStartedYear}</p>
-          <h2 id="historical-baseline-title">From manual intelligence community to secure digital performance OS.</h2>
-          <p>From a manually operated football intelligence community to a secure digital performance operating system.</p>
+          <p className="eyebrow">FPF Operations Since {archiveValue("operations_established", String(baseline.operationsStartedYear))}</p>
+          <h2 id="historical-baseline-title">Established intelligence methodology, now digitally verified.</h2>
+          <p>FPF presents two reporting layers: a historical operating archive and a separate verified digital reporting cycle.</p>
           <p className="baseline-transparency-note">
-            These figures represent the founder-supplied historical record of FPF's manual operations before the digital platform launch. Live platform performance is tracked separately from the first verified digital cycle.
+            {disclosure}
           </p>
         </article>
         <div className="baseline-metric-grid">
-          <article><span>{baseline.operationsStartedYear}</span><strong>FPF operations began</strong></article>
-          <article><span>{baseline.historicalSubscribersDisplay}</span><strong>Historical subscribers reached</strong></article>
+          <article><span>{archiveValue("operations_established", String(baseline.operationsStartedYear))}</span><strong>FPF football intelligence operations established</strong></article>
+          <article><span>{archiveValue("historical_community_reach", baseline.historicalSubscribersDisplay)}</span><strong>Historical community reach</strong></article>
           <article className="baseline-win-rate">
-            <span>{baseline.founderReportedHistoricalWinRate}%</span>
-            <strong>Founder-reported historical winning rate</strong>
-            <em>Based on the founder's manual operating records from the pre-platform period beginning in 2024. Subject to formal digital verification and migration.</em>
+            <span>{archiveValue("historical_operating_win_rate", `${baseline.historicalOperatingWinRate}%`)}</span>
+            <strong>Historical operating win rate</strong>
+            <em>Historical archive only. Digital platform performance is recorded separately from the first settled production cycle.</em>
           </article>
-          <article><span>{baseline.digitalPlatformLaunchYear}</span><strong>Digital FPF Intelligence Platform launched</strong></article>
+          <article><span>{archiveValue("digital_platform_introduced", String(baseline.digitalPlatformLaunchYear))}</span><strong>Digital performance verification introduced</strong></article>
         </div>
       </div>
       <div className="growth-pulse-grid">
@@ -407,19 +419,19 @@ function HistoricalBaselineSection({ experience }: { experience: PublicExperienc
           <div className="growth-timeline" aria-label="FPF milestone growth journey">
             <div className="growth-node">
               <span>{baseline.operationsStartedYear}</span>
-              <strong>Manual FPF operations began</strong>
-              <small>Historical manual record starts</small>
+              <strong>FPF operating history begins</strong>
+              <small>Historical operating archive starts</small>
             </div>
             <div className="growth-line" aria-hidden="true"><i /></div>
             <div className="growth-node">
               <span>{baseline.historicalSubscribersDisplay}</span>
-              <strong>Founder-supplied cumulative historical reach</strong>
-              <small>Pre-platform baseline, pending formal migration</small>
+              <strong>Historical community reach</strong>
+              <small>Pre-platform performance archive</small>
             </div>
             <div className="growth-line verified" aria-hidden="true"><i /></div>
             <div className="growth-node live">
               <span>{baseline.digitalPlatformLaunchYear}</span>
-              <strong>Verified digital tracking begins</strong>
+              <strong>Digital performance verification introduced</strong>
               <small>Live metrics extend from production system data</small>
             </div>
           </div>
@@ -448,17 +460,17 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
   const visibleFixtures = fixtures.slice(0, 4);
   const results = experience?.performance?.liveVerifiedResults ?? [];
   const currentPeriod = experience?.performance?.currentReportingPeriod;
-  const marketsCovered = Math.max(1, new Set(results.map((item) => item.market).filter(Boolean)).size);
-  const competitionsCovered = Math.max(1, new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size);
+  const marketsCovered = new Set(results.map((item) => item.market).filter(Boolean)).size;
+  const competitionsCovered = new Set(fixtures.map((fixture) => fixture.league).filter(Boolean)).size;
   const weeklyOperations = [
     { label: "Opportunities Published This Week", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Protected publication" },
-    { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Analyst queue" },
+    { label: "Opportunities Pending Review", value: String(experience?.activity?.pendingApproval ?? currentPeriod?.positionsPending ?? 0), status: "Intelligence queue" },
     { label: "Opportunities Approved", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Admin controlled" },
     { label: "Opportunities Settled", value: String(currentPeriod?.positionsSettled ?? results.length), status: results.length ? "Verified cycle" : "Awaiting first cycle" },
     { label: "Average Confidence", value: experience?.activity?.approvedOpportunities ? "Calculated in portal" : "Pending live data", status: "Model separated" },
     { label: "Markets Covered", value: String(marketsCovered), status: "Operational scope" },
     { label: "Competitions Covered", value: String(competitionsCovered), status: "Live scanner" },
-    { label: "Analyst Reviews Completed", value: String(experience?.activity?.analystReviewsCompleted ?? 0), status: "Review workflow" },
+    { label: "Intelligence Reviews Completed", value: String(experience?.activity?.intelligenceReviewsCompleted ?? experience?.activity?.analysisJobsCompletedToday ?? 0), status: "Intelligence governance" },
   ];
   const reportCards = [
     { title: "Daily Intelligence Briefing", date: "Today", status: "Available to Subscribers" },
@@ -473,7 +485,7 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
       <article className="why-panel">
         <div className="panel-title-row"><strong>Why FPF?</strong><button type="button" onClick={() => onNavigate("/about", "what-fpf-is")}>Learn More</button></div>
         {[
-          ["AI + Analyst Verification", "Every published opportunity is reviewed before member access."],
+            ["FPF Intelligence Verification", "Each opportunity passes FPF's proprietary intelligence verification process before member access."],
           ["Live In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
           ["Performance Transparency", "Results and reports stay tied to verified records."],
         ].map(([title, body]) => (
@@ -492,8 +504,9 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
           ))}
         </div>
         <p className="dashboard-integrity-note">
-          Operational metrics show current platform activity. Verified betting performance starts only after digitally settled selections.
+          Operational metrics come from the public FPF experience API. Verified betting performance starts only after digitally settled selections.
         </p>
+        <p className="public-data-freshness">Updated: {formatPublicDateTime(experience?.generatedAt)}</p>
       </article>
       <article className="reports-panel">
         <div className="panel-title-row"><strong>Latest Performance Reports</strong><button type="button" onClick={() => onNavigate("/login", "auth")}>View All</button></div>
@@ -531,13 +544,13 @@ function PublicAuthPage({ authPanel }: { authPanel: ReactNode }) {
     <section className="public-auth-page" id="main-content">
       <div>
         <p className="eyebrow">Secure Access</p>
-        <h1>Enter the FPF operating system.</h1>
-        <p>One secure account routes subscribers, Performance Partners, analysts, Country Partners and administrators into the correct protected workspace.</p>
+        <h1>Enter the FPF intelligence operating system.</h1>
+        <p>One protected account gives eligible members access to the right private FPF workspace.</p>
         <div className="auth-benefit-grid">
-          <article><strong>One account</strong><span>Role-based routing after login</span></article>
-          <article><strong>Protected access</strong><span>Private workspaces stay private</span></article>
-          <article><strong>Global preferences</strong><span>Language, currency and timezone support</span></article>
-          <article><strong>Preview ready</strong><span>3-Day Preview flow prepared for activation</span></article>
+          <article><strong>Secure session</strong><span>Token-based protected access</span></article>
+          <article><strong>Private workspace</strong><span>Role-based routing after sign in</span></article>
+          <article><strong>FPF verified</strong><span>Approved intelligence only</span></article>
+          <article><strong>Preferences after login</strong><span>Personal settings live in Profile</span></article>
         </div>
       </div>
       <div className="public-auth-card" id="auth">{authPanel}</div>
@@ -568,7 +581,7 @@ function WhatFpfIs() {
         <div className="feature-panel feature-panel-lead">
           <StatusPill>Not a tips site</StatusPill>
           <p>
-            Football Performance Fund turns football data, analyst review and disciplined publishing rules into member-ready intelligence.
+            Football Performance Fund turns football data, proprietary intelligence controls and disciplined publishing rules into member-ready intelligence.
           </p>
           <p>
             Public pages explain the model. The protected platform handles subscriptions, partner workspaces, reporting and operational controls.
@@ -596,7 +609,7 @@ function HowItWorks() {
   const steps = [
     "Football data is collected",
     "Intelligence opportunities are identified",
-    "Professional analysts verify each opportunity",
+    "Every opportunity passes FPF intelligence verification",
     "Approved intelligence is published to eligible members",
   ];
   return (
@@ -606,7 +619,7 @@ function HowItWorks() {
           <article key={step}>
             <span>{String(index + 1).padStart(2, "0")}</span>
             <strong>{step}</strong>
-            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Human review keeps the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
+            <p>{["Normalized match context enters the platform.", "Signals are screened before publication.", "Multi-layer intelligence controls keep the process disciplined.", "Eligible members see only approved intelligence."][index]}</p>
           </article>
         ))}
       </div>
@@ -677,7 +690,7 @@ function TrustSection() {
       <div className="trust-grid public-trust-grid">
         {[
           ["Controlled publication", "Only approved intelligence reaches eligible members."],
-          ["Privacy by design", "Public pages do not expose private selections, analyst identities or member data."],
+          ["Privacy by design", "Public pages do not expose private selections, internal identities or member data."],
           ["Risk-first language", "FPF never guarantees outcomes or fixed returns."],
           ["One secure platform", "Role-based access keeps each workspace separated."],
         ].map(([title, body]) => (
@@ -690,18 +703,20 @@ function TrustSection() {
 
 function PerformancePreview({ experience }: { experience: PublicExperience | null }) {
   const results = experience?.performance?.liveVerifiedResults ?? [];
+  const digitalSummary = experience?.performance?.digitalSummary;
   const wins = results.filter((item) => item.result.toLowerCase().includes("win")).length;
   const total = results.length;
   const trend = results.slice(-3).map((item) => item.result).join(" / ");
   return (
-    <PublicSection id="performance" eyebrow="Verified Performance" title="A public results preview without private model data.">
+    <PublicSection id="performance" eyebrow="Verified Digital Performance" title="Digital reporting begins from the first settled production cycle.">
       <div className="performance-grid public-performance-grid">
-        <article><StatusPill>Verified</StatusPill><span>Total verified selections</span><strong>{total ? String(total) : "No verified public results yet"}</strong></article>
-        <article><StatusPill>Historical</StatusPill><span>Win rate</span><strong>{total ? `${Math.round((wins / total) * 100)}%` : "Pending verified results"}</strong></article>
-        <article><StatusPill>Trend</StatusPill><span>Recent result trend</span><strong>{trend || "Awaiting first settled cycle"}</strong></article>
-        <article><StatusPill>Updated</StatusPill><span>Last updated</span><strong>{formatPublicDate(experience?.generatedAt)}</strong></article>
+        <article><StatusPill>Digital</StatusPill><span>Total digitally settled selections</span><strong>{String(digitalSummary?.totalSettledSelections ?? total)}</strong></article>
+        <article><StatusPill>Digital</StatusPill><span>Digital wins</span><strong>{String(digitalSummary?.digitalWins ?? wins)}</strong></article>
+        <article><StatusPill>Digital</StatusPill><span>Digital losses / void</span><strong>{`${digitalSummary?.digitalLosses ?? 0} / ${digitalSummary?.voidSelections ?? 0}`}</strong></article>
+        <article><StatusPill>Cycle</StatusPill><span>Latest verified update</span><strong>{digitalSummary?.latestVerifiedUpdate ? formatPublicDate(digitalSummary.latestVerifiedUpdate) : "Awaiting first settled cycle"}</strong></article>
       </div>
-      <p className="policy-note">Performance information is historical and informational. It does not guarantee future outcomes, profit or payout timing.</p>
+      <p className="policy-note">{digitalSummary?.message ?? "Digital tracking active. No digitally verified result published yet. Historical operating record is shown separately."}</p>
+      {trend ? <p className="policy-note">Recent digital trend: {trend}. No result guarantees are made.</p> : null}
     </PublicSection>
   );
 }
@@ -712,7 +727,7 @@ function FAQSection() {
       <div className="faq-grid">
         <article><strong>Does FPF guarantee outcomes?</strong><p>No. Football outcomes are never guaranteed.</p></article>
         <article><strong>What do subscribers receive?</strong><p>Eligible subscribers receive approved Match Intelligence with context, confidence and risk information.</p></article>
-        <article><strong>Are analysts public tipsters?</strong><p>No. Analysts are internal professionals or approved contracted experts.</p></article>
+        <article><strong>Is FPF a public picks platform?</strong><p>No. FPF is a proprietary football intelligence operating system with controlled publication standards.</p></article>
         <article><strong>Are simulations real returns?</strong><p>No. Simulations are illustrative only and do not promise performance.</p></article>
       </div>
     </PublicSection>
@@ -724,7 +739,7 @@ function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string
     <PublicSection id="contact" eyebrow="Contact" title="Start with the right FPF pathway.">
       <div className="split-layout premium-split">
         <div className="feature-panel">
-          <p>For subscriber access, partnership enquiries, media or analyst applications, start with a secure FPF account or contact the team through the official channel.</p>
+          <p>For subscriber access, Performance Partner enquiries, media or official support, start with a secure FPF account or contact the team through the official channel.</p>
         </div>
         <div className="value-grid compact">
           <article><strong>Members</strong><span>Use Sign In</span></article>
@@ -737,6 +752,88 @@ function ContactSection({ onNavigate }: { onNavigate: (path: string, id?: string
         <button type="button" onClick={() => onNavigate("/login", "auth")}>Sign In</button>
         <button type="button" onClick={() => onNavigate("/register", "auth")}>Register</button>
       </div>
+    </PublicSection>
+  );
+}
+
+function GlobalCommandCenterSection() {
+  const regions = [
+    ["UEFA", "Europe"],
+    ["CONMEBOL", "South America"],
+    ["AFC", "Asia"],
+    ["CAF", "Africa"],
+    ["CONCACAF", "North America"],
+    ["OFC", "Oceania"],
+  ];
+
+  return (
+    <PublicSection id="global-command" eyebrow="Global Intelligence Network" title="Operational readiness across supported football regions.">
+      <div className="global-command-section">
+        <div className="global-network-orb" aria-label="Animated global football intelligence network showing readiness across supported regions">
+          <span className="network-radar" />
+          <span className="orb-core" />
+          <span className="network-ring one" />
+          <span className="network-ring two" />
+          <span className="network-ring three" />
+          {regions.map(([label], index) => (
+            <span className="regional-node" key={label} style={{ "--node-index": index } as CSSProperties}>
+              <b>{label}</b>
+            </span>
+          ))}
+          {Array.from({ length: 24 }).map((_, index) => (
+            <i className="data-particle" key={index} style={{ "--dot-index": index } as CSSProperties} />
+          ))}
+          <strong>FPF</strong>
+        </div>
+        <div className="global-command-copy">
+          <StatusPill>Operational</StatusPill>
+          <h3>GLOBAL INTELLIGENCE NETWORK</h3>
+          <p className="network-status-line">Operational - monitoring supported football regions</p>
+          <p>
+            FPF is designed as a single football intelligence layer across competitions, territories and member workspaces. The animation represents network readiness and regional coverage, not a claim that a specific match or provider is currently active.
+          </p>
+          <div className="region-grid">
+            {regions.map(([label, value]) => (
+              <article key={label}>
+                <strong>{label}</strong>
+                <span>{value}</span>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PublicSection>
+  );
+}
+
+function LiveIntelligenceCenterSection({ experience }: { experience: PublicExperience | null }) {
+  const syncStatus = experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Ready";
+  const signals = [
+    { label: "AI Decision Core", value: "Online", detail: "Structured outputs only", tone: "live" as const },
+    { label: "Risk Analysis", value: "Running", detail: "No guaranteed outcomes", tone: "ready" as const },
+    { label: "Match Intelligence", value: syncStatus, detail: "Provider-safe fallbacks", tone: "live" as const },
+    { label: "Security Monitoring", value: "Active", detail: "Role-based access", tone: "ready" as const },
+    { label: "Payment Controls", value: "Protected", detail: "Backend-only secrets", tone: "ready" as const },
+    { label: "Report Engine", value: "Available", detail: "Subscriber gated", tone: "ready" as const },
+  ];
+
+  const chartPoints = [
+    { label: "Scanner", value: experience?.activity?.fixturesMonitored ?? 0 },
+    { label: "Review", value: experience?.activity?.pendingApproval ?? 0 },
+    { label: "Approved", value: experience?.activity?.approvedOpportunities ?? 0 },
+    { label: "Regions", value: experience?.activity?.leaguesCovered ?? 0 },
+    { label: "Reports", value: experience?.activity?.reportsPending ?? 0 },
+  ];
+
+  return (
+    <PublicSection id="live-intelligence-center" eyebrow="Live Intelligence Center" title="Every system, continuously observed.">
+      <div className="live-intelligence-center-grid">
+        <PremiumCommandGrid signals={signals} />
+        <PremiumAreaChart title="Operational Pulse" points={chartPoints} />
+      </div>
+      <p className="dashboard-integrity-note">
+        This section displays operational system status only. Verified performance statistics remain separate from current platform activity.
+      </p>
     </PublicSection>
   );
 }

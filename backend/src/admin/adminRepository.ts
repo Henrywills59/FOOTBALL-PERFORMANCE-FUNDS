@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { getPrismaClient } from "../database/prismaClient.js";
 import { isPrismaRecoverableReadError, logOptionalDataFallback } from "../database/prismaErrors.js";
-import type { AdminSettings, AdminUser } from "@fpf/shared";
+import type { AdminSettings, AdminUser, HistoricalArchiveRecord, HistoricalArchiveUpdateInput } from "@fpf/shared";
 import type { AdminRepository, AuditInput } from "./types.js";
 
 const defaultSettings: AdminSettings = {
@@ -47,6 +47,113 @@ const emptyReports = {
   },
   dailyPlatformActivity: [] as Array<{ date: string; auditEvents: number; logins: number }>,
 };
+
+const defaultHistoricalArchiveRecords: HistoricalArchiveRecord[] = [
+  {
+    id: "baseline-operations-established",
+    metricKey: "operations_established",
+    label: "FPF football intelligence operations established",
+    value: "2024",
+    valueType: "YEAR",
+    displayValue: "2024",
+    reportingPeriod: "Pre-platform operating archive",
+    archiveNotes: "Management-approved historical operating baseline.",
+    evidenceReference: "Internal historical archive baseline",
+    visible: true,
+    reviewStatus: "APPROVED",
+    lastReviewedAt: new Date(0).toISOString(),
+    updatedByUserId: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+  {
+    id: "baseline-community-reach",
+    metricKey: "historical_community_reach",
+    label: "Historical community reach",
+    value: "20000",
+    valueType: "COUNT",
+    displayValue: "20,000+",
+    reportingPeriod: "Pre-platform operating archive",
+    archiveNotes: "Management-approved historical community reach baseline.",
+    evidenceReference: "Internal historical archive baseline",
+    visible: true,
+    reviewStatus: "APPROVED",
+    lastReviewedAt: new Date(0).toISOString(),
+    updatedByUserId: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+  {
+    id: "baseline-operating-win-rate",
+    metricKey: "historical_operating_win_rate",
+    label: "Historical operating win rate",
+    value: "85",
+    valueType: "PERCENT",
+    displayValue: "85%",
+    reportingPeriod: "Pre-platform operating archive",
+    archiveNotes: "Historical operating record. Digital platform performance is tracked separately.",
+    evidenceReference: "Internal historical archive baseline",
+    visible: true,
+    reviewStatus: "APPROVED",
+    lastReviewedAt: new Date(0).toISOString(),
+    updatedByUserId: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+  {
+    id: "baseline-digital-verification",
+    metricKey: "digital_platform_introduced",
+    label: "Digital performance verification introduced",
+    value: "2026",
+    valueType: "YEAR",
+    displayValue: "2026",
+    reportingPeriod: "Digital platform launch",
+    archiveNotes: "Automated digital tracking begins with production-settled cycles.",
+    evidenceReference: "Internal platform launch record",
+    visible: true,
+    reviewStatus: "APPROVED",
+    lastReviewedAt: new Date(0).toISOString(),
+    updatedByUserId: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+];
+
+function historicalArchiveRow(row: {
+  id: string;
+  metricKey: string;
+  label: string;
+  value: string;
+  valueType: string;
+  displayValue: string;
+  reportingPeriod: string | null;
+  archiveNotes: string | null;
+  evidenceReference: string | null;
+  visible: boolean;
+  reviewStatus: string;
+  lastReviewedAt: Date | null;
+  updatedByUserId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): HistoricalArchiveRecord {
+  return {
+    id: row.id,
+    metricKey: row.metricKey,
+    label: row.label,
+    value: row.value,
+    valueType: ["YEAR", "COUNT", "PERCENT", "TEXT"].includes(row.valueType) ? row.valueType as HistoricalArchiveRecord["valueType"] : "TEXT",
+    displayValue: row.displayValue,
+    reportingPeriod: row.reportingPeriod,
+    archiveNotes: row.archiveNotes,
+    evidenceReference: row.evidenceReference,
+    visible: row.visible,
+    reviewStatus: ["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"].includes(row.reviewStatus) ? row.reviewStatus as HistoricalArchiveRecord["reviewStatus"] : "DRAFT",
+    lastReviewedAt: row.lastReviewedAt?.toISOString() ?? null,
+    updatedByUserId: row.updatedByUserId,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
 
 function userRow(user: {
   id: string;
@@ -282,6 +389,47 @@ export class PrismaAdminRepository implements AdminRepository {
       });
     }
     return this.settings();
+  }
+
+  async historicalArchive() {
+    try {
+      const rows = await this.prisma.historicalArchiveRecord.findMany({ orderBy: { createdAt: "asc" } });
+      return rows.length ? rows.map(historicalArchiveRow) : defaultHistoricalArchiveRecords;
+    } catch (error) {
+      if (!isPrismaRecoverableReadError(error)) throw error;
+      logOptionalDataFallback("admin.historicalArchive", error);
+      return defaultHistoricalArchiveRecords;
+    }
+  }
+
+  async updateHistoricalArchive(metricKey: string, input: HistoricalArchiveUpdateInput & { updatedByUserId: string }) {
+    const now = new Date();
+    const existing = await this.prisma.historicalArchiveRecord.findUnique({ where: { metricKey } });
+    const fallback = defaultHistoricalArchiveRecords.find((record) => record.metricKey === metricKey);
+    const data = {
+      label: input.label ?? existing?.label ?? fallback?.label ?? metricKey,
+      value: input.value ?? existing?.value ?? fallback?.value ?? "",
+      valueType: input.valueType ?? existing?.valueType ?? fallback?.valueType ?? "TEXT",
+      displayValue: input.displayValue ?? existing?.displayValue ?? fallback?.displayValue ?? input.value ?? "",
+      reportingPeriod: input.reportingPeriod ?? existing?.reportingPeriod ?? fallback?.reportingPeriod ?? null,
+      archiveNotes: input.archiveNotes ?? existing?.archiveNotes ?? fallback?.archiveNotes ?? null,
+      evidenceReference: input.evidenceReference ?? existing?.evidenceReference ?? fallback?.evidenceReference ?? null,
+      visible: input.visible ?? existing?.visible ?? fallback?.visible ?? false,
+      reviewStatus: input.reviewStatus ?? existing?.reviewStatus ?? fallback?.reviewStatus ?? "DRAFT",
+      lastReviewedAt: input.reviewStatus === "APPROVED" ? now : existing?.lastReviewedAt ?? null,
+      updatedByUserId: input.updatedByUserId,
+    };
+
+    if (data.visible && (!data.evidenceReference || data.reviewStatus !== "APPROVED")) {
+      throw new Error("Evidence reference and approved review status are required before public visibility.");
+    }
+
+    const row = await this.prisma.historicalArchiveRecord.upsert({
+      where: { metricKey },
+      update: data,
+      create: { metricKey, ...data },
+    });
+    return historicalArchiveRow(row);
   }
 
   async audit(input: AuditInput) {

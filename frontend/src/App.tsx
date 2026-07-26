@@ -7,6 +7,7 @@ import type {
   AdminInvestorManagement,
   AdminSettings,
   AdminUser,
+  HistoricalArchiveRecord,
   AdminAnalystControlCenter,
   AnalystCommandCentre,
   AnalystApplication,
@@ -77,7 +78,7 @@ import type {
 } from "./types";
 import { PUBLIC_USER_ROLES } from "./types";
 import { Mission21PublicExperience, ThemeSwitcher } from "./PublicExperience";
-import { PremiumEmptyState } from "./components/PremiumPrimitives";
+import { PremiumAreaChart, PremiumCommandGrid, PremiumEmptyState, PremiumLoadingState } from "./components/PremiumPrimitives";
 
 function normalizeApiBaseUrl(value?: string) {
   const trimmed = value?.trim().replace(/\/+$/, "");
@@ -96,10 +97,6 @@ function apiEndpoint(path: string) {
   return `${apiUrl}/api${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-function backendEndpoint(path: string) {
-  return `${apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
 function sameOriginApiEndpoint(path: string) {
   return `/api${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -110,15 +107,22 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackUrl?: strin
     response = await fetch(url, init);
   } catch (error) {
     if (fallbackUrl) return fetchJson<T>(fallbackUrl, init);
-    throw new Error(
-      `Unable to reach Football Performance Fund API at ${url}. ${
-        error instanceof Error ? error.message : "Network request failed"
-      }`,
-    );
+    if (import.meta.env.DEV) {
+      console.warn("FPF_API_NETWORK_ERROR", {
+        url,
+        message: error instanceof Error ? error.message : "Network request failed",
+      });
+    }
+    throw new Error("We could not connect to the FPF service. Please try again.");
   }
 
   const data = (await response.json().catch(() => ({}))) as { error?: string } & T;
-  if (!response.ok) throw new Error(data.error ?? `Request failed with HTTP ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 401) throw new Error(data.error ?? "Your session has expired. Please sign in again.");
+    if (response.status === 403) throw new Error(data.error ?? "You do not have access to this FPF workspace.");
+    if (response.status >= 500) throw new Error("Account access is temporarily unavailable.");
+    throw new Error(data.error ?? "The service is reconnecting.");
+  }
   return data as T;
 }
 const navItems = [
@@ -230,11 +234,11 @@ type PublicPageDefinition = {
 const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Home", path: "/", id: "home", description: "Cinematic FPF homepage and launch gateway." },
   { label: "About", path: "/about", id: "about", description: "The Football Performance Fund mission and operating model." },
-  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, investor, analyst, and admin platform." },
-  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How football data, intelligence identification, professional review, and member publishing work." },
+  { label: "Platform", path: "/platform", id: "platform", description: "Unified website, subscriber, Performance Partner, Country Partner, and admin platform." },
+  { label: "How FPF Works", path: "/how-fpf-works", id: "how-fpf-works", description: "How football data, intelligence identification, proprietary verification, and member publishing work." },
   { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
   { label: "Performance Partners", path: "/investors", id: "investors", description: "Performance Partner transparency, simulator, reports, and risk-first controls." },
-  { label: "Expert Review", path: "/expert-review", id: "expert-review", description: "Human-reviewed intelligence and internal quality controls." },
+  { label: "Intelligence Governance", path: "/intelligence-governance", id: "intelligence-governance", description: "FPF intelligence quality controls and proprietary governance." },
   { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
   { label: "Advanced Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Advanced football intelligence, confidence context, risk context, and value signals." },
   { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
@@ -243,7 +247,7 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Security", path: "/security", id: "security", description: "Authentication, authorization, privacy, and risk controls." },
   { label: "Blog", path: "/blog", id: "blog", description: "FPF updates, market education, and launch-stage insights." },
   { label: "Media", path: "/media", id: "media", description: "Media center, announcements, and press resources." },
-  { label: "Careers", path: "/careers", id: "careers", description: "Careers, internal analyst pathway, and partner programmes." },
+  { label: "Careers", path: "/careers", id: "careers", description: "Careers, operations pathways, and partner programmes." },
   { label: "Contact", path: "/contact", id: "contact", description: "Contact and support entry points." },
   { label: "FAQ", path: "/faq", id: "faq", description: "Frequently asked questions." },
   { label: "Privacy Policy", path: "/privacy-policy", id: "privacy-policy", description: "Privacy and data preference information." },
@@ -258,8 +262,6 @@ const publicPathAliases: Record<string, string> = {
   "/for-investors": "/investors",
   "/partners": "/investors",
   "/performance-partners": "/investors",
-  "/for-analysts": "/ai-intelligence",
-  "/analyst-applications": "/ai-intelligence",
   "/legal": "/terms-and-conditions",
   "/privacy": "/privacy-policy",
   "/terms": "/terms-and-conditions",
@@ -633,7 +635,6 @@ export default function App() {
   const [activeCountryPartnerView, setActiveCountryPartnerView] = useState<CountryPartnerNavItem>("Country Partner Dashboard");
   const [adminMode, setAdminMode] = useState(() => getStoredSession()?.user.role === "ADMIN");
   const [message, setMessage] = useState("");
-  const [apiCheck, setApiCheck] = useState(`Backend API: ${apiUrl}`);
   const [error, setError] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
   const [showLaunchCenter, setShowLaunchCenter] = useState(() => localStorage.getItem("fpf_launch_center_seen") !== "true");
@@ -671,6 +672,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [syncLogs, setSyncLogs] = useState<AuditLogEntry[]>([]);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [historicalArchive, setHistoricalArchive] = useState<HistoricalArchiveRecord[]>([]);
   const [adminReports, setAdminReports] = useState<AdminReports | null>(null);
   const [platformHealth, setPlatformHealth] = useState<PlatformHealth | null>(null);
   const [adminInvestorManagement, setAdminInvestorManagement] = useState<AdminInvestorManagement | null>(null);
@@ -831,7 +833,7 @@ export default function App() {
         : isAuthRoute
           ? authTitle
         : "Page Not Found | Football Performance Fund";
-    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, investor, analyst, treasury, and executive operating system.");
+    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, Performance Partner, treasury, and executive operating system.");
     setMetaTag("robots", isPrivate ? "noindex,nofollow" : "index,follow");
     setMetaTag("og:title", publicPage ? `${publicPage.label} | Football Performance Fund` : "Football Performance Fund", "property");
     setMetaTag("og:description", publicPage?.description ?? "We Don't Chase Luck. We Build Performance.", "property");
@@ -1062,24 +1064,6 @@ export default function App() {
     return options.trim === false ? value : value.trim();
   }
 
-  async function testApiConnection() {
-    setApiCheck(`Checking ${apiEndpoint("/health")} ...`);
-    try {
-      const data = await fetchJson<{ status: string }>(
-        apiEndpoint("/health"),
-        undefined,
-        sameOriginApiEndpoint("/health"),
-      );
-      setApiCheck(`Backend API OK: ${apiEndpoint("/health")} returned ${data.status}`);
-    } catch (caughtError) {
-      setApiCheck(
-        `Backend API failed: ${apiEndpoint("/health")} - ${
-          caughtError instanceof Error ? caughtError.message : "Unable to connect"
-        }`,
-      );
-    }
-  }
-
   async function apiGet<T>(path: string, token: string) {
     return fetchJson<T>(
       apiEndpoint(path),
@@ -1194,6 +1178,7 @@ export default function App() {
       const usersData = await apiGet<{ users: AdminUser[] }>("/admin/users", token);
       const logsData = await apiGet<{ logs: AuditLogEntry[] }>("/admin/audit-logs", token);
       const settingsData = await apiGet<AdminSettings>("/admin/settings", token);
+      const historicalArchiveData = await apiGet<{ records: HistoricalArchiveRecord[] }>("/admin/historical-archive", token);
       const syncData = await apiGet<{ logs: AuditLogEntry[] }>("/admin/fixtures/sync-logs", token);
       const intelligenceData = await apiGet<{ submissions: AnalystIntelligenceSubmission[] }>("/admin/intelligence", token);
       const reportsData = await apiGet<AdminReports>("/admin/reports", token);
@@ -1232,6 +1217,7 @@ export default function App() {
       setAdminUsers(usersData.users);
       setAuditLogs(logsData.logs);
       setAdminSettings(settingsData);
+      setHistoricalArchive(historicalArchiveData.records);
       setSyncLogs(syncData.logs);
       setAdminIntelligence(intelligenceData.submissions);
       setAdminReports(reportsData);
@@ -1414,6 +1400,8 @@ export default function App() {
   async function adminAction(path: string, body?: object) {
     if (!session) return;
     const method = path.includes("/admin/country-partners/settings")
+      ? "PUT"
+      : path.includes("/admin/historical-archive/")
       ? "PUT"
       : path.includes("/settings") ||
       path.includes("/notes") ||
@@ -1619,10 +1607,14 @@ export default function App() {
     setMessage("");
     const form = new FormData(event.currentTarget);
     const selectedRole = getFormString(form, "role");
+    const password = getFormString(form, "password", { trim: false });
+    const confirmPassword = getFormString(form, "confirmPassword", { trim: false });
+    if (password !== confirmPassword) throw new Error("Passwords do not match.");
+    if (form.get("termsAccepted") !== "on") throw new Error("Please accept the FPF terms and privacy policy to continue.");
     const data = (await postPublic("/auth/register", {
       name: getFormString(form, "name"),
       email: getFormString(form, "email").toLowerCase(),
-      password: getFormString(form, "password", { trim: false }),
+      password,
       role: publicRegistrationRoles.includes(selectedRole as (typeof publicRegistrationRoles)[number]) ? selectedRole : "SUBSCRIBER",
     })) as AuthResponse;
     storeSession(data, false);
@@ -1823,29 +1815,18 @@ export default function App() {
   if (!session) {
     return (
       <PublicLaunchExperience
-        apiCheck={apiCheck}
-        apiUrl={apiUrl}
         commercialStructure={commercialStructure}
-        currencies={currencies}
         error={error}
         experience={publicExperience}
-        languages={languages}
         message={message}
         mode={mode}
         currentPath={currentPath}
-        onApiTest={testApiConnection}
         onForgot={safelySubmit(handleForgotPassword)}
         onNavigate={navigatePublic}
-        onLocalPreferenceChange={(next) => {
-          const updated = { ...globalPreferences, ...next };
-          setGlobalPreferences(updated);
-          localStorage.setItem("fpf_global_preferences", JSON.stringify(updated));
-        }}
         onLogin={safelySubmit(handleLogin)}
         onRegister={safelySubmit(handleRegister)}
         onReset={safelySubmit(handleResetPassword)}
         onThemeChange={setThemePreference}
-        preferences={globalPreferences}
         setMode={setMode}
         theme={themePreference}
       />
@@ -2025,6 +2006,7 @@ export default function App() {
               reports={adminReports}
               settings={adminSettings}
               health={platformHealth}
+              historicalArchive={historicalArchive}
               syncLogs={syncLogs}
               users={adminUsers}
               onAction={adminAction}
@@ -2313,6 +2295,7 @@ function AdminPortal({
   decisions,
   fixtures,
   health,
+  historicalArchive,
   intelligence,
   investorManagement,
   warRoom,
@@ -2348,6 +2331,7 @@ function AdminPortal({
   decisions: DecisionEngineOutput[];
   fixtures: FootballFixtureSummary[];
   health: PlatformHealth | null;
+  historicalArchive: HistoricalArchiveRecord[];
   intelligence: AnalystIntelligenceSubmission[];
   investorManagement: AdminInvestorManagement | null;
   warRoom: WarRoomDashboard | null;
@@ -2385,15 +2369,28 @@ function AdminPortal({
   const subscriberPublishingQueue = workflowQueue?.items.filter((item) => ["APPROVED", "PUBLISHED"].includes(item.status)) ?? [];
 
   if (activeView === "Admin Dashboard") {
+    const adminSignals = [
+      { label: "System Health", value: overview?.systemHealth ?? "OK", detail: "Operational readiness", tone: "live" as const },
+      { label: "Pending Predictions", value: String(overview?.pendingPredictions ?? pending.length), detail: "Review queue", tone: pending.length ? "warning" as const : "ready" as const },
+      { label: "Approved Intelligence", value: String(overview?.approvedPredictions ?? 0), detail: "Subscriber-safe output", tone: "ready" as const },
+      { label: "User Operations", value: String(overview?.totalUsers ?? 0), detail: "Protected accounts", tone: "ready" as const },
+      { label: "Fixtures Today", value: String(overview?.todaysFixtures ?? 0), detail: "Football data layer", tone: "ready" as const },
+      { label: "Active Subscribers", value: String(overview?.activeSubscribers ?? 0), detail: "Member operations", tone: "ready" as const },
+    ];
     return (
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Total users" value={String(overview?.totalUsers ?? 0)} />
-        <Metric label="Active subscribers" value={String(overview?.activeSubscribers ?? 0)} />
-        <Metric label="Active investors" value={String(overview?.activeInvestors ?? 0)} />
-        <Metric label="Today's fixtures" value={String(overview?.todaysFixtures ?? 0)} />
-        <Metric label="Pending predictions" value={String(overview?.pendingPredictions ?? pending.length)} />
-        <Metric label="Approved predictions" value={String(overview?.approvedPredictions ?? 0)} />
-        <Metric label="System health" value={overview?.systemHealth ?? "OK"} />
+      <div className="mt-6 space-y-5">
+        <section className="premium-executive-overview">
+          <div>
+            <p className="eyebrow">Executive Command Center</p>
+            <h2>Global operating overview</h2>
+            <p>Administrative telemetry, review queues, user operations and platform health remain protected behind the existing role guard.</p>
+          </div>
+          <div className="executive-status-stack">
+            <MiniStat label="Active partners" value={String(overview?.activeInvestors ?? 0)} />
+            <MiniStat label="Reports" value={String(reports?.dailyPlatformActivity.length ?? 0)} />
+          </div>
+        </section>
+        <PremiumCommandGrid signals={adminSignals} />
       </div>
     );
   }
@@ -2667,6 +2664,10 @@ function AdminPortal({
           onAction={onAction}
           settings={settings}
         />
+        <AdminHistoricalArchiveControls
+          records={historicalArchive}
+          onAction={onAction}
+        />
         <GlobalPreferencesForm
           currencies={globalization.currencies}
           languages={globalization.languages}
@@ -2908,7 +2909,7 @@ function AnalystAcademyView({
 }) {
   return (
     <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_380px]">
-      <Panel title="FPF Expert Training Academy">
+      <Panel title="FPF Intelligence Training Academy">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MiniStat label="Status" value={performance?.academy?.status ?? "Pending academy activation"} />
           <MiniStat label="Duration" value={`${performance?.academy?.durationDays ?? 14} days`} />
@@ -3047,7 +3048,7 @@ function AdminAnalystCommandCenter({
       </div>
       <AnalystCommandCentrePanel commandCentre={commandCentre} />
       <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="Expert Review Applications">
+        <Panel title="Intelligence Applications">
           <div className="space-y-3">
             {control.applications.map((application) => (
               <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={application.id}>
@@ -5161,9 +5162,19 @@ function InvestorPortal({
   withdrawals: WithdrawalRequest[];
 }) {
   if (activeView === "Investor Dashboard") {
+    const partnerSignals = [
+      { label: "Total Capital", value: money(dashboard?.balance.totalCapitalCents ?? 0), detail: "Partner account", tone: "ready" as const },
+      { label: "Active Balance", value: money(dashboard?.balance.activeInvestmentBalanceCents ?? 0), detail: "Current season", tone: "live" as const },
+      { label: "Weekly Earnings", value: money(dashboard?.weeklyEarningsCents ?? 0), detail: "Placeholder until settlement", tone: "ready" as const },
+      { label: "Distribution Status", value: dashboard?.distributionStatus ?? "PENDING", detail: "Admin controlled", tone: "warning" as const },
+      { label: "Partner Level", value: investorLevelName(commercialStructure, dashboard?.balance.totalCapitalCents ?? 0), detail: "Recognition tier", tone: "ready" as const },
+      { label: "Account Status", value: dashboard?.accountStatus ?? "ACTIVE", detail: "Access state", tone: "live" as const },
+    ];
+    const chartPoints = (dashboard?.performanceChart ?? []).map((point) => ({ label: point.label, value: point.valueCents / 100 }));
     return (
       <div className="mt-6 space-y-4">
         <RiskDisclaimer />
+        <PremiumCommandGrid signals={partnerSignals} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Metric label="Total capital" value={money(dashboard?.balance.totalCapitalCents ?? 0)} />
           <Metric label="Active balance" value={money(dashboard?.balance.activeInvestmentBalanceCents ?? 0)} />
@@ -5185,7 +5196,7 @@ function InvestorPortal({
           </Panel>
           <Panel title="Performance Chart">
             <div className="investor-chart-panel">
-              <InvestorPerformanceAreaChart points={dashboard?.performanceChart ?? []} />
+              <PremiumAreaChart title="Performance Partner Growth" points={chartPoints} />
               {!(dashboard?.performanceChart.length) ? <p className="text-sm text-zinc-400">Performance chart will populate as capital and distributions are recorded.</p> : null}
             </div>
           </Panel>
@@ -5498,7 +5509,7 @@ function ProviderStatusPanel({ center }: { center: PaymentCenter | null }) {
       ) : (
         <p className="mt-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-100">Provider not configured: {(provider?.missingVariables ?? []).join(", ") || "environment variables missing"}.</p>
       )}
-      <p className="mt-3 break-all text-xs text-zinc-500">Production webhook URL: {provider?.webhookUrl ?? "https://football-performance-funds-backend.vercel.app/api/payments/nowpayments/webhook"}</p>
+      <p className="mt-3 break-all text-xs text-zinc-500">Webhook URL: {provider?.webhookUrl ?? "Configured by backend environment"}</p>
     </Panel>
   );
 }
@@ -5651,47 +5662,33 @@ function AdminPaymentCenterView({ center, onAction }: { center: PaymentCenter | 
 }
 
 function PublicLaunchExperience({
-  apiCheck,
-  apiUrl,
   commercialStructure,
-  currencies,
   currentPath,
   error,
   experience,
-  languages,
   message,
   mode,
-  onApiTest,
   onForgot,
-  onLocalPreferenceChange,
   onLogin,
   onNavigate,
   onRegister,
   onReset,
   onThemeChange,
-  preferences,
   setMode,
   theme,
 }: {
-  apiCheck: string;
-  apiUrl: string;
   commercialStructure: CommercialStructure;
-  currencies: CurrencySetting[];
   currentPath: string;
   error: string;
   experience: PublicExperience | null;
-  languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
-  onApiTest: () => void;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
-  onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onNavigate: (path: string, id?: string) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
   onReset: (event: FormEvent<HTMLFormElement>) => void;
   onThemeChange: (theme: ThemePreference) => void;
-  preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
   theme: ThemePreference;
 }) {
@@ -5704,17 +5701,13 @@ function PublicLaunchExperience({
     <Mission21PublicExperience
       authPanel={
         <AuthPanel
-          currencies={currencies}
           error={error}
-          languages={languages}
           message={message}
           mode={mode}
           onForgot={onForgot}
-          onLocalPreferenceChange={onLocalPreferenceChange}
           onLogin={onLogin}
           onRegister={onRegister}
           onReset={onReset}
-          preferences={preferences}
           setMode={setMode}
         />
       }
@@ -5777,95 +5770,101 @@ function AuthPanel({
   onRegister,
   onReset,
   setMode,
-  currencies,
-  languages,
-  onLocalPreferenceChange,
-  preferences,
 }: {
-  currencies: CurrencySetting[];
   error: string;
-  languages: LanguageSetting[];
   message: string;
   mode: AuthMode;
   onForgot: (event: FormEvent<HTMLFormElement>) => void;
-  onLocalPreferenceChange: (preferences: Partial<UserGlobalPreferences>) => void;
   onLogin: (event: FormEvent<HTMLFormElement>) => void;
   onRegister: (event: FormEvent<HTMLFormElement>) => void;
   onReset: (event: FormEvent<HTMLFormElement>) => void;
-  preferences: UserGlobalPreferences;
   setMode: (mode: AuthMode) => void;
 }) {
-  const availableLanguages = Array.isArray(languages) ? languages : [];
-  const availableCurrencies = Array.isArray(currencies) ? currencies : [];
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const heading =
+    mode === "register"
+      ? "Create secure access"
+      : mode === "forgot"
+        ? "Recover account access"
+        : mode === "reset"
+          ? "Set a new password"
+          : "Sign in to FPF";
+  const description =
+    mode === "register"
+      ? "Start with a protected subscriber or Performance Partner account. Internal roles are assigned by FPF administration only."
+      : mode === "forgot"
+        ? "Enter your account email and we will send password recovery instructions when email delivery is configured."
+        : mode === "reset"
+          ? "Use the secure reset token issued by FPF to update your password."
+          : "Access your private FPF workspace with your email and password.";
 
   return (
-    <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/20">
-      <div className="grid grid-cols-4 rounded-md bg-zinc-950 p-1 text-sm">
-        <ModeButton active={mode === "login"} onClick={() => setMode("login")}>Login</ModeButton>
-        <ModeButton active={mode === "register"} onClick={() => setMode("register")}>Register</ModeButton>
-        <ModeButton active={mode === "forgot"} onClick={() => setMode("forgot")}>Forgot</ModeButton>
-        <ModeButton active={mode === "reset"} onClick={() => setMode("reset")}>Reset</ModeButton>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-zinc-200">
-          Language
-          <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.language} onChange={(event) => onLocalPreferenceChange({ language: event.target.value as UserGlobalPreferences["language"] })}>
-            {(availableLanguages.length ? availableLanguages : [{ code: "en", name: "English", nativeName: "English", direction: "ltr", enabled: true } as LanguageSetting]).filter((item) => item.enabled).map((language) => (
-              <option key={language.code} value={language.code}>{language.nativeName}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium text-zinc-200">
-          Currency
-          <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white" value={preferences.currency} onChange={(event) => onLocalPreferenceChange({ currency: event.target.value as UserGlobalPreferences["currency"] })}>
-            {(availableCurrencies.length ? availableCurrencies : [{ code: "USD", name: "US Dollar", symbol: "$", placeholderRateFromUsd: 1, enabled: true } as CurrencySetting]).filter((item) => item.enabled).map((currency) => (
-              <option key={currency.code} value={currency.code}>{currency.code}</option>
-            ))}
-          </select>
-        </label>
+    <section className="auth-panel-premium" aria-labelledby="auth-panel-title">
+      <div className="auth-panel-header">
+        <span>Secure FPF access</span>
+        <h2 id="auth-panel-title">{heading}</h2>
+        <p>{description}</p>
       </div>
       {error ? <p className="mt-4 rounded-md bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
       {message ? <p className="mt-4 rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
       {mode === "login" ? (
         <form className="mt-6 space-y-4" onSubmit={onLogin}>
           <TextField label="Email" name="email" type="email" />
-          <TextField label="Password" name="password" type="password" />
-          <label className="flex items-center gap-3 text-sm text-zinc-300">
-            <input className="h-4 w-4 accent-emerald-400" name="rememberMe" type="checkbox" />
-            Remember me
-          </label>
-          <SubmitButton>Login</SubmitButton>
+          <PasswordField label="Password" name="password" show={showLoginPassword} onToggle={() => setShowLoginPassword((current) => !current)} />
+          <div className="auth-form-row">
+            <label className="flex items-center gap-3 text-sm text-zinc-300">
+              <input className="h-4 w-4 accent-emerald-400" name="rememberMe" type="checkbox" />
+              Remember me
+            </label>
+            <button className="auth-inline-link" type="button" onClick={() => setMode("forgot")}>Forgot password?</button>
+          </div>
+          <SubmitButton>Sign in</SubmitButton>
+          <p className="auth-switch-text">New to FPF? <button type="button" onClick={() => setMode("register")}>Create account</button></p>
         </form>
       ) : null}
       {mode === "register" ? (
         <form className="mt-6 space-y-4" onSubmit={onRegister}>
-          <TextField label="Name" name="name" type="text" />
+          <TextField label="Full name" name="name" type="text" />
           <TextField label="Email" name="email" type="email" />
-          <TextField label="Password" name="password" type="password" />
+          <PasswordField label="Password" name="password" show={showRegisterPassword} onToggle={() => setShowRegisterPassword((current) => !current)} />
+          <PasswordField label="Confirm password" name="confirmPassword" show={showRegisterPassword} onToggle={() => setShowRegisterPassword((current) => !current)} />
           <label className="block text-sm font-medium text-zinc-200">
-            Role
+            Account type
             <select className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none focus:border-emerald-300" name="role" defaultValue="SUBSCRIBER">
               {publicRegistrationRoles.map((role) => (
                 <option key={role} value={role}>{roleLabels[role]}</option>
               ))}
             </select>
           </label>
-          <SubmitButton>Create account</SubmitButton>
+          <label className="flex items-start gap-3 text-sm leading-6 text-zinc-300">
+            <input className="mt-1 h-4 w-4 accent-emerald-400" name="termsAccepted" type="checkbox" />
+            <span>I agree to the FPF Terms, Privacy Policy and risk disclosure.</span>
+          </label>
+          <SubmitButton>Create secure account</SubmitButton>
+          <p className="auth-switch-text">Already have access? <button type="button" onClick={() => setMode("login")}>Sign in</button></p>
         </form>
       ) : null}
       {mode === "forgot" ? (
         <form className="mt-6 space-y-4" onSubmit={onForgot}>
           <TextField label="Email" name="email" type="email" />
           <SubmitButton>Send reset link</SubmitButton>
+          <p className="auth-switch-text">Remembered it? <button type="button" onClick={() => setMode("login")}>Back to sign in</button></p>
         </form>
       ) : null}
       {mode === "reset" ? (
         <form className="mt-6 space-y-4" onSubmit={onReset}>
           <TextField label="Reset token" name="token" type="text" />
-          <TextField label="New password" name="password" type="password" />
+          <PasswordField label="New password" name="password" show={showResetPassword} onToggle={() => setShowResetPassword((current) => !current)} />
           <SubmitButton>Reset password</SubmitButton>
+          <p className="auth-switch-text">Need a token? <button type="button" onClick={() => setMode("forgot")}>Request reset</button></p>
         </form>
       ) : null}
+      <div className="auth-security-strip">
+        <span>Encrypted session</span>
+        <span>Role-protected access</span>
+      </div>
     </section>
   );
 }
@@ -5912,6 +5911,21 @@ function DashboardView({
     : commandCenter?.executiveOverview.aiIntelligenceScore ?? 0;
   const opportunities = commandCenter?.opportunities ?? [];
   const overview = commandCenter?.executiveOverview;
+  const subscriberSignals = [
+    { label: "AI Intelligence Score", value: `${overview?.aiIntelligenceScore ?? averageConfidence}%`, detail: "Current member context", tone: "live" as const },
+    { label: "Today's Opportunities", value: String(opportunities.length || intelligence.length + featured.length), detail: "Approved or queued", tone: "ready" as const },
+    { label: "Live Matches", value: String(liveFixtures.length), detail: "Match center", tone: liveFixtures.length ? "live" as const : "muted" as const },
+    { label: "Recent Predictions", value: String(recent.length), detail: "Latest available", tone: "ready" as const },
+    { label: "Notifications", value: String(commandCenter?.notifications.length ?? notifications.length), detail: "Member alerts", tone: "ready" as const },
+    { label: "Bankroll Risk", value: bankrollAnalysis.riskLevel, detail: "Subscriber-entered records", tone: bankrollAnalysis.riskLevel === "LOW" ? "ready" as const : "warning" as const },
+  ];
+  const performancePoints = [
+    { label: "Wins", value: bankrollAnalysis.wins },
+    { label: "Losses", value: bankrollAnalysis.losses },
+    { label: "ROI", value: Math.max(0, Math.round(bankrollAnalysis.roi + 12)) },
+    { label: "Open", value: bankrollAnalysis.awaiting },
+    { label: "Total", value: bankrollAnalysis.totalSelections },
+  ];
   return (
     <div className="mt-6 space-y-6">
       <section className="overflow-hidden rounded-lg border border-emerald-400/20 bg-gradient-to-br from-slate-950 via-blue-950 to-zinc-950 p-5 shadow-2xl shadow-emerald-950/20">
@@ -5937,6 +5951,10 @@ function DashboardView({
         <Metric label="AI Intelligence" value={`${overview?.aiIntelligenceScore ?? averageConfidence}%`} />
         <Metric label="Performance" value={overview?.performanceSummary ?? "Monitoring"} />
         <Metric label="Subscription" value={overview?.subscriptionStatus ?? "Active"} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <PremiumCommandGrid signals={subscriberSignals} />
+        <PremiumAreaChart title="Member Performance Pulse" points={performancePoints} />
       </div>
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <AiCoachCompactPanel
@@ -7996,6 +8014,78 @@ function AdminGlobalizationControls({
   );
 }
 
+function AdminHistoricalArchiveControls({
+  onAction,
+  records,
+}: {
+  onAction: (path: string, body?: object) => Promise<void>;
+  records: HistoricalArchiveRecord[];
+}) {
+  return (
+    <Panel title="Historical Archive Management">
+      <p className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+        Historical operating figures require an evidence or internal-reference field before public visibility can be enabled. Digital performance remains separate.
+      </p>
+      <div className="space-y-3">
+        {records.map((record) => (
+          <form
+            className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+            key={record.metricKey}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void onAction(`/admin/historical-archive/${record.metricKey}`, {
+                label: form.get("label"),
+                value: form.get("value"),
+                valueType: form.get("valueType"),
+                displayValue: form.get("displayValue"),
+                reportingPeriod: form.get("reportingPeriod"),
+                archiveNotes: form.get("archiveNotes"),
+                evidenceReference: form.get("evidenceReference"),
+                reviewStatus: form.get("reviewStatus"),
+                visible: form.get("visible") === "on",
+              });
+            }}
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              <TextField label="Label" name="label" type="text" value={record.label} />
+              <TextField label="Display value" name="displayValue" type="text" value={record.displayValue} />
+              <TextField label="Raw value" name="value" type="text" value={record.value} />
+              <SelectField
+                label="Value type"
+                name="valueType"
+                value={record.valueType}
+                options={["YEAR", "COUNT", "PERCENT", "TEXT"].map((value) => ({ value, label: value }))}
+              />
+              <TextField label="Reporting period" name="reportingPeriod" type="text" value={record.reportingPeriod ?? ""} />
+              <TextField label="Evidence/internal reference" name="evidenceReference" type="text" value={record.evidenceReference ?? ""} />
+              <SelectField
+                label="Review status"
+                name="reviewStatus"
+                value={record.reviewStatus}
+                options={["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"].map((value) => ({ value, label: value.replace(/_/g, " ") }))}
+              />
+              <label className="flex items-center gap-3 pt-7 text-sm text-zinc-300">
+                <input defaultChecked={record.visible} name="visible" type="checkbox" />
+                Publicly visible
+              </label>
+              <label className="md:col-span-2 block text-sm font-medium text-zinc-200">
+                Archive notes
+                <textarea className="mt-2 min-h-24 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 text-white outline-none transition focus:border-emerald-300" defaultValue={record.archiveNotes ?? ""} name="archiveNotes" />
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+              <span>Last reviewed: {record.lastReviewedAt ? formatDateTime(record.lastReviewedAt) : "Not reviewed"}</span>
+              <SubmitButton>Save archive record</SubmitButton>
+            </div>
+          </form>
+        ))}
+        {!records.length ? <EmptyState message="No historical archive records are configured yet." /> : null}
+      </div>
+    </Panel>
+  );
+}
+
 function InvestorSimulatorCalculator({
   defaultAmountCents,
   defaultPlatformFeePercent,
@@ -8172,6 +8262,7 @@ function RiskDisclaimer() {
 function LoadingSkeleton({ label }: { label: string }) {
   return (
     <div className="mt-6 space-y-3">
+      <PremiumLoadingState label={label} />
       <div className="loading-brand-row">
         <img src="/fpf-official-logo.jpeg" alt="Football Performance Fund official logo" width="40" height="40" />
         <p className="text-sm text-zinc-400">{label}</p>
@@ -8311,6 +8402,35 @@ function TextField({
         value={onChange ? value : undefined}
         defaultValue={!onChange ? value : undefined}
       />
+    </label>
+  );
+}
+
+function PasswordField({
+  label,
+  name,
+  onToggle,
+  show,
+}: {
+  label: string;
+  name: string;
+  onToggle: () => void;
+  show: boolean;
+}) {
+  return (
+    <label className="block text-sm font-medium text-zinc-200">
+      {label}
+      <span className="password-field-shell">
+        <input
+          className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 pr-20 text-white outline-none transition focus:border-emerald-300"
+          name={name}
+          required
+          type={show ? "text" : "password"}
+        />
+        <button aria-label={show ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} type="button" onClick={onToggle}>
+          {show ? "Hide" : "Show"}
+        </button>
+      </span>
     </label>
   );
 }

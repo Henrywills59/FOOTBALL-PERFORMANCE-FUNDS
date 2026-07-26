@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { AdminSettings, UserRole } from "@fpf/shared";
+import type { AdminSettings, HistoricalArchiveUpdateInput, UserRole } from "@fpf/shared";
 import type { AdminRepository } from "./types.js";
 
 const temporaryPassword = "Temporary123";
@@ -50,6 +50,27 @@ export class AdminService {
   async updateSettings(actorUserId: string, settings: Partial<AdminSettings>) {
     const updated = await this.repository.updateSettings(settings);
     await this.repository.audit({ actorUserId, action: "SETTINGS_UPDATED", entityType: "SETTINGS", details: settings });
+    return updated;
+  }
+
+  historicalArchive() {
+    return this.repository.historicalArchive();
+  }
+
+  async updateHistoricalArchive(actorUserId: string, metricKey: string, input: HistoricalArchiveUpdateInput) {
+    const updated = await this.repository.updateHistoricalArchive(metricKey, { ...input, updatedByUserId: actorUserId });
+    await this.repository.audit({
+      actorUserId,
+      action: "HISTORICAL_ARCHIVE_UPDATED",
+      entityType: "HISTORICAL_ARCHIVE",
+      entityId: updated.id,
+      details: {
+        metricKey,
+        visible: updated.visible,
+        reviewStatus: updated.reviewStatus,
+        evidenceReferencePresent: Boolean(updated.evidenceReference?.trim()),
+      },
+    });
     return updated;
   }
 
