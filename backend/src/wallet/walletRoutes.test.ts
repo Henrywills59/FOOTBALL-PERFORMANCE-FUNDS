@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
@@ -44,10 +43,6 @@ function testApp(walletRepository = new InMemoryWalletRepository()) {
   return { adminRepository, app, users, walletRepository };
 }
 
-function signature(payload: object) {
-  return createHmac("sha512", "test-ipn-secret").update(JSON.stringify(payload)).digest("hex");
-}
-
 describe("wallet routes", () => {
   it("does not allow withdrawals that would create a negative balance", async () => {
     const { app, users } = testApp();
@@ -60,31 +55,34 @@ describe("wallet routes", () => {
       .expect(400);
   });
 
-  it("credits wallet only after verified confirmed IPN and prevents duplicate deposits", async () => {
+  it("keeps the legacy NOWPayments IPN route retired", async () => {
     const walletRepository = new InMemoryWalletRepository();
     const { app, users } = testApp(walletRepository);
     seedUser(users, "INVESTOR");
-    await walletRepository.createDeposit({
-      userId: "investor-wallet-user",
-      amountCents: 10000,
-      externalPaymentId: "pay-1",
-      invoiceUrl: "https://invoice.example",
-    });
 
     const payload = { payment_id: "pay-1", payment_status: "finished", price_amount: 100 };
     await request(app)
       .post("/api/nowpayments/ipn")
-      .set("x-nowpayments-sig", signature(payload))
+      .set("x-nowpayments-sig", "legacy-signature-is-ignored")
       .send(payload)
-      .expect(200);
-    await request(app)
-      .post("/api/nowpayments/ipn")
-      .set("x-nowpayments-sig", signature(payload))
-      .send(payload)
-      .expect(200);
+      .expect(410);
 
     const wallet = await walletRepository.getWallet("investor-wallet-user");
-    expect(wallet.availableBalanceCents).toBe(10000);
+    expect(wallet.availableBalanceCents).toBe(0);
+    expect(wallet.transactions).toHaveLength(0);
+  });
+
+  it("blocks legacy wallet deposit invoice creation", async () => {
+    const { app, users } = testApp();
+    const investorToken = seedUser(users, "INVESTOR");
+
+    const response = await request(app)
+      .post("/api/wallet/deposits")
+      .set("Authorization", `Bearer ${investorToken}`)
+      .send({ amountCents: 1000 })
+      .expect(423);
+
+    expect(response.body.error).toContain("Legacy wallet deposits are disabled");
   });
 
   it("requires admin approval for wallet withdrawal payout", async () => {
@@ -92,8 +90,7 @@ describe("wallet routes", () => {
     const { adminRepository, app, users } = testApp(walletRepository);
     const investorToken = seedUser(users, "INVESTOR");
     const adminToken = seedUser(users, "ADMIN");
-    const wallet = await walletRepository.getWallet("investor-wallet-user");
-    wallet.availableBalanceCents = 20000;
+    await walletRepository.seedAvailableBalanceForTest("investor-wallet-user", 20000);
 
     const withdrawal = await request(app)
       .post("/api/wallet/withdrawals")

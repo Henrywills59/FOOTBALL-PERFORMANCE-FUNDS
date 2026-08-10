@@ -11,6 +11,7 @@ import type { CreateInvestorFundingInput, CreateSubscriptionPaymentInput } from 
 const checkoutLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 20,
+  skip: () => process.env.NODE_ENV === "test" || process.env.VITEST === "true",
   standardHeaders: true,
   legacyHeaders: false,
 });

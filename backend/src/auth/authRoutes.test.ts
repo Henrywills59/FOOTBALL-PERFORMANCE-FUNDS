@@ -1,5 +1,6 @@
 import request from "supertest";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { InMemoryUserRepository } from "./inMemoryUserRepository.js";
@@ -9,7 +10,7 @@ import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionR
 import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
-import { defaultAdminSeed } from "./adminSeed.js";
+import { getDefaultAdminSeed } from "./adminSeed.js";
 import { InMemoryAnalystRepository } from "../analyst/inMemoryAnalystRepository.js";
 import type { UserRepository } from "./types.js";
 
@@ -130,10 +131,28 @@ describe("auth routes", () => {
     }
   }, 15000);
 
-  it("keeps default admin seed credentials available for production seeding", () => {
-    expect(defaultAdminSeed.email).toBe("admin@footballperformancefund.com");
-    expect(defaultAdminSeed.name).toBe("FPF Admin");
-    expect(defaultAdminSeed.password).toBe("ChooseAStrongPassword123!");
+  it("requires explicit production admin seed passwords", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.DEFAULT_ADMIN_PASSWORD;
+
+      expect(() => getDefaultAdminSeed()).toThrow("DEFAULT_ADMIN_PASSWORD is required");
+
+      process.env.DEFAULT_ADMIN_PASSWORD = "test-admin-bootstrap-password";
+      const defaultAdminSeed = getDefaultAdminSeed();
+      expect(defaultAdminSeed.email).toBe("admin@footballperformancefund.com");
+      expect(defaultAdminSeed.name).toBe("FPF Admin");
+      expect(defaultAdminSeed.password).toBe("test-admin-bootstrap-password");
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      if (originalPassword === undefined) {
+        delete process.env.DEFAULT_ADMIN_PASSWORD;
+      } else {
+        process.env.DEFAULT_ADMIN_PASSWORD = originalPassword;
+      }
+    }
   });
 
   it("reports database connection failures as clear JSON errors", async () => {
@@ -181,7 +200,7 @@ describe("auth routes", () => {
 
     const response = await request(app)
       .post("/api/auth/login")
-      .send({ email: "admin@footballperformancefund.com", password: "ChooseAStrongPassword123!", rememberMe: false })
+      .send({ email: "admin@footballperformancefund.com", password: "test-admin-password", rememberMe: false })
       .expect(503);
 
     expect(response.body.error).toContain("Database authentication failed");
@@ -190,7 +209,7 @@ describe("auth routes", () => {
 
   it("does not fail a valid login when login audit storage is unavailable", async () => {
     const userRepository = new InMemoryUserRepository();
-    const passwordHash = await bcrypt.hash("ChooseAStrongPassword123!", 12);
+    const passwordHash = await bcrypt.hash("test-admin-password", 12);
     userRepository.seedUser({
       id: "admin-user",
       name: "FPF Admin",
@@ -222,7 +241,7 @@ describe("auth routes", () => {
       .post("/api/auth/login")
       .send({
         email: "admin@footballperformancefund.com",
-        password: "ChooseAStrongPassword123!",
+        password: "test-admin-password",
         rememberMe: false,
       })
       .expect(200);
@@ -234,7 +253,7 @@ describe("auth routes", () => {
 
   it("reports the exact failing login stage through the debug endpoint", async () => {
     const userRepository = new InMemoryUserRepository();
-    const passwordHash = await bcrypt.hash("ChooseAStrongPassword123!", 12);
+    const passwordHash = await bcrypt.hash("test-admin-password", 12);
     userRepository.seedUser({
       id: "admin-user",
       name: "FPF Admin",
@@ -266,7 +285,7 @@ describe("auth routes", () => {
       .post("/api/debug/login")
       .send({
         email: "admin@footballperformancefund.com",
-        password: "ChooseAStrongPassword123!",
+        password: "test-admin-password",
         rememberMe: false,
       })
       .expect(500);
@@ -374,6 +393,95 @@ describe("auth routes", () => {
     }
   });
 
+  it("does not trust arbitrary Vercel browser origins in production unless configured", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
+    const previousAllowVercelPreviewOrigins = process.env.ALLOW_VERCEL_PREVIEW_ORIGINS;
+    const previousJwtSecret = process.env.JWT_SECRET;
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = "production-test-secret";
+    process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/fpf_test";
+    delete process.env.ALLOW_VERCEL_PREVIEW_ORIGINS;
+    process.env.ALLOWED_ORIGINS = "https://approved-preview.vercel.app";
+
+    try {
+      const app = testApp();
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("Origin", "https://unconfigured-preview.vercel.app")
+        .send(validRegistration)
+        .expect(403);
+
+      await request(app)
+        .post("/api/auth/register")
+        .set("Origin", "https://approved-preview.vercel.app")
+        .send(validRegistration)
+        .expect(201);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousAllowedOrigins === undefined) delete process.env.ALLOWED_ORIGINS;
+      else process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
+      if (previousAllowVercelPreviewOrigins === undefined) delete process.env.ALLOW_VERCEL_PREVIEW_ORIGINS;
+      else process.env.ALLOW_VERCEL_PREVIEW_ORIGINS = previousAllowVercelPreviewOrigins;
+      if (previousJwtSecret === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = previousJwtSecret;
+      if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = previousDatabaseUrl;
+    }
+  });
+
+  it("fails closed in production when JWT_SECRET is missing instead of using the development fallback", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousJwtSecret = process.env.JWT_SECRET;
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    process.env.NODE_ENV = "production";
+    delete process.env.JWT_SECRET;
+    process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/fpf_test";
+
+    try {
+      const users = new InMemoryUserRepository();
+      users.seedUser({
+        id: "production-jwt-user",
+        name: "Production JWT User",
+        email: "production-jwt@example.com",
+        role: "SUBSCRIBER",
+        status: "ACTIVE",
+        passwordHash: "not-used",
+        createdAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+      });
+      const app = createApp({
+        userRepository: users,
+        footballRepository: new InMemoryFootballRepository(),
+        predictionRepository: new InMemoryPredictionRepository([]),
+        adminRepository: new InMemoryAdminRepository(),
+        investorRepository: new InMemoryInvestorRepository(),
+        walletRepository: new InMemoryWalletRepository(),
+        analystRepository: new InMemoryAnalystRepository(),
+        startFootballJobs: false,
+      });
+      const forgedToken = jwt.sign(
+        { role: "SUBSCRIBER", email: "production-jwt@example.com" },
+        "development-only-change-me",
+        { subject: "production-jwt-user", expiresIn: "1d" },
+      );
+
+      const response = await request(app)
+        .get("/api/users/me")
+        .set("Authorization", `Bearer ${forgedToken}`)
+        .expect(503);
+
+      expect(response.body.error).toBe("Authentication service is not configured.");
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousJwtSecret === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = previousJwtSecret;
+      if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = previousDatabaseUrl;
+    }
+  });
+
   it("blocks auth requests from unconfigured browser origins", async () => {
     await request(testApp())
       .post("/api/auth/register")
@@ -463,4 +571,31 @@ describe("auth routes", () => {
       })
       .expect(200);
   }, 15000);
+
+  it("returns a 400 response for malformed JSON instead of a generic 500", async () => {
+    const app = testApp();
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .set("Content-Type", "application/json")
+      .send("{not-json")
+      .expect(400);
+
+    expect(response.body.error).toBe("Invalid JSON body");
+  });
+
+  it("does not expose the debug login diagnostic route in production", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const app = testApp();
+      await request(app)
+        .post("/api/debug/login")
+        .send({ email: validRegistration.email, password: validRegistration.password, rememberMe: false })
+        .expect(404);
+    } finally {
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+    }
+  });
 });

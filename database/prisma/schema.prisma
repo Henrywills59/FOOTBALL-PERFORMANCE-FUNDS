@@ -238,6 +238,18 @@ model FpfSeason {
   id                       String                              @id @default(uuid())
   name                     String                              @unique
   status                   FpfSeasonStatus                     @default(REGISTRATION)
+  isPublic                 Boolean                             @default(false)
+  applicationsOpen         Boolean                             @default(false)
+  depositsEnabled          Boolean                             @default(false)
+  complianceApproved       Boolean                             @default(false)
+  legalApproved            Boolean                             @default(false)
+  publicLaunchApproved     Boolean                             @default(false)
+  activePlanApproved       Boolean                             @default(false)
+  investorTermsApproved    Boolean                             @default(false)
+  capacityLimitCents       Int?
+  capacityUsedCents        Int                                 @default(0)
+  governanceUpdatedByUserId String?
+  governanceUpdatedAt      DateTime?
   registrationOpensAt      DateTime
   seasonStartsAt           DateTime
   seasonEndsAt             DateTime

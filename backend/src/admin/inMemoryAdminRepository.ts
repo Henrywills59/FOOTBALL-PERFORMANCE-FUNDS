@@ -69,6 +69,14 @@ export class InMemoryAdminRepository implements AdminRepository {
     return user ?? null;
   }
 
+  async findUserById(userId: string) {
+    return this.users.find((item) => item.id === userId) ?? null;
+  }
+
+  async countActiveAdministrators() {
+    return this.users.filter((user) => user.status === "ACTIVE" && ["ADMIN", "SUPER_ADMINISTRATOR"].includes(user.role)).length;
+  }
+
   async updateUserRole(userId: string, role: UserRole) {
     const user = this.users.find((item) => item.id === userId);
     if (user) user.role = role;

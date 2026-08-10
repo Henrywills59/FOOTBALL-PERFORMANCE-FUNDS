@@ -5340,21 +5340,17 @@ function InvestorPortal({
           <Metric label="Withdrawal balance" value={money(wallet?.withdrawalBalanceCents ?? 0)} />
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <Panel title="Crypto Deposit Invoice">
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                void onAction("/wallet/deposits", {
-                  amountCents: Math.round(Number(form.get("amount")) * 100),
-                });
-              }}
-            >
-              <p className="text-sm text-zinc-400">Invoices are created securely on the server. API keys are never exposed in the browser.</p>
-              <TextField label="Deposit amount" name="amount" type="number" />
-              <SubmitButton>Create invoice</SubmitButton>
-            </form>
+          <Panel title="Governed Deposit Access">
+            <div className="space-y-3 text-sm text-zinc-300">
+              <p>
+                Performance Partner deposits are locked until the season launch, legal, compliance, terms and
+                treasury governance gates are approved.
+              </p>
+              <p className="rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-amber-100">
+                No deposit invoice can be created from the legacy wallet route. Governed payment checkout will be
+                available after launch approval.
+              </p>
+            </div>
           </Panel>
           <Panel title="Wallet Withdrawal">
             <form

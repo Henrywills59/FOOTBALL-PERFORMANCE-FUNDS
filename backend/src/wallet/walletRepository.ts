@@ -48,48 +48,6 @@ export class PrismaWalletRepository implements WalletRepository {
     };
   }
 
-  async createDeposit(input: { userId: string; amountCents: number; externalPaymentId: string; invoiceUrl: string }) {
-    const wallet = await this.prisma.investorWallet.upsert({
-      where: { userId: input.userId },
-      update: {},
-      create: { userId: input.userId },
-    });
-    const transaction = await this.prisma.walletTransaction.create({
-      data: {
-        walletId: wallet.id,
-        type: "DEPOSIT",
-        status: "PENDING",
-        amountCents: input.amountCents,
-        externalPaymentId: input.externalPaymentId,
-        invoiceUrl: input.invoiceUrl,
-      },
-    });
-    await this.prisma.investorWallet.update({
-      where: { id: wallet.id },
-      data: { pendingBalanceCents: { increment: input.amountCents } },
-    });
-    return { transactionId: transaction.id, invoiceUrl: input.invoiceUrl, status: transaction.status };
-  }
-
-  async confirmDeposit(input: { externalPaymentId: string; amountCents: number }) {
-    const transaction = await this.prisma.walletTransaction.findUnique({
-      where: { externalPaymentId: input.externalPaymentId },
-    });
-    if (!transaction || transaction.status === "CONFIRMED") return null;
-    const updated = await this.prisma.walletTransaction.update({
-      where: { id: transaction.id },
-      data: { status: "CONFIRMED" },
-    });
-    await this.prisma.investorWallet.update({
-      where: { id: transaction.walletId },
-      data: {
-        pendingBalanceCents: { decrement: transaction.amountCents },
-        availableBalanceCents: { increment: transaction.amountCents },
-      },
-    });
-    return txRow(updated);
-  }
-
   async createWithdrawal(input: { userId: string; amountCents: number }) {
     const wallet = await this.prisma.investorWallet.upsert({
       where: { userId: input.userId },

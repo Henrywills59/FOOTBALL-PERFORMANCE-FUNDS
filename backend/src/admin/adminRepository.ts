@@ -251,6 +251,20 @@ export class PrismaAdminRepository implements AdminRepository {
     return userRow(user);
   }
 
+  async findUserById(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    return user ? userRow(user) : null;
+  }
+
+  async countActiveAdministrators() {
+    return this.prisma.user.count({
+      where: {
+        status: "ACTIVE",
+        role: { in: ["ADMIN", "SUPER_ADMINISTRATOR"] },
+      },
+    });
+  }
+
   async updateUserRole(userId: string, role: AdminUser["role"]) {
     const user = await this.prisma.user.update({ where: { id: userId }, data: { role } });
     return userRow(user);

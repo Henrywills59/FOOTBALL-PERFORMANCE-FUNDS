@@ -7,6 +7,10 @@ import type { WalletService } from "./walletService.js";
 
 const amountSchema = z.object({ amountCents: z.number().int().positive() });
 const reviewSchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) });
+const legacyDepositDisabledMessage =
+  "Legacy wallet deposits are disabled. Use governed payment checkout after launch approval.";
+const legacyIpnDisabledMessage =
+  "Legacy NOWPayments IPN endpoint is retired. Use /api/payments/nowpayments/webhook.";
 
 export function createWalletRouter(input: { authService: AuthService; walletService: WalletService }) {
   const router = Router();
@@ -23,8 +27,8 @@ export function createWalletRouter(input: { authService: AuthService; walletServ
 
   router.post("/wallet/deposits", ...investorOnly, async (request, response, next) => {
     try {
-      const body = amountSchema.parse(request.body);
-      response.status(201).json(await input.walletService.createDepositInvoice(request.user!.id, body.amountCents));
+      amountSchema.parse(request.body);
+      response.status(423).json({ error: legacyDepositDisabledMessage });
     } catch (error) {
       next(error instanceof Error ? new AuthError(error.message, 400) : error);
     }
@@ -41,9 +45,7 @@ export function createWalletRouter(input: { authService: AuthService; walletServ
 
   router.post("/nowpayments/ipn", async (request, response, next) => {
     try {
-      response.status(200).json(
-        await input.walletService.handleIpn(request.body, request.header("x-nowpayments-sig")),
-      );
+      response.status(410).json({ error: legacyIpnDisabledMessage });
     } catch (error) {
       next(error);
     }

@@ -21,10 +21,18 @@ describe("root Vercel frontend deployment config", () => {
     });
   });
 
-  it("keeps API traffic pointed at the deployed backend project", () => {
-    expect(rootConfig.rewrites).toContainEqual({
+  it("does not create backend-domain API rewrites that can self-loop in production", () => {
+    expect(rootConfig.rewrites).not.toContainEqual({
       source: "/api/(.*)",
       destination: "https://football-performance-funds-backend.vercel.app/api/$1",
+    });
+    expect(rootConfig.rewrites).toContainEqual({
+      source: "/health",
+      destination: "/api/health.ts",
+    });
+    expect(rootConfig.rewrites).toContainEqual({
+      source: "/health/db",
+      destination: "/api/health/db.ts",
     });
   });
 });

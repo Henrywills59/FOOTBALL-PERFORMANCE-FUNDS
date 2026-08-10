@@ -28,10 +28,6 @@ type Stage = {
   error?: Record<string, unknown>;
 };
 
-const prisma = new PrismaClient({
-  log: ["error"],
-});
-
 function safeError(error: unknown) {
   if (!(error instanceof Error)) {
     return { message: "Unknown error" };
@@ -77,6 +73,11 @@ function maskEmail(email: string) {
 }
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
+  if (process.env.NODE_ENV === "production") {
+    response.status(404).json({ error: "Not found" });
+    return;
+  }
+
   response.setHeader?.("access-control-allow-origin", "*");
   response.setHeader?.("access-control-allow-methods", "GET,POST,OPTIONS");
   response.setHeader?.("access-control-allow-headers", "content-type,authorization");
@@ -88,6 +89,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   const stages: Stage[] = [];
   let failedStage: Stage["stage"] | undefined;
+  const prisma = new PrismaClient({
+    log: ["error"],
+  });
 
   try {
     const body = parseBody(request.body);
@@ -239,5 +243,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       stages,
       error: safeError(error),
     });
+  } finally {
+    await prisma.$disconnect().catch(() => undefined);
   }
 }

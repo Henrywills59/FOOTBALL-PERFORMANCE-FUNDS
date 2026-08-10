@@ -1,7 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { getPrismaClient } from "./database/prismaClient.js";
-import { defaultAdminSeed } from "./auth/adminSeed.js";
+import { getDefaultAdminSeed } from "./auth/adminSeed.js";
 
 let prisma: ReturnType<typeof getPrismaClient> | null = null;
 
@@ -10,17 +10,22 @@ async function seedDefaultAdmin() {
     throw new Error("DATABASE_URL is required to seed the default admin account.");
   }
 
+  const defaultAdminSeed = getDefaultAdminSeed();
   prisma = getPrismaClient();
-  const passwordHash = await bcrypt.hash(defaultAdminSeed.password, 12);
-  await prisma.user.upsert({
-    where: { email: defaultAdminSeed.email },
-    update: {
-      name: defaultAdminSeed.name,
-      passwordHash,
-      role: "ADMIN",
+  const activeAdminCount = await prisma.user.count({
+    where: {
       status: "ACTIVE",
+      role: { in: ["ADMIN", "SUPER_ADMINISTRATOR"] },
     },
-    create: {
+  });
+  if (activeAdminCount > 0) {
+    console.log("Default admin seed skipped: an active administrator already exists.");
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(defaultAdminSeed.password, 12);
+  await prisma.user.create({
+    data: {
       name: defaultAdminSeed.name,
       email: defaultAdminSeed.email,
       passwordHash,

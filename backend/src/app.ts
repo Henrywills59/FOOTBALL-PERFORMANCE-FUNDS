@@ -15,6 +15,7 @@ import { AnalystService } from "./analyst/analystService.js";
 import type { AnalystRepository } from "./analyst/types.js";
 import { createAnalyticsRouter } from "./analytics/analyticsRoutes.js";
 import { AnalyticsService } from "./analytics/analyticsService.js";
+import { requireAuth, requireRole } from "./auth/authMiddleware.js";
 import { createAuthRouter, errorHandler } from "./auth/authRoutes.js";
 import { CompanyCapitalService } from "./companyCapital/companyCapitalService.js";
 import { InMemoryCompanyCapitalRepository } from "./companyCapital/inMemoryCompanyCapitalRepository.js";
@@ -46,6 +47,8 @@ import type { FootballRepository } from "./football/types.js";
 import { GlobalizationRepository } from "./globalization/repository.js";
 import { createGlobalizationRouter } from "./globalization/routes.js";
 import { GlobalizationService } from "./globalization/service.js";
+import { EnvironmentMoneyOperationGate, PersistedLaunchGovernanceGate, type MoneyOperationGate } from "./governance/launchGovernance.js";
+import { PrismaLaunchGovernanceRepository } from "./governance/prismaLaunchGovernanceRepository.js";
 import { createInfrastructureRouter } from "./infrastructure/infrastructureRoutes.js";
 import { InfrastructureService } from "./infrastructure/infrastructureService.js";
 import { InMemoryIntelligenceWorkflowRepository } from "./intelligenceWorkflow/inMemoryIntelligenceWorkflowRepository.js";
@@ -101,7 +104,6 @@ import { createSubscriberRouter } from "./subscriber/subscriberRoutes.js";
 import { SubscriberService } from "./subscriber/subscriberService.js";
 import { createTreasuryRouter } from "./treasury/treasuryRoutes.js";
 import { TreasuryService } from "./treasury/treasuryService.js";
-import { getNowPaymentsConfig, NowPaymentsClient } from "./wallet/nowPaymentsClient.js";
 import { PrismaWalletRepository } from "./wallet/walletRepository.js";
 import { createWalletRouter } from "./wallet/walletRoutes.js";
 import { WalletService } from "./wallet/walletService.js";
@@ -120,7 +122,8 @@ const defaultFrontendOrigins = [
 ];
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 500,
+  limit: process.env.NODE_ENV === "test" ? 10000 : 500,
+  skip: () => process.env.NODE_ENV === "test" || process.env.VITEST === "true",
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -157,6 +160,10 @@ function getAllowedFrontendOrigins() {
 }
 
 function isTrustedVercelOrigin(origin: string) {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_VERCEL_PREVIEW_ORIGINS !== "true") {
+    return false;
+  }
+
   try {
     const url = new URL(origin);
     return url.protocol === "https:" && url.hostname.endsWith(".vercel.app");
@@ -165,7 +172,7 @@ function isTrustedVercelOrigin(origin: string) {
   }
 }
 
-function getSafeConfigStatus() {
+function getSafeConfigStatus(moneyOperationGate: MoneyOperationGate = new EnvironmentMoneyOperationGate()) {
   const requiredEnvironment = {
     databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
     jwtSecret: Boolean(process.env.JWT_SECRET?.trim()),
@@ -181,10 +188,11 @@ function getSafeConfigStatus() {
     nowPaymentsApiKeyConfigured: Boolean(process.env.NOWPAYMENTS_API_KEY?.trim()),
     nowPaymentsIpnSecretConfigured: Boolean(process.env.NOWPAYMENTS_IPN_SECRET?.trim()),
     nowPayments: safeNowPaymentsConfigStatus(),
+    launchGovernance: moneyOperationGate.status(),
     frontendUrlConfigured: Boolean(process.env.FRONTEND_URL?.trim()),
     allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim()),
     allowedOrigins: Array.from(getAllowedFrontendOrigins()),
-    vercelPreviewOriginsAllowed: true,
+    vercelPreviewOriginsAllowed: process.env.NODE_ENV !== "production" || process.env.ALLOW_VERCEL_PREVIEW_ORIGINS === "true",
     requiredEnvironment,
     auth: {
       loginEndpoint: "/api/auth/login",
@@ -241,6 +249,10 @@ function getJwtSecret() {
     return process.env.JWT_SECRET;
   }
 
+  if (process.env.NODE_ENV === "production") {
+    return undefined;
+  }
+
   return defaultJwtSecret;
 }
 
@@ -266,6 +278,7 @@ export function createApp(options?: {
   paymentRepository?: PaymentRepository;
   countryPartnerRepository?: CountryPartnerRepository;
   nowPaymentsProvider?: NowPaymentsProvider;
+  moneyOperationGate?: MoneyOperationGate;
   jwtSecret?: string;
   startFootballJobs?: boolean;
 }) {
@@ -275,6 +288,7 @@ export function createApp(options?: {
   const footballConfig = getFootballConfig();
   const openAiProvider = new OpenAiProvider();
   const notificationDeliveryService = new NotificationDeliveryService();
+  const useInMemoryFallbacks = !isDatabaseUrlConfigured();
   const authService = new AuthService(
     options?.userRepository ?? new PrismaUserRepository(),
     options?.jwtSecret ?? getJwtSecret(),
@@ -292,12 +306,14 @@ export function createApp(options?: {
   const footballScheduler = new FootballJobScheduler(footballSyncService, footballConfig);
   const predictionService = new PredictionService(predictionRepository);
   const adminService = new AdminService(options?.adminRepository ?? new PrismaAdminRepository());
+  const moneyOperationGate = options?.moneyOperationGate ?? new PersistedLaunchGovernanceGate(new PrismaLaunchGovernanceRepository());
   const commercialService = new CommercialService(adminService);
   const globalizationService = new GlobalizationService(new GlobalizationRepository(), adminService);
   const paymentService = new PaymentService(
     options?.paymentRepository ?? new PrismaPaymentRepository(),
     options?.nowPaymentsProvider ?? new NowPaymentsApiProvider(getNowPaymentsRuntimeConfig()),
     adminService,
+    moneyOperationGate,
   );
   const investorService = new InvestorService(
     options?.investorRepository ?? new PrismaInvestorRepository(),
@@ -305,11 +321,10 @@ export function createApp(options?: {
   );
   const walletService = new WalletService(
     options?.walletRepository ?? new PrismaWalletRepository(),
-    new NowPaymentsClient(getNowPaymentsConfig()),
     adminService,
   );
   const intelligenceWorkflowRepository = options?.intelligenceWorkflowRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+    useInMemoryFallbacks
       ? new InMemoryIntelligenceWorkflowRepository()
       : new PrismaIntelligenceWorkflowRepository()
   );
@@ -352,13 +367,13 @@ export function createApp(options?: {
     predictionWorkflowService,
   );
   const operationsRepository = options?.operationsRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+    useInMemoryFallbacks
       ? new InMemoryOperationsRepository()
       : new PrismaOperationsRepository()
   );
   const operationsService = new OperationsService(operationsRepository, notificationDeliveryService);
   const mediaRepository = options?.mediaRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+    useInMemoryFallbacks
       ? new InMemoryMediaRepository()
       : new PrismaMediaRepository()
   );
@@ -368,19 +383,19 @@ export function createApp(options?: {
   const infrastructureService = new InfrastructureService();
   const publicExperienceService = new PublicExperienceService();
   const seasonRepository = options?.seasonRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+    useInMemoryFallbacks
       ? new InMemorySeasonRepository()
       : new PrismaSeasonRepository()
   );
   const seasonService = new SeasonService(seasonRepository);
   const financialRepository = options?.financialRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+    useInMemoryFallbacks
       ? new InMemoryFinancialRepository()
       : new PrismaFinancialRepository()
   );
   const financialEngineService = new FinancialEngineService(financialRepository);
   const companyCapitalRepository = options?.companyCapitalRepository ?? (
-    process.env.NODE_ENV === "test" && !isDatabaseUrlConfigured()
+    useInMemoryFallbacks
       ? new InMemoryCompanyCapitalRepository()
       : new PrismaCompanyCapitalRepository()
   );
@@ -461,6 +476,22 @@ export function createApp(options?: {
       (request as express.Request).rawBody = Buffer.from(buffer);
     },
   }));
+  app.use((error: unknown, _request: express.Request, response: express.Response, next: express.NextFunction) => {
+    const parseError = error as { body?: unknown; status?: number; type?: string; message?: string };
+    if (
+      (error instanceof SyntaxError && "body" in error) ||
+      parseError.status === 400 && parseError.type === "entity.parse.failed" ||
+      parseError.message === "Invalid JSON"
+    ) {
+      response.status(400).json({
+        error: "Invalid JSON body",
+        requestId: response.getHeader("x-request-id"),
+      });
+      return;
+    }
+
+    next(error);
+  });
 
   app.get(["/", "/health", "/api/health"], (_request, response) => {
     const status: HealthStatus = {
@@ -486,13 +517,13 @@ export function createApp(options?: {
     response.status(database.ok ? 200 : 503).json(status);
   });
 
-  app.get("/api/debug/config", (_request, response) => {
-    response.status(200).json(getSafeConfigStatus());
+  app.get("/api/debug/config", requireAuth(authService), requireRole(["ADMIN"]), (_request, response) => {
+    response.status(200).json(getSafeConfigStatus(moneyOperationGate));
   });
 
-  app.get("/api/production/readiness", async (_request, response) => {
+  app.get("/api/production/readiness", requireAuth(authService), requireRole(["ADMIN"]), async (_request, response) => {
     const database = await checkPrismaConnection();
-    const config = getSafeConfigStatus();
+    const config = getSafeConfigStatus(moneyOperationGate);
     const providers = {
       apiFootball: footballSyncService.providerStatus(),
       odds: footballSyncService.oddsProviderStatus(),

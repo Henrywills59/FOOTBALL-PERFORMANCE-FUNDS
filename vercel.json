@@ -4,16 +4,12 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://football-performance-funds-backend.vercel.app/api/$1"
-    },
-    {
       "source": "/health",
-      "destination": "https://football-performance-funds-backend.vercel.app/health"
+      "destination": "/api/health.ts"
     },
     {
       "source": "/health/db",
-      "destination": "https://football-performance-funds-backend.vercel.app/health/db"
+      "destination": "/api/health/db.ts"
     },
     {
       "source": "/(.*)",

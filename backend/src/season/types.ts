@@ -17,6 +17,18 @@ export type CreateParticipationInput = {
   remainingDistributions: number;
 };
 
+export type SeasonGovernanceUpdateInput = {
+  isPublic?: boolean;
+  applicationsOpen?: boolean;
+  depositsEnabled?: boolean;
+  complianceApproved?: boolean;
+  legalApproved?: boolean;
+  publicLaunchApproved?: boolean;
+  activePlanApproved?: boolean;
+  investorTermsApproved?: boolean;
+  capacityLimitCents?: number | null;
+};
+
 export type SeasonRepository = {
   currentSeason(): Promise<FpfSeason | null>;
   financialConstitution(seasonId: string): Promise<FinancialConstitutionAllocation[]>;
@@ -24,4 +36,5 @@ export type SeasonRepository = {
   createParticipation(input: CreateParticipationInput): Promise<PerformancePartnerParticipation>;
   completeParticipation(input: { actorUserId: string; participationId: string }): Promise<PerformancePartnerParticipation | null>;
   openRenewal(input: { actorUserId: string; participationId: string }): Promise<ParticipationRenewalResult | null>;
+  updateGovernance?(input: { actorUserId: string; seasonId: string; governance: SeasonGovernanceUpdateInput }): Promise<FpfSeason | null>;
 };

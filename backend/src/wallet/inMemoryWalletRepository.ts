@@ -16,36 +16,20 @@ export class InMemoryWalletRepository implements WalletRepository {
     return wallet;
   }
 
-  async createDeposit(input: { userId: string; amountCents: number; externalPaymentId: string; invoiceUrl: string }) {
-    const wallet = await this.getWallet(input.userId);
-    if (wallet.transactions.some((tx) => tx.externalPaymentId === input.externalPaymentId)) {
-      throw new Error("Duplicate deposit");
-    }
+  async seedAvailableBalanceForTest(userId: string, amountCents: number) {
+    const wallet = await this.getWallet(userId);
+    wallet.availableBalanceCents += amountCents;
     const transaction: WalletTransaction = {
       id: String(wallet.transactions.length + 1),
-      type: "DEPOSIT",
-      status: "PENDING",
-      amountCents: input.amountCents,
+      type: "ADJUSTMENT",
+      status: "CONFIRMED",
+      amountCents,
       currency: "USD",
-      externalPaymentId: input.externalPaymentId,
-      invoiceUrl: input.invoiceUrl,
+      externalPaymentId: null,
+      invoiceUrl: null,
       createdAt: new Date().toISOString(),
     };
-    wallet.pendingBalanceCents += input.amountCents;
     wallet.transactions.unshift(transaction);
-    return { transactionId: transaction.id, invoiceUrl: input.invoiceUrl, status: transaction.status };
-  }
-
-  async confirmDeposit(input: { externalPaymentId: string; amountCents: number }) {
-    for (const wallet of this.wallets.values()) {
-      const transaction = wallet.transactions.find((item) => item.externalPaymentId === input.externalPaymentId);
-      if (!transaction || transaction.status === "CONFIRMED") continue;
-      transaction.status = "CONFIRMED";
-      wallet.pendingBalanceCents = Math.max(0, wallet.pendingBalanceCents - transaction.amountCents);
-      wallet.availableBalanceCents += transaction.amountCents;
-      return transaction;
-    }
-    return null;
   }
 
   async createWithdrawal(input: { userId: string; amountCents: number }) {

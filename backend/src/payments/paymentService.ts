@@ -2,6 +2,12 @@ import type { AuthUser } from "@fpf/shared";
 import type { AdminService } from "../admin/adminService.js";
 import { defaultCommercialStructure } from "../commercial/defaults.js";
 import {
+  EnvironmentMoneyOperationGate,
+  LaunchGovernanceError,
+  type MoneyOperationGate,
+  type MoneyOperationPurpose,
+} from "../governance/launchGovernance.js";
+import {
   getNowPaymentsRuntimeConfig,
   getNowPaymentsWebhookUrl,
   getPayoutWalletForNetwork,
@@ -68,10 +74,14 @@ export class PaymentService {
     private readonly repository: PaymentRepository,
     private readonly provider: NowPaymentsProvider,
     private readonly adminService: AdminService,
+    private readonly moneyOperationGate: MoneyOperationGate = new EnvironmentMoneyOperationGate(),
   ) {}
 
   status() {
-    return safeNowPaymentsConfigStatus();
+    return {
+      ...safeNowPaymentsConfigStatus(),
+      launchGovernance: this.moneyOperationGate.status(),
+    };
   }
 
   async userCenter(userId: string): Promise<PaymentCenter> {
@@ -282,6 +292,7 @@ export class PaymentService {
     paymentNetwork?: CreateSubscriptionPaymentInput["paymentNetwork"];
     metadata?: Record<string, unknown>;
   }) {
+    await this.assertMoneyOperationAllowed(userId, input.purpose, input.expectedAmountCents);
     const config = getNowPaymentsRuntimeConfig();
     const paymentNetwork = normalizePaymentNetwork(input.paymentNetwork, config.payCurrency);
     const payoutWallet = getPayoutWalletForNetwork(paymentNetwork);
@@ -294,6 +305,7 @@ export class PaymentService {
       payoutWalletReference: payoutWallet.reference,
       payoutWalletConfigured: payoutWallet.configured,
       paymentPurpose: input.purpose,
+      seasonId: this.moneyOperationGate.status().seasonId ?? null,
       treasuryPaymentPurpose: input.metadata?.treasuryPaymentPurpose ?? treasuryPaymentPurpose(input.purpose),
     };
     const order = await this.repository.createOrder({
@@ -330,6 +342,17 @@ export class PaymentService {
     return updated;
   }
 
+  private async assertMoneyOperationAllowed(userId: string, purpose: MoneyOperationPurpose, expectedAmountCents?: number) {
+    try {
+      await this.moneyOperationGate.assertMoneyOperationAllowed({ userId, purpose, expectedAmountCents });
+    } catch (error) {
+      if (error instanceof LaunchGovernanceError) {
+        throw new PaymentError(error.message, error.statusCode);
+      }
+      throw error;
+    }
+  }
+
   private async applyStatus(order: PaymentOrder, input: {
     providerPaymentId: string | null;
     orderId: string;
@@ -354,7 +377,7 @@ export class PaymentService {
       treasuryPaymentPurpose: treasuryPaymentPurpose(order.purpose),
       transactionHash,
     };
-    const amountMismatch = input.receivedAmountCents > 0 && input.receivedAmountCents < order.expectedAmountCents;
+    const amountMismatch = input.receivedAmountCents !== order.expectedAmountCents;
     const currencyMismatch = input.priceCurrency.toUpperCase() !== order.priceCurrency.toUpperCase() || input.payCurrency.toUpperCase() !== order.payCurrency.toUpperCase();
     if (currencyMismatch) {
       status = "MANUAL_REVIEW";
@@ -369,6 +392,7 @@ export class PaymentService {
       reconciliationStatus = "PROVIDER_DISCREPANCY";
     }
 
+    const orderAlreadyActivated = activationStatuses.has(order.status);
     const updated = await this.repository.transitionOrder({
       orderId: order.id,
       status,
@@ -379,6 +403,16 @@ export class PaymentService {
       source: input.source,
       providerPayload,
     });
+
+    if (activationStatuses.has(status) && orderAlreadyActivated) {
+      await this.repository.createManualReview({
+        orderId: order.id,
+        reason: "ALREADY_ACTIVATED_WEBHOOK",
+        notes: "Confirmed provider callback received for an order that was already activated. No additional financial credit was created.",
+      });
+      await this.adminService.audit(null, "PAYMENT_ALREADY_ACTIVATED_WEBHOOK_IGNORED", "PAYMENT_ORDER", order.id);
+      return updated;
+    }
 
     if (activationStatuses.has(status)) {
       const activationResult = order.purpose.startsWith("SUBSCRIPTION")

@@ -44,7 +44,9 @@ All protected routes use `Authorization: Bearer <jwt>`.
 
 - `GET /api/investor/dashboard`
 - `GET /api/wallet`
-- `POST /api/wallet/deposits`
+- `POST /api/wallet/deposits` - retired legacy route; returns `423` and does not create invoices.
 - `POST /api/wallet/withdrawals`
-- `POST /api/nowpayments/ipn`
-
+- `POST /api/payments/subscription/checkout` - governed checkout, launch-gated.
+- `POST /api/payments/investor-funding/checkout` - governed checkout, launch-gated.
+- `POST /api/payments/nowpayments/webhook`
+- `POST /api/nowpayments/ipn` - retired legacy route; returns `410` and does not credit balances.

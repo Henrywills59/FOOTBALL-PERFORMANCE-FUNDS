@@ -6,7 +6,7 @@ import type {
   SeasonOperatingModel,
 } from "@fpf/shared";
 import { defaultSeasonOperatingModel } from "./defaults.js";
-import type { SeasonRepository } from "./types.js";
+import type { SeasonGovernanceUpdateInput, SeasonRepository } from "./types.js";
 
 const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
 
@@ -132,5 +132,9 @@ export class SeasonService {
 
   openRenewal(actorUserId: string, participationId: string) {
     return this.repository?.openRenewal({ actorUserId, participationId }) ?? null;
+  }
+
+  updateGovernance(actorUserId: string, seasonId: string, governance: SeasonGovernanceUpdateInput) {
+    return this.repository?.updateGovernance?.({ actorUserId, seasonId, governance }) ?? null;
   }
 }

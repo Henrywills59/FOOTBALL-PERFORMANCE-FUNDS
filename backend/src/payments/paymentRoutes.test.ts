@@ -8,6 +8,7 @@ import { InMemoryFootballRepository } from "../football/inMemoryFootballReposito
 import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 import { InMemoryPredictionRepository } from "../predictions/inMemoryPredictionRepository.js";
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
+import { OpenMoneyOperationGate, PersistedLaunchGovernanceGate, type PersistedLaunchGovernanceSeason } from "../governance/launchGovernance.js";
 import { InMemoryPaymentRepository } from "./inMemoryPaymentRepository.js";
 import { getNowPaymentsWebhookUrl } from "./config.js";
 import { signNowPaymentsPayload } from "./nowPaymentsProvider.js";
@@ -104,6 +105,54 @@ function testApp() {
     walletRepository: new InMemoryWalletRepository(),
     paymentRepository,
     nowPaymentsProvider: provider,
+    moneyOperationGate: new OpenMoneyOperationGate(),
+    jwtSecret: "test-secret",
+    startFootballJobs: false,
+  });
+  return { app, users, paymentRepository, provider };
+}
+
+const approvedSeason: PersistedLaunchGovernanceSeason = {
+  id: "season-approved",
+  isPublic: true,
+  applicationsOpen: true,
+  depositsEnabled: true,
+  complianceApproved: true,
+  legalApproved: true,
+  publicLaunchApproved: true,
+  activePlanApproved: true,
+  investorTermsApproved: true,
+  capacityLimitCents: null,
+  capacityUsedCents: 0,
+};
+
+function governedTestApp(input: { season?: PersistedLaunchGovernanceSeason | null; failLookup?: boolean }) {
+  process.env.NOWPAYMENTS_API_KEY = "test-api-key";
+  process.env.NOWPAYMENTS_IPN_SECRET = "test-ipn-secret";
+  process.env.NOWPAYMENTS_BASE_URL = "https://api.nowpayments.test";
+  process.env.NOWPAYMENTS_PRICE_CURRENCY = "USD";
+  process.env.NOWPAYMENTS_PAY_CURRENCY = "USDTTRC20";
+  process.env.NOWPAYMENTS_USDT_TRC20_PAYOUT_WALLET = "test-trc20-wallet-address";
+  process.env.NOWPAYMENTS_USDT_ERC20_PAYOUT_WALLET = "test-erc20-wallet-address";
+  const users = new InMemoryUserRepository();
+  const paymentRepository = new InMemoryPaymentRepository();
+  const provider = new MockNowPaymentsProvider();
+  const moneyOperationGate = new PersistedLaunchGovernanceGate({
+    async getAuthoritativeSeason() {
+      if (input.failLookup) throw new Error("governance database unavailable");
+      return input.season ?? null;
+    },
+  });
+  const app = createApp({
+    userRepository: users,
+    footballRepository: new InMemoryFootballRepository(),
+    predictionRepository: new InMemoryPredictionRepository([]),
+    adminRepository: new InMemoryAdminRepository(),
+    investorRepository: new InMemoryInvestorRepository(),
+    walletRepository: new InMemoryWalletRepository(),
+    paymentRepository,
+    nowPaymentsProvider: provider,
+    moneyOperationGate,
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });
@@ -127,6 +176,43 @@ function restoreUrlEnv() {
 
 describe("NOWPayments payment routes", () => {
   afterEach(restoreUrlEnv);
+
+  it.each([
+    ["season is not public", "isPublic"],
+    ["applications are closed", "applicationsOpen"],
+    ["deposits are disabled", "depositsEnabled"],
+    ["compliance is incomplete", "complianceApproved"],
+    ["legal approval is incomplete", "legalApproved"],
+    ["public launch is not approved", "publicLaunchApproved"],
+    ["active plan is not approved", "activePlanApproved"],
+    ["investor terms are not approved", "investorTermsApproved"],
+  ] as const)("blocks checkout when %s", async (_label, field) => {
+    const season = { ...approvedSeason, [field]: false };
+    const { app, users, provider } = governedTestApp({ season });
+    const token = seedUser(users, "SUBSCRIBER");
+
+    const response = await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY", paymentNetwork: "USDT_TRC20" })
+      .expect(423);
+
+    expect(response.body.error).toContain("Money operations are not open");
+    expect(provider.lastCreatePaymentInput).toBeNull();
+  });
+
+  it("does not create a provider address when governance lookup fails", async () => {
+    const { app, users, provider } = governedTestApp({ failLookup: true });
+    const token = seedUser(users, "SUBSCRIBER");
+
+    await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY", paymentNetwork: "USDT_TRC20" })
+      .expect(503);
+
+    expect(provider.lastCreatePaymentInput).toBeNull();
+  });
 
   it("uses an environment-aware Preview backend callback URL for checkout creation", async () => {
     process.env.BACKEND_BASE_URL = "https://backend-preview.example.com";
@@ -248,6 +334,33 @@ describe("NOWPayments payment routes", () => {
     expect(paymentRepository.activations).toEqual([{ type: "INVESTOR_FUNDING", orderId: checkout.body.order.id }]);
   });
 
+  it("does not activate twice when a later confirmed webhook has a different payload hash", async () => {
+    const { app, users, paymentRepository } = testApp();
+    const token = seedUser(users, "INVESTOR");
+    const checkout = await request(app)
+      .post("/api/payments/investor-funding/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ packageId: "pkg_bronze", lockPeriodCode: "SIX_MONTHS", amountCents: 10000, acknowledgementsAccepted: true, termsAccepted: true })
+      .expect(201);
+    const firstPayload = {
+      payment_id: checkout.body.order.providerPaymentId,
+      order_id: checkout.body.order.id,
+      payment_status: "finished",
+      price_amount: 100,
+      actually_paid_at_fiat: 100,
+      price_currency: "USD",
+      pay_currency: "USDTTRC20",
+      payin_hash: "tx-1",
+    };
+    const secondPayload = { ...firstPayload, payment_status: "confirmed", payin_hash: "tx-2" };
+
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(firstPayload)).send(firstPayload).expect(200);
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(secondPayload)).send(secondPayload).expect(200);
+
+    expect(paymentRepository.activations).toEqual([{ type: "INVESTOR_FUNDING", orderId: checkout.body.order.id }]);
+    expect(paymentRepository.manualReviews.map((review) => review.reason)).toContain("ALREADY_ACTIVATED_WEBHOOK");
+  });
+
   it("links confirmed payments to network, payout wallet, transaction hash, purpose and treasury reference", async () => {
     const { app, users, paymentRepository } = testApp();
     const token = seedUser(users, "SUBSCRIBER");
@@ -300,6 +413,45 @@ describe("NOWPayments payment routes", () => {
 
     const order = await paymentRepository.findOrderById(checkout.body.order.id);
     expect(order?.status).toBe("PARTIALLY_PAID");
+    expect(paymentRepository.activations).toHaveLength(0);
+  });
+
+  it("does not activate when a finished webhook amount or currency differs from the order", async () => {
+    const { app, users, paymentRepository } = testApp();
+    const token = seedUser(users, "SUBSCRIBER");
+    const checkout = await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY" })
+      .expect(201);
+
+    const amountMismatch = {
+      payment_id: checkout.body.order.providerPaymentId,
+      order_id: checkout.body.order.id,
+      payment_status: "finished",
+      price_amount: 25,
+      actually_paid_at_fiat: 25,
+      price_currency: "USD",
+      pay_currency: "USDTTRC20",
+    };
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(amountMismatch)).send(amountMismatch).expect(200);
+    expect(paymentRepository.activations).toHaveLength(0);
+
+    const secondCheckout = await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY" })
+      .expect(201);
+    const currencyMismatch = {
+      payment_id: secondCheckout.body.order.providerPaymentId,
+      order_id: secondCheckout.body.order.id,
+      payment_status: "finished",
+      price_amount: 19,
+      actually_paid_at_fiat: 19,
+      price_currency: "EUR",
+      pay_currency: "USDTTRC20",
+    };
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(currencyMismatch)).send(currencyMismatch).expect(200);
     expect(paymentRepository.activations).toHaveLength(0);
   });
 

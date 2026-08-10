@@ -106,8 +106,13 @@ describe("production integration providers", () => {
       .expect(200);
     expect(competitions.body.ok).toBe(false);
 
+    await request(app)
+      .get("/api/production/readiness")
+      .expect(401);
+
     const readiness = await request(app)
       .get("/api/production/readiness")
+      .set("Authorization", `Bearer ${token}`)
       .expect(503);
     expect(readiness.body.status).toBe("ACTION_REQUIRED");
     expect(readiness.body.providers.openAi.configured).toBe(false);

@@ -7,7 +7,7 @@ import type {
   PerformancePartnerParticipation,
 } from "@fpf/shared";
 import { defaultFinancialConstitution, defaultFpfSeason } from "./defaults.js";
-import type { CreateParticipationInput, SeasonRepository } from "./types.js";
+import type { CreateParticipationInput, SeasonGovernanceUpdateInput, SeasonRepository } from "./types.js";
 
 function seasonRow(row: {
   id: string;
@@ -251,6 +251,36 @@ export class PrismaSeasonRepository implements SeasonRepository {
       };
     } catch (error) {
       this.logFallback("openRenewal", error);
+      return null;
+    }
+  }
+
+  async updateGovernance(input: {
+    actorUserId: string;
+    seasonId: string;
+    governance: SeasonGovernanceUpdateInput;
+  }): Promise<FpfSeason | null> {
+    try {
+      const row = await this.prisma.fpfSeason.update({
+        where: { id: input.seasonId },
+        data: {
+          ...input.governance,
+          governanceUpdatedByUserId: input.actorUserId,
+          governanceUpdatedAt: new Date(),
+        },
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: input.actorUserId,
+          action: "SEASON_LAUNCH_GOVERNANCE_UPDATED",
+          entityType: "FPF_SEASON",
+          entityId: input.seasonId,
+          details: input.governance,
+        },
+      });
+      return seasonRow(row);
+    } catch (error) {
+      this.logFallback("updateGovernance", error);
       return null;
     }
   }

@@ -105,7 +105,7 @@ export class AuthError extends Error {
 export class AuthService {
   constructor(
     private readonly users: UserRepository,
-    private readonly jwtSecret: string,
+    private readonly jwtSecret: string | undefined,
     private readonly notificationDeliveryService?: NotificationDeliveryService,
   ) {}
 
@@ -348,7 +348,7 @@ export class AuthService {
           role: user.role,
           email: user.email,
         },
-        this.jwtSecret,
+        this.requireJwtSecret(),
         {
           subject: user.id,
           expiresIn,
@@ -477,7 +477,7 @@ export class AuthService {
 
   async getUserFromToken(token: string): Promise<AuthUser> {
     try {
-      const payload = jwt.verify(token, this.jwtSecret) as JwtUser;
+      const payload = jwt.verify(token, this.requireJwtSecret()) as JwtUser;
       const user = await this.users.findUserById(payload.sub);
       if (!user || user.status !== "ACTIVE") {
         throw new AuthError("Unauthorized", 401);
@@ -511,7 +511,7 @@ export class AuthService {
           role: user.role,
           email: user.email,
         },
-        this.jwtSecret,
+        this.requireJwtSecret(),
         {
           subject: user.id,
           expiresIn,
@@ -576,6 +576,14 @@ export class AuthService {
         error: safeErrorDetails(error),
       });
     }
+  }
+
+  private requireJwtSecret() {
+    if (!this.jwtSecret?.trim()) {
+      throw new AuthError("Authentication service is not configured.", 503);
+    }
+
+    return this.jwtSecret;
   }
 
   private passwordResetUrl(token: string) {

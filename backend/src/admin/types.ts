@@ -13,6 +13,8 @@ export type AdminRepository = {
   searchUsers(search?: string): Promise<AdminUser[]>;
   updateUserStatus(userId: string, status: "ACTIVE" | "DISABLED"): Promise<AdminUser | null>;
   updateUserRole(userId: string, role: UserRole): Promise<AdminUser | null>;
+  findUserById?(userId: string): Promise<AdminUser | null>;
+  countActiveAdministrators?(): Promise<number>;
   resetUserPassword(userId: string, passwordHash: string): Promise<void>;
   settings(): Promise<AdminSettings>;
   reports(): Promise<AdminReports>;

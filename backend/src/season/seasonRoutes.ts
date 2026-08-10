@@ -18,6 +18,18 @@ const participationSimulatorSchema = z.object({
   remainingWeeks: z.number().int().min(0).max(260).optional(),
 });
 
+const seasonGovernanceSchema = z.object({
+  isPublic: z.boolean().optional(),
+  applicationsOpen: z.boolean().optional(),
+  depositsEnabled: z.boolean().optional(),
+  complianceApproved: z.boolean().optional(),
+  legalApproved: z.boolean().optional(),
+  publicLaunchApproved: z.boolean().optional(),
+  activePlanApproved: z.boolean().optional(),
+  investorTermsApproved: z.boolean().optional(),
+  capacityLimitCents: z.number().int().positive().nullable().optional(),
+}).strict();
+
 export function createSeasonRouter(input: {
   authService: AuthService;
   seasonService: SeasonService;
@@ -123,6 +135,20 @@ export function createSeasonRouter(input: {
   router.get("/admin/seasons/operating-model", ...adminOnly, async (_request, response, next) => {
     try {
       response.status(200).json(await input.seasonService.operatingModel());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/admin/seasons/:id/governance", ...adminOnly, async (request, response, next) => {
+    try {
+      const body = seasonGovernanceSchema.parse(request.body);
+      const season = await input.seasonService.updateGovernance(request.user!.id, request.params.id, body);
+      if (!season) {
+        response.status(404).json({ error: "Season not found" });
+        return;
+      }
+      response.status(200).json({ season });
     } catch (error) {
       next(error);
     }

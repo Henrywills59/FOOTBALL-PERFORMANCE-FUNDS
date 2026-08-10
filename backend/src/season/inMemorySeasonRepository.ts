@@ -5,13 +5,14 @@ import type {
   PerformancePartnerParticipation,
 } from "@fpf/shared";
 import { defaultFinancialConstitution, defaultFpfSeason } from "./defaults.js";
-import type { CreateParticipationInput, SeasonRepository } from "./types.js";
+import type { CreateParticipationInput, SeasonGovernanceUpdateInput, SeasonRepository } from "./types.js";
 
 export class InMemorySeasonRepository implements SeasonRepository {
   participations: PerformancePartnerParticipation[] = [];
+  private season: FpfSeason = { ...defaultFpfSeason };
 
   async currentSeason(): Promise<FpfSeason> {
-    return defaultFpfSeason;
+    return this.season;
   }
 
   async financialConstitution(_seasonId: string): Promise<FinancialConstitutionAllocation[]> {
@@ -62,5 +63,11 @@ export class InMemorySeasonRepository implements SeasonRepository {
       renewalStatus: "READY_FOR_NEXT_SEASON_REGISTRATION",
       message: "Renewal is open for next season registration. No automatic renewal has been created.",
     };
+  }
+
+  async updateGovernance(input: { seasonId: string; governance: SeasonGovernanceUpdateInput }): Promise<FpfSeason | null> {
+    if (input.seasonId !== this.season.id) return null;
+    this.season = { ...this.season };
+    return this.season;
   }
 }

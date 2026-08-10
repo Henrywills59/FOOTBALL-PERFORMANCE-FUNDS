@@ -31,6 +31,20 @@ function parseBody(body: unknown) {
   return {};
 }
 
+function allowedSeedEmails() {
+  return new Set(
+    [
+      process.env.DEFAULT_ADMIN_EMAIL,
+      process.env.ADMIN_SEED_EMAIL,
+      process.env.ADMIN_SEED_EMAIL_ALLOWLIST,
+      "admin@footballperformancefund.com",
+    ]
+      .flatMap((value) => (value ?? "").split(","))
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 function safeError(error: unknown) {
   if (!(error instanceof Error)) {
     return { message: "Unknown error" };
@@ -805,13 +819,29 @@ export default async function handler(request: VercelRequest, response: VercelRe
   let prisma: PrismaClient | null = null;
   try {
     prisma = new PrismaClient({ log: ["error"] });
-    await ensureInvestorSchema(prisma);
-    await ensureGlobalizationSchema(prisma);
-    await ensureCommercialSchema(prisma);
-    await ensureOperationsSchema(prisma);
-    await ensureMediaSchema(prisma);
+    const activeAdminCount = await prisma.user.count({
+      where: {
+        status: "ACTIVE",
+        role: { in: ["ADMIN", "SUPER_ADMINISTRATOR"] },
+      },
+    });
+    if (activeAdminCount > 0) {
+      response.status(409).json({
+        ok: false,
+        failedStage: "bootstrapClosed",
+        message: "Administrator bootstrap is closed because an active administrator already exists.",
+      });
+      return;
+    }
 
-    const body = parseBody(request.body);
+    let body: Record<string, unknown>;
+    try {
+      body = parseBody(request.body);
+    } catch {
+      response.status(400).json({ ok: false, failedStage: "requestParsing", message: "Invalid JSON body." });
+      return;
+    }
+
     const shouldEnsureBusinessCommercialSchema = body.ensureBusinessCommercialSchema === true;
     if (shouldEnsureBusinessCommercialSchema) {
       await ensureBusinessCommercialSchema(prisma);
@@ -820,10 +850,34 @@ export default async function handler(request: VercelRequest, response: VercelRe
       typeof body.email === "string"
         ? body.email.trim().toLowerCase()
         : "admin@footballperformancefund.com";
+    if (!allowedSeedEmails().has(email)) {
+      response.status(403).json({
+        ok: false,
+        failedStage: "unauthorizedBootstrapIdentity",
+        message: "Administrator bootstrap email is not authorized by deployment configuration.",
+      });
+      return;
+    }
+
+    await ensureInvestorSchema(prisma);
+    await ensureGlobalizationSchema(prisma);
+    await ensureCommercialSchema(prisma);
+    await ensureOperationsSchema(prisma);
+    await ensureMediaSchema(prisma);
+
+    const configuredPassword = process.env.DEFAULT_ADMIN_PASSWORD?.trim();
     const password =
       typeof body.password === "string" && body.password.length > 0
         ? body.password
-        : "ChooseAStrongPassword123!";
+        : configuredPassword;
+    if (!password) {
+      response.status(400).json({
+        ok: false,
+        failedStage: "missingBootstrapPassword",
+        message: "Administrator bootstrap requires an explicit password.",
+      });
+      return;
+    }
     const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : "FPF Admin";
 
     const passwordHash = await bcrypt.hash(password, 12);

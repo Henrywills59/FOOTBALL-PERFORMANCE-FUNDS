@@ -15,7 +15,7 @@ if (Test-Path Variable:\PSNativeCommandUseErrorActionPreference) {
 }
 
 if ([string]::IsNullOrWhiteSpace($AdminPassword)) {
-  $AdminPassword = "ChooseAStrongPassword123!"
+  throw "FPF_ADMIN_PASSWORD must be provided through the environment or -AdminPassword parameter. The deployment script no longer carries a default password."
 }
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")

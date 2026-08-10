@@ -25,9 +25,34 @@ function seedAdmin(users: InMemoryUserRepository) {
   });
 }
 
+function seedSubscriber(users: InMemoryUserRepository) {
+  users.seedUser({
+    id: "subscriber-auth-user",
+    name: "Subscriber Auth User",
+    email: "subscriber-auth@example.com",
+    passwordHash: "not-used",
+    role: "SUBSCRIBER",
+    status: "ACTIVE",
+    createdAt: new Date().toISOString(),
+  });
+  return jwt.sign({ role: "SUBSCRIBER", email: "subscriber-auth@example.com" }, "test-secret", {
+    subject: "subscriber-auth-user",
+    expiresIn: "1d",
+  });
+}
+
 function testApp() {
   const users = new InMemoryUserRepository();
   const adminRepository = new InMemoryAdminRepository([
+    {
+      id: "admin-user",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      status: "ACTIVE",
+      createdAt: new Date().toISOString(),
+      subscriptionPlan: "Platform Access",
+    },
     {
       id: "user-1",
       name: "Subscriber User",
@@ -48,7 +73,7 @@ function testApp() {
     jwtSecret: "test-secret",
     startFootballJobs: false,
   });
-  return { app, adminRepository, token: seedAdmin(users) };
+  return { app, adminRepository, token: seedAdmin(users), subscriberToken: seedSubscriber(users) };
 }
 
 describe("admin routes", () => {
@@ -63,13 +88,38 @@ describe("admin routes", () => {
       .get("/api/admin/overview")
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
-    expect(overview.body.totalUsers).toBe(1);
+    expect(overview.body.totalUsers).toBe(2);
 
     const users = await request(app)
       .get("/api/admin/users?search=subscriber")
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
     expect(users.body.users).toHaveLength(1);
+  });
+
+  it("prevents ordinary users from assigning admin roles", async () => {
+    const { app, subscriberToken } = testApp();
+
+    await request(app)
+      .post("/api/admin/users/user-1/role")
+      .set("Authorization", `Bearer ${subscriberToken}`)
+      .send({ role: "ADMIN" })
+      .expect(403);
+  });
+
+  it("prevents removing the last active administrator", async () => {
+    const { app, token } = testApp();
+
+    await request(app)
+      .post("/api/admin/users/admin-user/role")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ role: "SUBSCRIBER" })
+      .expect(409);
+
+    await request(app)
+      .post("/api/admin/users/admin-user/suspend")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(409);
   });
 
   it("audits user actions and settings updates", async () => {

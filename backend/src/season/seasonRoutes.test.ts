@@ -130,4 +130,22 @@ describe("season operating model routes", () => {
     expect(renewal.body.renewal.participation.status).toBe("RENEWAL_OPEN");
     expect(renewal.body.renewal.message).toContain("No automatic renewal");
   });
+
+  it("restricts launch governance updates to admins", async () => {
+    const { app, users } = testApp();
+    const subscriberToken = seedUser(users, "SUBSCRIBER");
+    const adminToken = seedUser(users, "ADMIN");
+
+    await request(app)
+      .patch("/api/admin/seasons/fpf-season-2026-27/governance")
+      .set("Authorization", `Bearer ${subscriberToken}`)
+      .send({ depositsEnabled: true })
+      .expect(403);
+
+    await request(app)
+      .patch("/api/admin/seasons/fpf-season-2026-27/governance")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ isPublic: true, applicationsOpen: false, depositsEnabled: false })
+      .expect(200);
+  });
 });

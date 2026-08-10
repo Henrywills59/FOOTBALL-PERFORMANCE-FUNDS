@@ -250,6 +250,18 @@ export class PrismaPaymentRepository implements PaymentRepository {
 
   async activateSubscription(input: Parameters<PaymentRepository["activateSubscription"]>[0]) {
     const result = await this.prisma.$transaction(async (tx) => {
+      const existingLedger = await tx.treasuryLedger.findFirst({
+        where: {
+          account: "SUBSCRIBER_REVENUE",
+          classification: "SUBSCRIPTION_REVENUE",
+          referenceType: "PAYMENT_ORDER",
+          referenceId: input.order.id,
+        },
+      });
+      if (existingLedger) {
+        return { treasuryLedgerTransactionId: existingLedger.id };
+      }
+
       await tx.subscriptionRecord.upsert({
         where: { id: `subscription_${input.order.userId}` },
         update: {
@@ -298,6 +310,18 @@ export class PrismaPaymentRepository implements PaymentRepository {
 
   async activateInvestorFunding(input: Parameters<PaymentRepository["activateInvestorFunding"]>[0]) {
     const result = await this.prisma.$transaction(async (tx) => {
+      const existingLedger = await tx.treasuryLedger.findFirst({
+        where: {
+          account: "PERFORMANCE_PARTNER_CAPITAL",
+          classification: "PERFORMANCE_PARTNER_CONTRIBUTION",
+          referenceType: "PAYMENT_ORDER",
+          referenceId: input.order.id,
+        },
+      });
+      if (existingLedger) {
+        return { treasuryLedgerTransactionId: existingLedger.id };
+      }
+
       const plan = await tx.investmentPlan.findFirst({ where: { active: true }, orderBy: { minimumInvestmentCents: "asc" } });
       const fallbackPlan = plan ?? await tx.investmentPlan.create({
         data: {
@@ -367,6 +391,16 @@ export class PrismaPaymentRepository implements PaymentRepository {
           metadata: { orderId: input.order.id, investmentId: investment.id },
         },
       });
+      const metadata = input.order.metadata && typeof input.order.metadata === "object" && !Array.isArray(input.order.metadata)
+        ? input.order.metadata as Record<string, unknown>
+        : {};
+      const seasonId = typeof metadata.seasonId === "string" ? metadata.seasonId : null;
+      if (seasonId) {
+        await tx.fpfSeason.updateMany({
+          where: { id: seasonId },
+          data: { capacityUsedCents: { increment: input.order.receivedAmountCents } },
+        });
+      }
       return { treasuryLedgerTransactionId: ledger.id };
     });
     return result;

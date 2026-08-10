@@ -128,6 +128,11 @@ export function createAuthRouter(authService: AuthService) {
   });
 
   router.post("/debug/login", async (request, response, next) => {
+    if (process.env.NODE_ENV === "production") {
+      response.status(404).json({ error: "Not found", requestId: response.getHeader("x-request-id") });
+      return;
+    }
+
     const requestId = response.getHeader("x-request-id");
     try {
       const input = loginSchema.parse(request.body) as LoginInput;

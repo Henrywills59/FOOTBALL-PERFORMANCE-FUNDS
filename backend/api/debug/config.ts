@@ -32,6 +32,11 @@ function allowedOrigins() {
 }
 
 export default function handler(_request: unknown, response: { status: (code: number) => { json: (body: unknown) => void } }) {
+  if (process.env.NODE_ENV === "production") {
+    response.status(404).json({ error: "Not found" });
+    return;
+  }
+
   const requiredEnvironment = {
     databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
     jwtSecret: Boolean(process.env.JWT_SECRET?.trim()),

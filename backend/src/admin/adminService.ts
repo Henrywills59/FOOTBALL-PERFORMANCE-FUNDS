@@ -1,8 +1,10 @@
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import type { AdminSettings, HistoricalArchiveUpdateInput, UserRole } from "@fpf/shared";
+import { AuthError } from "../auth/authService.js";
 import type { AdminRepository } from "./types.js";
 
-const temporaryPassword = "Temporary123";
+const administratorRoles: UserRole[] = ["ADMIN", "SUPER_ADMINISTRATOR"];
 
 export class AdminService {
   constructor(private readonly repository: AdminRepository) {}
@@ -16,6 +18,13 @@ export class AdminService {
   }
 
   async suspendUser(actorUserId: string, userId: string) {
+    const current = await this.repository.findUserById?.(userId);
+    if (current && administratorRoles.includes(current.role)) {
+      const activeAdmins = await this.repository.countActiveAdministrators?.();
+      if (activeAdmins !== undefined && activeAdmins <= 1) {
+        throw new AuthError("The last active administrator cannot be suspended.", 409);
+      }
+    }
     const user = await this.repository.updateUserStatus(userId, "DISABLED");
     await this.repository.audit({ actorUserId, action: "USER_SUSPENDED", entityType: "USER", entityId: userId });
     return user;
@@ -28,15 +37,25 @@ export class AdminService {
   }
 
   async assignRole(actorUserId: string, userId: string, role: UserRole) {
+    const current = await this.repository.findUserById?.(userId);
+    if (current && administratorRoles.includes(current.role) && !administratorRoles.includes(role)) {
+      const activeAdmins = await this.repository.countActiveAdministrators?.();
+      if (activeAdmins !== undefined && activeAdmins <= 1) {
+        throw new AuthError("The last active administrator cannot lose administrator access.", 409);
+      }
+    }
     const user = await this.repository.updateUserRole(userId, role);
     await this.repository.audit({ actorUserId, action: "USER_ROLE_ASSIGNED", entityType: "USER", entityId: userId, details: { role } });
     return user;
   }
 
   async resetPassword(actorUserId: string, userId: string) {
+    const temporaryPassword = randomBytes(24).toString("base64url");
     await this.repository.resetUserPassword(userId, await bcrypt.hash(temporaryPassword, 12));
     await this.repository.audit({ actorUserId, action: "USER_PASSWORD_RESET", entityType: "USER", entityId: userId });
-    return { message: "Temporary password set.", temporaryPassword };
+    return {
+      message: "Password reset initiated. The user must complete the standard password reset flow.",
+    };
   }
 
   settings() {
