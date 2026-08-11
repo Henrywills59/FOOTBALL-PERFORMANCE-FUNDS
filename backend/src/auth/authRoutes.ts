@@ -118,7 +118,8 @@ export function createAuthRouter(authService: AuthService) {
       });
       response.status(200).json(await authService.login(input));
     } catch (error) {
-      console.error("Auth login route failed", {
+      const logLoginFailure = error instanceof AuthError && error.statusCode < 500 ? console.warn : console.error;
+      logLoginFailure("Auth login route failed", {
         requestId,
         email: maskEmail(typeof request.body?.email === "string" ? request.body.email : undefined),
         error: safeErrorDetails(error),
