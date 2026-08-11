@@ -165,14 +165,7 @@ function skipped(channel: DeliveryChannel, provider: string, missingVariables: s
 }
 
 export class EmailProvider {
-  private readonly provider = clean(
-    process.env.EMAIL_PROVIDER,
-    clean(process.env.EMAIL_API_KEY) || clean(process.env.RESEND_API_KEY)
-      ? "RESEND"
-      : process.env.INFOBIP_API_KEY
-        ? "INFOBIP"
-        : "RESEND",
-  ).toUpperCase();
+  private readonly provider = clean(process.env.EMAIL_PROVIDER, "RESEND").toUpperCase();
   private readonly apiKey = clean(process.env.EMAIL_API_KEY) || clean(process.env.RESEND_API_KEY) || undefined;
   private readonly from = clean(process.env.EMAIL_FROM, "Football Performance Fund <noreply@footballperformancefund.com>");
   private readonly endpoint = clean(process.env.EMAIL_API_URL, "https://api.resend.com/emails");

@@ -61,7 +61,7 @@ describe("production integration providers", () => {
     expect(insight.structured.riskWarnings[0]).toContain("cannot approve selections");
   });
 
-  it("reports Infobip notification provider configuration without exposing secrets", () => {
+  it("uses Resend for email by default while allowing Infobip SMS without exposing secrets", () => {
     process.env.INFOBIP_API_KEY = "test-infobip-key";
     process.env.INFOBIP_BASE_URL = "https://example.infobip.com";
     delete process.env.EMAIL_API_KEY;
@@ -72,9 +72,9 @@ describe("production integration providers", () => {
     const delivery = new NotificationDeliveryService();
     const status = delivery.status();
 
-    expect(status.email.provider).toBe("INFOBIP");
+    expect(status.email.provider).toBe("RESEND");
     expect(status.sms.provider).toBe("INFOBIP");
-    expect(status.email.configured).toBe(true);
+    expect(status.email.configured).toBe(false);
     expect(status.sms.configured).toBe(true);
     expect(JSON.stringify(status)).not.toContain("test-infobip-key");
   });
