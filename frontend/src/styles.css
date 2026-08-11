@@ -339,7 +339,7 @@
 }
 
 .panel-action,
-.war-room-mini button {
+.intelligence-mini button {
   border: 1px solid rgba(52, 211, 153, 0.38);
   border-radius: 0.7rem;
   background: rgba(34, 197, 94, 0.12);
@@ -350,7 +350,7 @@
   font-weight: 900;
 }
 
-.war-room-mini {
+.intelligence-mini {
   display: grid;
   grid-template-columns: 7rem minmax(0, 1fr);
   gap: 0.9rem;
@@ -363,7 +363,7 @@
   padding: 0.75rem;
 }
 
-.war-room-screen {
+.intelligence-screen {
   position: relative;
   height: 4.8rem;
   overflow: hidden;
@@ -377,7 +377,7 @@
   background-size: 18px 18px, 18px 18px, auto, auto;
 }
 
-.war-room-screen i {
+.intelligence-screen i {
   position: absolute;
   width: 0.5rem;
   height: 0.5rem;
@@ -387,19 +387,19 @@
   animation: fpfSignalPulse 2.4s ease-in-out infinite;
 }
 
-.war-room-screen i:nth-child(1) { top: 20%; left: 20%; }
-.war-room-screen i:nth-child(2) { top: 56%; left: 36%; animation-delay: 0.3s; }
-.war-room-screen i:nth-child(3) { top: 34%; left: 68%; animation-delay: 0.6s; }
-.war-room-screen i:nth-child(4) { top: 70%; left: 78%; animation-delay: 0.9s; }
+.intelligence-screen i:nth-child(1) { top: 20%; left: 20%; }
+.intelligence-screen i:nth-child(2) { top: 56%; left: 36%; animation-delay: 0.3s; }
+.intelligence-screen i:nth-child(3) { top: 34%; left: 68%; animation-delay: 0.6s; }
+.intelligence-screen i:nth-child(4) { top: 70%; left: 78%; animation-delay: 0.9s; }
 
-.war-room-mini span {
+.intelligence-mini span {
   display: block;
   color: var(--fpf-accent);
   font-size: 0.74rem;
   font-weight: 900;
 }
 
-.war-room-mini strong {
+.intelligence-mini strong {
   display: block;
   margin: 0.2rem 0 0.6rem;
   font-size: 0.82rem;
@@ -908,7 +908,7 @@
     grid-template-columns: 1fr;
   }
 
-  .war-room-mini,
+  .intelligence-mini,
   .opportunity-preview-list article {
     grid-template-columns: 1fr;
   }
@@ -2286,7 +2286,7 @@ body,
 }
 
 .panel-action,
-.war-room-mini button {
+.intelligence-mini button {
   border: 1px solid rgba(52, 211, 153, 0.38);
   border-radius: 0.7rem;
   background: rgba(34, 197, 94, 0.12);
@@ -2297,7 +2297,7 @@ body,
   font-weight: 900;
 }
 
-.war-room-mini {
+.intelligence-mini {
   display: grid;
   grid-template-columns: 7rem minmax(0, 1fr);
   gap: 0.9rem;
@@ -2310,7 +2310,7 @@ body,
   padding: 0.75rem;
 }
 
-.war-room-screen {
+.intelligence-screen {
   position: relative;
   height: 4.8rem;
   overflow: hidden;
@@ -2324,7 +2324,7 @@ body,
   background-size: 18px 18px, 18px 18px, auto, auto;
 }
 
-.war-room-screen i {
+.intelligence-screen i {
   position: absolute;
   width: 0.5rem;
   height: 0.5rem;
@@ -2334,19 +2334,19 @@ body,
   animation: fpfSignalPulse 2.4s ease-in-out infinite;
 }
 
-.war-room-screen i:nth-child(1) { top: 20%; left: 20%; }
-.war-room-screen i:nth-child(2) { top: 56%; left: 36%; animation-delay: 0.3s; }
-.war-room-screen i:nth-child(3) { top: 34%; left: 68%; animation-delay: 0.6s; }
-.war-room-screen i:nth-child(4) { top: 70%; left: 78%; animation-delay: 0.9s; }
+.intelligence-screen i:nth-child(1) { top: 20%; left: 20%; }
+.intelligence-screen i:nth-child(2) { top: 56%; left: 36%; animation-delay: 0.3s; }
+.intelligence-screen i:nth-child(3) { top: 34%; left: 68%; animation-delay: 0.6s; }
+.intelligence-screen i:nth-child(4) { top: 70%; left: 78%; animation-delay: 0.9s; }
 
-.war-room-mini span {
+.intelligence-mini span {
   display: block;
   color: var(--fpf-accent);
   font-size: 0.74rem;
   font-weight: 900;
 }
 
-.war-room-mini strong {
+.intelligence-mini strong {
   display: block;
   margin: 0.2rem 0 0.6rem;
   font-size: 0.82rem;
@@ -2927,7 +2927,7 @@ body,
   }
 }
 
-/* Lovable-first public restoration pass */
+/* Public experience restoration pass */
 .fpf-public::before {
   position: fixed;
   inset: 0;
@@ -3510,7 +3510,7 @@ body,
   }
 }
 
-/* Active live digital platform presentation */
+/* Digital platform presentation */
 .public-signal-bar .activity-track {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -3701,7 +3701,7 @@ body,
   overflow-wrap: anywhere;
 }
 
-/* Lovable V1 UI integration polish: graphite/emerald source-of-truth */
+/* Graphite and emerald UI integration polish */
 [data-theme="dark"] {
   --fpf-bg: #111418;
   --fpf-surface: rgba(17, 20, 24, 0.88);
@@ -3896,7 +3896,7 @@ body,
   font-size: 0.95rem;
 }
 
-/* Full Lovable V1 synchronization layer */
+/* Full public UI synchronization layer */
 .fpf-app-shell {
   background:
     radial-gradient(62rem 42rem at -10% -12%, rgba(52, 211, 153, 0.09), transparent 64%),

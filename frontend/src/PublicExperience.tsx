@@ -28,9 +28,9 @@ const heroSlides = [
     caption: "Global Matchday Intelligence",
   },
   {
-    title: "AI-Verified Football Intelligence",
+    title: "Model-Based Football Intelligence",
     image: "/hero/ai-pitch.jpg",
-    caption: "AI-Verified Intelligence",
+    caption: "Model-Based Intelligence",
   },
   {
     title: "FPF Verified Performance",
@@ -90,7 +90,7 @@ const publicCommercialFallback: CommercialStructure = {
 const mobileNavItems = [
   ["Home", "/", "home"],
   ["Intelligence", "/how-fpf-works", "how-fpf-works"],
-  ["Live In-Play", "/live-in-play", "war-room-preview"],
+  ["In-Play", "/live-in-play", "intelligence-preview"],
   ["Performance", "/performance", "performance"],
   ["Pricing", "/pricing", "subscribers"],
   ["About", "/about", "what-fpf-is"],
@@ -278,10 +278,10 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
       <div className="hero-overlay" />
       <div className="hero-grid public-hero-grid" id="main-content">
         <div className="hero-copy">
-          <p className="eyebrow hero-kicker">AI-Powered Football Intelligence</p>
+          <p className="eyebrow hero-kicker">FPF Verified Football Intelligence</p>
           <h1 id="public-hero-title">We Don't Chase Luck.<br />We Build Performance.</h1>
           <p className="hero-support">
-            AI-powered predictions, live in-play intelligence and proprietary FPF intelligence in one disciplined football operating system.
+            Model-based match intelligence, in-play context and proprietary FPF verification in one disciplined football operating system.
           </p>
           <div className="hero-actions">
             <button type="button" onClick={() => onNavigate("/register", "auth")}>Start 3-Day Preview</button>
@@ -290,7 +290,7 @@ function Hero({ activeSlide, onNavigate }: { activeSlide: number; onNavigate: (p
             <button className="text-link-action" type="button" onClick={() => onNavigate("/investors", "performance-partners")}>Explore Performance Partnership</button>
           </div>
           <div className="hero-controls" aria-label="Hero slide indicators">
-            <span className="active">AI Verified<small>Every insight scored</small></span>
+            <span className="active">FPF Verified<small>Every insight scored</small></span>
             <span>Performance Focused<small>Data over emotion</small></span>
             <span>Secure & Transparent<small>Role-protected access</small></span>
           </div>
@@ -327,11 +327,11 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
         ))}
       </div>
       <button className="panel-action" type="button" onClick={() => onNavigate("/register", "auth")}>See All Intelligence</button>
-      <div className="war-room-mini" id="war-room-preview">
-        <div className="war-room-screen" aria-hidden="true"><i /><i /><i /><i /></div>
+      <div className="intelligence-mini" id="intelligence-preview">
+        <div className="intelligence-screen" aria-hidden="true"><i /><i /><i /><i /></div>
         <div>
           <span>FPF Intelligence Briefing</span>
-          <strong>AI-verified football intelligence with FPF quality controls.</strong>
+          <strong>FPF verified football intelligence with proprietary quality controls.</strong>
           <button type="button" onClick={() => onNavigate("/login", "auth")}>View Intelligence Briefing</button>
         </div>
       </div>
@@ -342,17 +342,21 @@ function HeroOpportunityPanel({ onNavigate }: { onNavigate: (path: string, id?: 
 function PublicSignalBar({ experience }: { experience: PublicExperience | null }) {
   const loading = !experience;
   const monitoredCompetitions = new Set((experience?.intelligencePreview?.fixtures ?? []).map((fixture) => fixture.league).filter(Boolean)).size;
+  const approvedOpportunities = experience?.activity?.approvedOpportunities ?? 0;
+  const pendingApproval = experience?.activity?.pendingApproval ?? 0;
+  const reportsPending = experience?.activity?.reportsPending ?? 0;
+  const lastRefreshRecorded = Boolean(experience?.activity?.lastSuccessfulDataRefresh);
   const signals = [
-    { label: "AI Intelligence Engine", value: loading ? "Checking" : "Online" },
-    { label: "Live Match Scanner", value: loading ? "Checking" : experience.activity.fixturesMonitored > 0 ? "Active" : "Awaiting data" },
-    { label: "Competitions Monitored", value: loading ? "Loading" : experience.activity.leaguesCovered ? `${experience.activity.leaguesCovered} live` : monitoredCompetitions ? `${monitoredCompetitions} ready` : "Pending data" },
-    { label: "Data Synchronisation", value: loading ? "Checking" : experience.activity.lastSuccessfulDataRefresh ? "Running" : "Pending provider cycle" },
-    { label: "Intelligence Quality Layer", value: "Active" },
-    { label: "Opportunity Engine", value: "Processing" },
-    { label: "Platform Status", value: loading ? "Checking" : experience.activity.platformStatus === "OPERATIONAL" ? "Operational" : "Degraded" },
-    { label: "Intelligence Cycle", value: "Live" },
-    { label: "Subscriber Portal", value: "Online" },
-    { label: "Performance Partner Portal", value: "Online" },
+    { label: "Intelligence Engine", value: loading ? "Checking" : lastRefreshRecorded ? "Data refresh recorded" : "Awaiting provider cycle" },
+    { label: "Match Scanner", value: loading ? "Checking" : experience.activity.fixturesMonitored > 0 ? `${experience.activity.fixturesMonitored} monitored` : "Awaiting fixtures" },
+    { label: "Competitions Monitored", value: loading ? "Loading" : experience.activity.leaguesCovered ? `${experience.activity.leaguesCovered} configured` : monitoredCompetitions ? `${monitoredCompetitions} configured` : "Pending data" },
+    { label: "Data Synchronisation", value: loading ? "Checking" : lastRefreshRecorded ? "Last refresh recorded" : "Pending provider cycle" },
+    { label: "Intelligence Quality Layer", value: approvedOpportunities > 0 ? `${approvedOpportunities} approved` : "No approved items yet" },
+    { label: "Opportunity Engine", value: pendingApproval > 0 ? `${pendingApproval} pending review` : "No pending items" },
+    { label: "Platform Status", value: loading ? "Checking" : experience.activity.platformStatus === "OPERATIONAL" ? "Health endpoint responsive" : "Status limited" },
+    { label: "Intelligence Cycle", value: reportsPending > 0 ? `${reportsPending} reports pending` : "No public reports pending" },
+    { label: "Subscriber Portal", value: "Protected access" },
+    { label: "Performance Partner Portal", value: "Protected access" },
   ];
   return (
     <section className="activity-bar public-signal-bar" aria-label="Live digital platform metrics">
@@ -432,19 +436,19 @@ function HistoricalBaselineSection({ experience }: { experience: PublicExperienc
             <div className="growth-node live">
               <span>{baseline.digitalPlatformLaunchYear}</span>
               <strong>Digital performance verification introduced</strong>
-              <small>Live metrics extend from production system data</small>
+              <small>Digital metrics extend from production system data</small>
             </div>
           </div>
         </article>
         <article className="platform-pulse-card">
           <div className="panel-title-row">
             <strong>Platform Pulse</strong>
-            <span className="pulse-dot">Live layer</span>
+            <span className="pulse-dot">Digital layer</span>
           </div>
           <div className="pulse-grid">
             <span><b>{baseline.historicalSubscribersDisplay}</b>Historical community</span>
             <span><b>{baseline.operationsStartedYear}</b>Manual operations since</span>
-            <span><b>Active</b>Digital system</span>
+            <span><b>Protected</b>Digital system</span>
             <span><b>{liveCycle}</b>Current cycle</span>
             <span><b>Protected</b>Member intelligence</span>
             <span><b>{liveReports}</b>Reports</span>
@@ -468,8 +472,8 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
     { label: "Opportunities Approved", value: String(experience?.activity?.approvedOpportunities ?? 0), status: "Admin controlled" },
     { label: "Opportunities Settled", value: String(currentPeriod?.positionsSettled ?? results.length), status: results.length ? "Verified cycle" : "Awaiting first cycle" },
     { label: "Average Confidence", value: experience?.activity?.approvedOpportunities ? "Calculated in portal" : "Pending live data", status: "Model separated" },
-    { label: "Markets Covered", value: String(marketsCovered), status: "Operational scope" },
-    { label: "Competitions Covered", value: String(competitionsCovered), status: "Live scanner" },
+    { label: "Markets Covered", value: String(marketsCovered), status: "Configured scope" },
+    { label: "Competitions Covered", value: String(competitionsCovered), status: "Provider-derived count" },
     { label: "Intelligence Reviews Completed", value: String(experience?.activity?.intelligenceReviewsCompleted ?? experience?.activity?.analysisJobsCompletedToday ?? 0), status: "Intelligence governance" },
   ];
   const reportCards = [
@@ -477,7 +481,7 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
     { title: "Weekly Performance Report", date: "This week", status: "Available to Subscribers" },
     { title: "Market Trends Report", date: "Current cycle", status: "Available to Subscribers" },
     { title: "League Performance Review", date: "Updated weekly", status: "Available to Subscribers" },
-    { title: "Risk Analysis Report", date: "Active monitoring", status: "Available to Subscribers" },
+    { title: "Risk Analysis Report", date: "Current cycle", status: "Available to Subscribers" },
     { title: "Confidence Distribution Report", date: "After verification", status: "Available to Subscribers" },
   ];
   return (
@@ -486,7 +490,7 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
         <div className="panel-title-row"><strong>Why FPF?</strong><button type="button" onClick={() => onNavigate("/about", "what-fpf-is")}>Learn More</button></div>
         {[
             ["FPF Intelligence Verification", "Each opportunity passes FPF's proprietary intelligence verification process before member access."],
-          ["Live In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
+          ["In-Play Intelligence", "Signals are monitored without exposing internal model logic."],
           ["Performance Transparency", "Results and reports stay tied to verified records."],
         ].map(([title, body]) => (
           <div className="why-line" key={title}><span aria-hidden="true" /><div><strong>{title}</strong><p>{body}</p></div></div>
@@ -504,7 +508,7 @@ function LiveDigitalPlatformSection({ experience, onNavigate }: { experience: Pu
           ))}
         </div>
         <p className="dashboard-integrity-note">
-          Operational metrics come from the public FPF experience API. Verified betting performance starts only after digitally settled selections.
+          Platform metrics come from the public FPF experience API. Verified betting performance starts only after digitally settled selections.
         </p>
         <p className="public-data-freshness">Updated: {formatPublicDateTime(experience?.generatedAt)}</p>
       </article>
@@ -767,9 +771,9 @@ function GlobalCommandCenterSection() {
   ];
 
   return (
-    <PublicSection id="global-command" eyebrow="Global Intelligence Network" title="Operational readiness across supported football regions.">
+    <PublicSection id="global-command" eyebrow="Global Intelligence Network" title="Designed for supported football regions.">
       <div className="global-command-section">
-        <div className="global-network-orb" aria-label="Animated global football intelligence network showing readiness across supported regions">
+        <div className="global-network-orb" aria-label="Animated global football intelligence network showing supported regions">
           <span className="network-radar" />
           <span className="orb-core" />
           <span className="network-ring one" />
@@ -786,11 +790,11 @@ function GlobalCommandCenterSection() {
           <strong>FPF</strong>
         </div>
         <div className="global-command-copy">
-          <StatusPill>Operational</StatusPill>
+          <StatusPill>Coverage model</StatusPill>
           <h3>GLOBAL INTELLIGENCE NETWORK</h3>
-          <p className="network-status-line">Operational - monitoring supported football regions</p>
+          <p className="network-status-line">Designed to monitor supported football regions as provider data is available.</p>
           <p>
-            FPF is designed as a single football intelligence layer across competitions, territories and member workspaces. The animation represents network readiness and regional coverage, not a claim that a specific match or provider is currently active.
+            FPF is designed as a single football intelligence layer across competitions, territories and member workspaces. The animation represents regional coverage, not a claim that a specific match or provider is currently active.
           </p>
           <div className="region-grid">
             {regions.map(([label, value]) => (
@@ -807,14 +811,15 @@ function GlobalCommandCenterSection() {
 }
 
 function LiveIntelligenceCenterSection({ experience }: { experience: PublicExperience | null }) {
-  const syncStatus = experience?.activity?.lastSuccessfulDataRefresh ? "Running" : "Ready";
+  const syncStatus = experience?.activity?.lastSuccessfulDataRefresh ? "Refresh recorded" : "Awaiting provider refresh";
+  const reportsPending = experience?.activity?.reportsPending ?? 0;
   const signals = [
-    { label: "AI Decision Core", value: "Online", detail: "Structured outputs only", tone: "live" as const },
-    { label: "Risk Analysis", value: "Running", detail: "No guaranteed outcomes", tone: "ready" as const },
+    { label: "Decision Core", value: "Rules loaded", detail: "Structured outputs only", tone: "live" as const },
+    { label: "Risk Analysis", value: "Governed controls", detail: "No guaranteed outcomes", tone: "ready" as const },
     { label: "Match Intelligence", value: syncStatus, detail: "Provider-safe fallbacks", tone: "live" as const },
-    { label: "Security Monitoring", value: "Active", detail: "Role-based access", tone: "ready" as const },
-    { label: "Payment Controls", value: "Protected", detail: "Backend-only secrets", tone: "ready" as const },
-    { label: "Report Engine", value: "Available", detail: "Subscriber gated", tone: "ready" as const },
+    { label: "Security Controls", value: "Protected access", detail: "Role-based access", tone: "ready" as const },
+    { label: "Payment Controls", value: "Governance gated", detail: "Backend-only secrets", tone: "ready" as const },
+    { label: "Report Engine", value: reportsPending > 0 ? `${reportsPending} pending` : "Subscriber gated", detail: "Subscriber gated", tone: "ready" as const },
   ];
 
   const chartPoints = [
@@ -826,7 +831,7 @@ function LiveIntelligenceCenterSection({ experience }: { experience: PublicExper
   ];
 
   return (
-    <PublicSection id="live-intelligence-center" eyebrow="Live Intelligence Center" title="Every system, continuously observed.">
+    <PublicSection id="live-intelligence-center" eyebrow="Digital Intelligence Center" title="Platform signals without exposing private operations.">
       <div className="live-intelligence-center-grid">
         <PremiumCommandGrid signals={signals} />
         <PremiumAreaChart title="Operational Pulse" points={chartPoints} />

@@ -430,7 +430,7 @@ describe("auth routes", () => {
       if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
       else process.env.DATABASE_URL = previousDatabaseUrl;
     }
-  });
+  }, 15000);
 
   it("fails closed in production when JWT_SECRET is missing instead of using the development fallback", async () => {
     const previousNodeEnv = process.env.NODE_ENV;

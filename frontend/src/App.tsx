@@ -239,7 +239,7 @@ const publicPageDefinitions: PublicPageDefinition[] = [
   { label: "Subscribers", path: "/subscribers", id: "subscribers", description: "Subscriber intelligence experience and opportunity center." },
   { label: "Performance Partners", path: "/investors", id: "investors", description: "Performance Partner transparency, simulator, reports, and risk-first controls." },
   { label: "Intelligence Governance", path: "/intelligence-governance", id: "intelligence-governance", description: "FPF intelligence quality controls and proprietary governance." },
-  { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, AI decision engine, and infrastructure." },
+  { label: "Technology", path: "/technology", id: "technology", description: "FPF architecture, model-based decision layer, and infrastructure." },
   { label: "Advanced Intelligence", path: "/ai-intelligence", id: "ai-intelligence", description: "Advanced football intelligence, confidence context, risk context, and value signals." },
   { label: "Performance", path: "/performance", id: "performance", description: "Tracked performance without guaranteed outcomes." },
   { label: "Pricing", path: "/pricing", id: "pricing", description: "Subscriber pricing and commercial structure." },
@@ -833,7 +833,7 @@ export default function App() {
         : isAuthRoute
           ? authTitle
         : "Page Not Found | Football Performance Fund";
-    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football AI intelligence, subscriber, Performance Partner, treasury, and executive operating system.");
+    setMetaTag("description", publicPage?.description ?? "Football Performance Fund is a unified global football intelligence, subscriber, Performance Partner, treasury, and executive operating system.");
     setMetaTag("robots", isPrivate ? "noindex,nofollow" : "index,follow");
     setMetaTag("og:title", publicPage ? `${publicPage.label} | Football Performance Fund` : "Football Performance Fund", "property");
     setMetaTag("og:description", publicPage?.description ?? "We Don't Chase Luck. We Build Performance.", "property");
@@ -1627,8 +1627,8 @@ export default function App() {
     const form = new FormData(event.currentTarget);
     const data = (await postPublic("/auth/forgot-password", {
       email: getFormString(form, "email").toLowerCase(),
-    })) as { message: string; resetToken?: string };
-    setMessage(data.resetToken ? `${data.message} Temporary reset token: ${data.resetToken}` : data.message);
+    })) as { message: string };
+    setMessage(data.message);
   }
 
   async function handleResetPassword(event: FormEvent<HTMLFormElement>) {

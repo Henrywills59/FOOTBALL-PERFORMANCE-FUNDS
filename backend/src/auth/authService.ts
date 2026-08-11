@@ -129,8 +129,8 @@ export class AuthService {
     });
     await this.sendAccountNotification(user.email, {
       title: "Welcome to Football Performance Fund",
-      message: "Your Football Performance Fund account has been created. Please verify your email when verification is enabled.",
-      purpose: "EMAIL_VERIFICATION",
+      message: "Your Football Performance Fund account has been created. You can now sign in to your assigned workspace.",
+      purpose: "ACCOUNT_NOTIFICATION",
       metadata: { userId: user.id, role: user.role },
     });
 
