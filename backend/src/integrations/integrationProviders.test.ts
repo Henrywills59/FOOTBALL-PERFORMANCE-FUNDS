@@ -64,7 +64,9 @@ describe("production integration providers", () => {
   it("reports Infobip notification provider configuration without exposing secrets", () => {
     process.env.INFOBIP_API_KEY = "test-infobip-key";
     process.env.INFOBIP_BASE_URL = "https://example.infobip.com";
+    delete process.env.EMAIL_API_KEY;
     delete process.env.EMAIL_PROVIDER;
+    delete process.env.RESEND_API_KEY;
     delete process.env.SMS_PROVIDER;
 
     const delivery = new NotificationDeliveryService();
@@ -74,6 +76,23 @@ describe("production integration providers", () => {
     expect(status.sms.provider).toBe("INFOBIP");
     expect(status.email.configured).toBe(true);
     expect(status.sms.configured).toBe(true);
+    expect(JSON.stringify(status)).not.toContain("test-infobip-key");
+  });
+
+  it("prefers Resend for email when Resend credentials are configured", () => {
+    process.env.INFOBIP_API_KEY = "test-infobip-key";
+    process.env.INFOBIP_BASE_URL = "https://example.infobip.com";
+    process.env.RESEND_API_KEY = "test-resend-key";
+    delete process.env.EMAIL_PROVIDER;
+    delete process.env.SMS_PROVIDER;
+
+    const delivery = new NotificationDeliveryService();
+    const status = delivery.status();
+
+    expect(status.email.provider).toBe("RESEND");
+    expect(status.email.configured).toBe(true);
+    expect(status.sms.provider).toBe("INFOBIP");
+    expect(JSON.stringify(status)).not.toContain("test-resend-key");
     expect(JSON.stringify(status)).not.toContain("test-infobip-key");
   });
 
