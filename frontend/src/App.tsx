@@ -376,6 +376,21 @@ const roleLabels: Record<UserRole, string> = {
 
 const publicRegistrationRoles = PUBLIC_USER_ROLES;
 
+function normalizeAuthRole(value: unknown): UserRole | null {
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "PERFORMANCE_PARTNER" || normalized === "PARTNER") return "INVESTOR";
+  if (Object.prototype.hasOwnProperty.call(roleLabels, normalized)) return normalized as UserRole;
+  return null;
+}
+
+function normalizeAuthResponse(value: AuthResponse) {
+  const role = normalizeAuthRole(value.user.role);
+  if (!role) return value;
+  return { ...value, user: { ...value.user, role } };
+}
+
 function displayNavigationLabel(label: string) {
   return label
     .replace(/\bInvestor Dashboard\b/g, "Partner Dashboard")
@@ -388,7 +403,7 @@ function getStoredSession() {
   const rawSession = localStorage.getItem("fpf_session") ?? sessionStorage.getItem("fpf_session");
   if (!rawSession) return null;
   try {
-    return JSON.parse(rawSession) as AuthResponse;
+    return normalizeAuthResponse(JSON.parse(rawSession) as AuthResponse);
   } catch {
     return null;
   }
@@ -1030,18 +1045,19 @@ export default function App() {
   }, [adminAnnouncements, adminInvestorManagement, adminUsers, fixtures, globalSearch, mediaDashboard?.posts, operationalNotifications, operationalReports, predictions, publishedIntelligence, session?.user.role]);
 
   function storeSession(nextSession: AuthResponse, rememberMe: boolean) {
-    const serialized = JSON.stringify(nextSession);
+    const normalizedSession = normalizeAuthResponse(nextSession);
+    const serialized = JSON.stringify(normalizedSession);
     sessionStorage.removeItem("fpf_session");
     localStorage.removeItem("fpf_session");
     if (rememberMe) localStorage.setItem("fpf_session", serialized);
     else sessionStorage.setItem("fpf_session", serialized);
-    setAdminMode(nextSession.user.role === "ADMIN");
+    setAdminMode(normalizedSession.user.role === "ADMIN");
     setActiveAdminView("Admin Dashboard");
     setActiveInvestorView("Investor Dashboard");
     setActiveAnalystView("Operations Dashboard");
     setActiveCountryPartnerView("Country Partner Dashboard");
     setActiveView("Subscriber Home");
-    setSession(nextSession);
+    setSession(normalizedSession);
     window.history.pushState(null, "", "/app");
     setCurrentPath("/app");
   }
