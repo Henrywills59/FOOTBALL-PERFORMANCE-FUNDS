@@ -84,6 +84,22 @@ describe("auth routes", () => {
     expect(response.body.error).toBe("Invalid request");
   });
 
+  it("normalizes safe public investor role labels without allowing privileged roles", async () => {
+    const app = testApp();
+
+    const investor = await request(app)
+      .post("/api/auth/register")
+      .send({ ...validRegistration, email: "investor@example.com", role: "performance partner" })
+      .expect(201);
+
+    expect(investor.body.user.role).toBe("INVESTOR");
+
+    await request(app)
+      .post("/api/auth/register")
+      .send({ ...validRegistration, email: "finance@example.com", role: "finance" })
+      .expect(400);
+  });
+
   it("logs in with email and password", async () => {
     const app = testApp();
     await request(app).post("/api/auth/register").send(validRegistration).expect(201);

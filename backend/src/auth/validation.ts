@@ -2,6 +2,16 @@ import { z } from "zod";
 
 const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR"] as const;
 
+function normalizePublicUserRole(value: unknown) {
+  if (typeof value !== "string") return value;
+
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "PERFORMANCE_PARTNER" || normalized === "PARTNER") return "INVESTOR";
+  return normalized;
+}
+
+const publicUserRoleSchema = z.preprocess(normalizePublicUserRole, z.enum(PUBLIC_USER_ROLES));
+
 const passwordSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
@@ -13,7 +23,7 @@ export const registerSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().toLowerCase(),
   password: passwordSchema,
-  role: z.enum(PUBLIC_USER_ROLES),
+  role: publicUserRoleSchema,
 });
 
 export const loginSchema = z.object({
