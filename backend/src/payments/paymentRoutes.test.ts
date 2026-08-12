@@ -248,6 +248,34 @@ describe("NOWPayments payment routes", () => {
     expect(paymentRepository.activations).toEqual([{ type: "INVESTOR_FUNDING", orderId: checkout.body.order.id }]);
   });
 
+  it("does not replay financial activation when confirmed progresses to finished", async () => {
+    const { app, users, paymentRepository } = testApp();
+    const token = seedUser(users, "SUBSCRIBER");
+    const checkout = await request(app)
+      .post("/api/payments/subscription/checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planCode: "STARTER", billingCycle: "MONTHLY" })
+      .expect(201);
+    const basePayload = {
+      payment_id: checkout.body.order.providerPaymentId,
+      order_id: checkout.body.order.id,
+      price_amount: 19,
+      actually_paid_at_fiat: 19,
+      price_currency: "USD",
+      pay_currency: "USDTTRC20",
+    };
+    const confirmed = { ...basePayload, payment_status: "confirmed" };
+    const finished = { ...basePayload, payment_status: "finished" };
+
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(confirmed)).send(confirmed).expect(200);
+    await request(app).post("/api/payments/nowpayments/webhook").set("x-nowpayments-sig", signature(finished)).send(finished).expect(200);
+
+    const order = await paymentRepository.findOrderById(checkout.body.order.id);
+    expect(order?.status).toBe("FINISHED");
+    expect(order?.metadata.treasuryLedgerTransactionId).toBe(`ledger_${checkout.body.order.id}`);
+    expect(paymentRepository.activations).toEqual([{ type: "SUBSCRIPTION", orderId: checkout.body.order.id }]);
+  });
+
   it("links confirmed payments to network, payout wallet, transaction hash, purpose and treasury reference", async () => {
     const { app, users, paymentRepository } = testApp();
     const token = seedUser(users, "SUBSCRIBER");

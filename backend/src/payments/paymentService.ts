@@ -369,6 +369,11 @@ export class PaymentService {
       reconciliationStatus = "PROVIDER_DISCREPANCY";
     }
 
+    const existingTreasuryLedgerTransactionId = typeof order.metadata.treasuryLedgerTransactionId === "string"
+      ? order.metadata.treasuryLedgerTransactionId
+      : null;
+    const alreadyActivated = activationStatuses.has(order.status) || Boolean(existingTreasuryLedgerTransactionId);
+
     const updated = await this.repository.transitionOrder({
       orderId: order.id,
       status,
@@ -381,14 +386,21 @@ export class PaymentService {
     });
 
     if (activationStatuses.has(status)) {
-      const activationResult = order.purpose.startsWith("SUBSCRIPTION")
-        ? await this.repository.activateSubscription({ order: updated, receiptId: input.receiptId })
-        : order.purpose === "INVESTOR_FUNDING"
-          ? await this.repository.activateInvestorFunding({ order: updated, receiptId: input.receiptId })
-          : undefined;
+      const activationResult = alreadyActivated
+        ? undefined
+        : order.purpose.startsWith("SUBSCRIPTION")
+          ? await this.repository.activateSubscription({ order: updated, receiptId: input.receiptId })
+          : order.purpose === "INVESTOR_FUNDING"
+            ? await this.repository.activateInvestorFunding({ order: updated, receiptId: input.receiptId })
+            : undefined;
       const treasuryLedgerTransactionId = activationResult && typeof activationResult === "object"
-        ? activationResult.treasuryLedgerTransactionId ?? null
-        : null;
+        ? activationResult.treasuryLedgerTransactionId ?? existingTreasuryLedgerTransactionId
+        : existingTreasuryLedgerTransactionId;
+      if (alreadyActivated) {
+        await this.adminService.audit(null, "PAYMENT_ACTIVATION_SKIPPED_IDEMPOTENT", "PAYMENT_ORDER", order.id);
+      } else {
+        await this.adminService.audit(null, `PAYMENT_${status}`, "PAYMENT_ORDER", order.id);
+      }
       const linked = await this.repository.linkConfirmedPayment({
         orderId: order.id,
         paymentNetwork,
@@ -398,7 +410,6 @@ export class PaymentService {
         transactionHash,
         receiptId: input.receiptId,
       });
-      await this.adminService.audit(null, `PAYMENT_${status}`, "PAYMENT_ORDER", order.id);
       await this.adminService.audit(null, "PAYMENT_TREASURY_LINKED", "PAYMENT_ORDER", order.id);
       return linked;
     }
