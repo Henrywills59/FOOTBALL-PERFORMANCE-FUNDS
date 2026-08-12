@@ -29,7 +29,7 @@ export function createTreasuryRouter({
 }) {
   const router = Router();
   const adminOnly = [requireAuth(authService), requireRole(["ADMIN"])];
-  const analystOnly = [requireAuth(authService), requireRole(["ANALYST"])];
+  const managementOnly = [requireAuth(authService), requireRole(["ADMIN"])];
 
   router.get("/treasury", adminOnly, (_request, response) => {
     response.json(treasuryService.dashboard());
@@ -265,7 +265,7 @@ export function createTreasuryRouter({
     }
   });
 
-  router.get("/treasury/analyst/me", analystOnly, (request, response) => {
+  router.get("/treasury/analyst/me", managementOnly, (request, response) => {
     response.json(treasuryService.analystView(actorId(request)));
   });
 

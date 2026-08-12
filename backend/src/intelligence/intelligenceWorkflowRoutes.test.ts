@@ -88,17 +88,17 @@ describe("intelligence workflow and analyst command centre", () => {
 
   it("ingests mock fixtures, scans matches, scores candidates, and queues them", async () => {
     const { app, userRepository } = buildApp();
-    const analyst = seedInternalUser(userRepository, "ANALYST");
+    const operationsUser = seedInternalUser(userRepository, "ADMIN");
 
     const scan = await request(app)
       .post("/api/intelligence/workflow/scan")
-      .set("Authorization", `Bearer ${analyst.token}`)
+      .set("Authorization", `Bearer ${operationsUser.token}`)
       .send({ ingestMockFixtures: true, limit: 3 })
       .expect(200);
 
     const candidates = await request(app)
       .get("/api/intelligence/workflow/candidates")
-      .set("Authorization", `Bearer ${analyst.token}`)
+      .set("Authorization", `Bearer ${operationsUser.token}`)
       .expect(200);
 
     expect(scan.body.workflow.mode).toBe("MOCK_PROVIDER");
@@ -110,18 +110,20 @@ describe("intelligence workflow and analyst command centre", () => {
     expect(candidates.body).toHaveProperty("financialEngineEligible");
   }, 15000);
 
-  it("returns a safe analyst command centre with evidence and integration state", async () => {
+  it("returns a safe internal command centre with evidence and integration state", async () => {
     const { app, analystRepository, userRepository } = buildApp();
-    const analyst = seedInternalUser(userRepository, "ANALYST");
+    const operationsUser = seedInternalUser(userRepository, "ADMIN");
 
     await request(app)
       .post("/api/intelligence/workflow/ingest-mock-fixtures")
-      .set("Authorization", `Bearer ${analyst.token}`)
+      .set("Authorization", `Bearer ${operationsUser.token}`)
       .send({ limit: 1 })
       .expect(200);
 
+    await analystRepository.promoteAnalyst(operationsUser.userId, "Admin-operated launch command centre fixture.");
+
     await analystRepository.createAssignment({
-      analystId: analyst.userId,
+      analystId: operationsUser.userId,
       fixtureId: "970001",
       leagueName: "FPF Mock Premier Intelligence",
       adminNotes: "Review confidence, risk, and evidence before submission.",
@@ -129,7 +131,7 @@ describe("intelligence workflow and analyst command centre", () => {
 
     const command = await request(app)
       .get("/api/analyst-command-centre")
-      .set("Authorization", `Bearer ${analyst.token}`)
+      .set("Authorization", `Bearer ${operationsUser.token}`)
       .expect(200);
 
     expect(command.body.assignmentQueue).toHaveLength(1);

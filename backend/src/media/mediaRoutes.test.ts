@@ -65,9 +65,8 @@ describe("media command center routes", () => {
     expect(dashboard.body.platformHealth[0].mode).toBe("PLACEHOLDER");
   });
 
-  it("lets analysts create drafts while admin controls campaign and publication workflow", async () => {
+  it("lets admins create drafts and control campaign publication workflow", async () => {
     const { app, users } = testApp();
-    const analystToken = seedUser(users, "ANALYST");
     const adminToken = seedUser(users, "ADMIN");
 
     const campaign = await request(app)
@@ -84,7 +83,7 @@ describe("media command center routes", () => {
 
     const post = await request(app)
       .post("/api/media/posts")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .send({
         campaignId: campaign.body.campaign.id,
         title: "Why confidence is not certainty",

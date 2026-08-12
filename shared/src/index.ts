@@ -17,6 +17,8 @@ export const USER_ROLES = [
   "COUNTRY_PARTNER",
 ] as const;
 export const PUBLIC_USER_ROLES = ["SUBSCRIBER", "INVESTOR"] as const;
+export const ACTIVE_APPLICATION_ROLES = ["SUBSCRIBER", "INVESTOR", "COUNTRY_PARTNER", "CEO", "ADMIN"] as const;
+export const RETIRED_APPLICATION_ROLES = ["ANALYST"] as const;
 export const COMPANY_CAPITAL_ROLES = ["CEO", "FINANCE", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"] as const;
 export const INTERNAL_PLATFORM_NAME = "FPF OS";
 export const PUBLIC_BRAND_NAME = "Football Performance Fund";
@@ -37,8 +39,17 @@ export const ROLE_DISPLAY_LABELS = {
 
 export type UserRole = (typeof USER_ROLES)[number];
 export type PublicUserRole = (typeof PUBLIC_USER_ROLES)[number];
+export type ActiveApplicationRole = (typeof ACTIVE_APPLICATION_ROLES)[number];
 export type CompanyCapitalRole = (typeof COMPANY_CAPITAL_ROLES)[number];
 export type PerformancePartnerRole = typeof PERFORMANCE_PARTNER_ROLE;
+
+export function isActiveApplicationRole(role: UserRole): role is ActiveApplicationRole {
+  return (ACTIVE_APPLICATION_ROLES as readonly UserRole[]).includes(role);
+}
+
+export function isRetiredApplicationRole(role: UserRole) {
+  return (RETIRED_APPLICATION_ROLES as readonly UserRole[]).includes(role);
+}
 
 export function isPerformancePartnerRole(role: UserRole): role is PerformancePartnerRole {
   return role === PERFORMANCE_PARTNER_ROLE;

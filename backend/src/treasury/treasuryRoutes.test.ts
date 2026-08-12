@@ -111,7 +111,7 @@ describe("treasury routes", () => {
       .expect(201);
   });
 
-  it("validates policy totals and restricts analyst executive access", async () => {
+  it("validates policy totals and restricts retired analyst executive access", async () => {
     const { app, adminToken, analystToken } = testApp();
 
     await request(app)
@@ -128,7 +128,7 @@ describe("treasury routes", () => {
     await request(app)
       .get("/api/treasury/analyst/me")
       .set("Authorization", `Bearer ${analystToken}`)
-      .expect(200);
+      .expect(403);
   });
 
   it("closes daily and weekly periods after reconciliation", async () => {

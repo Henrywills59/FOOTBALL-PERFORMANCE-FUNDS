@@ -16,7 +16,7 @@ export function createPredictionRouter(input: {
   router.post(
     "/predictions/fixtures/:fixtureId/generate",
     signedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     async (request, response, next) => {
       try {
         const prediction = await input.predictionService.generateForFixture(request.params.fixtureId);

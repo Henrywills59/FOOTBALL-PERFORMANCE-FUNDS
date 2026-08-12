@@ -9,7 +9,6 @@ import type { AdminService } from "./adminService.js";
 const USER_ROLES = [
   "SUBSCRIBER",
   "INVESTOR",
-  "ANALYST",
   "ADMIN",
   "CEO",
   "FINANCE",

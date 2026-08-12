@@ -44,8 +44,8 @@ export function createIntelligenceRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
-  const intelligenceAccess = [signedIn, requireRole(["SUBSCRIBER", "ANALYST", "ADMIN"])];
-  const decisionReviewAccess = [signedIn, requireRole(["ANALYST", "ADMIN"])];
+  const intelligenceAccess = [signedIn, requireRole(["SUBSCRIBER", "ADMIN"])];
+  const decisionReviewAccess = [signedIn, requireRole(["ADMIN"])];
 
   router.get(
     "/intelligence/decision/health",

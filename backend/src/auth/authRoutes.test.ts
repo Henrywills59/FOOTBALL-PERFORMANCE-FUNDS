@@ -100,6 +100,41 @@ describe("auth routes", () => {
       .expect(400);
   });
 
+  it("fails closed for retired analyst accounts at login", async () => {
+    const userRepository = new InMemoryUserRepository();
+    userRepository.seedUser({
+      id: "legacy-analyst-user",
+      name: "Legacy Analyst",
+      email: "legacy-analyst@example.com",
+      passwordHash: await bcrypt.hash(validRegistration.password, 12),
+      role: "ANALYST",
+      status: "ACTIVE",
+      createdAt: new Date().toISOString(),
+    });
+    const app = createApp({
+      userRepository,
+      footballRepository: new InMemoryFootballRepository(),
+      predictionRepository: new InMemoryPredictionRepository([]),
+      adminRepository: new InMemoryAdminRepository(),
+      investorRepository: new InMemoryInvestorRepository(),
+      walletRepository: new InMemoryWalletRepository(),
+      analystRepository: new InMemoryAnalystRepository(),
+      jwtSecret: "test-secret",
+      startFootballJobs: false,
+    });
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "legacy-analyst@example.com",
+        password: validRegistration.password,
+        rememberMe: false,
+      })
+      .expect(403);
+
+    expect(response.body.error).toBe("No active workspace is assigned to this account. Contact FPF management.");
+  });
+
   it("logs in with email and password", async () => {
     const app = testApp();
     await request(app).post("/api/auth/register").send(validRegistration).expect(201);

@@ -59,7 +59,7 @@ export function createMediaRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
-  const editorAccess = [signedIn, requireRole(["ADMIN", "ANALYST"])];
+  const editorAccess = [signedIn, requireRole(["ADMIN"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
 
   router.get("/admin/media/dashboard", ...adminOnly, async (_request, response, next) => {

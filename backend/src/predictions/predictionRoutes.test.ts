@@ -140,11 +140,11 @@ describe("prediction routes", () => {
       jwtSecret: "test-secret",
       startFootballJobs: false,
     });
-    const analystToken = await authToken(app, "ANALYST", userRepository);
+    const operationsToken = await authToken(app, "ADMIN", userRepository);
 
     const generated = await request(app)
       .post("/api/predictions/fixtures/fixture-1/generate")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${operationsToken}`)
       .expect(201);
 
     expect(generated.body.prediction.approvalStatus).toBe("PENDING");
@@ -158,10 +158,10 @@ describe("prediction routes", () => {
         expect(response.body.predictions).toHaveLength(0);
       });
 
-    const adminCapableToken = await authToken(app, "ANALYST", userRepository);
+    const retiredAnalystToken = await authToken(app, "ANALYST", userRepository);
     await request(app)
       .post(`/api/admin/predictions/${generated.body.prediction.id}/approve`)
-      .set("Authorization", `Bearer ${adminCapableToken}`)
+      .set("Authorization", `Bearer ${retiredAnalystToken}`)
       .expect(403);
 
     await request(app)

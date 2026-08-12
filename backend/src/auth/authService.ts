@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
+import { isRetiredApplicationRole } from "@fpf/shared";
 import type { AuthResponse, AuthUser, PublicUserRole, UserRole } from "@fpf/shared";
 import { isPrismaConnectionPressureError } from "../database/prismaErrors.js";
 import type { NotificationDeliveryService } from "../integrations/notificationProviders.js";
@@ -182,6 +183,10 @@ export class AuthService {
     if (!user || user.status !== "ACTIVE") {
       await this.recordLoginAttempt({ email: input.email, success: false });
       throw new AuthError("Invalid email or password", 401);
+    }
+    if (isRetiredApplicationRole(user.role)) {
+      await this.recordLoginAttempt({ userId: user.id, email: input.email, success: false });
+      throw new AuthError("No active workspace is assigned to this account. Contact FPF management.", 403);
     }
 
     let passwordMatches = false;
@@ -481,6 +486,9 @@ export class AuthService {
       const user = await this.users.findUserById(payload.sub);
       if (!user || user.status !== "ACTIVE") {
         throw new AuthError("Unauthorized", 401);
+      }
+      if (isRetiredApplicationRole(user.role)) {
+        throw new AuthError("Forbidden", 403);
       }
 
       return publicUser(user);

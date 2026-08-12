@@ -13,7 +13,7 @@ import { InMemoryAdminRepository } from "../admin/inMemoryAdminRepository.js";
 import { InMemoryInvestorRepository } from "../investor/inMemoryInvestorRepository.js";
 import { InMemoryWalletRepository } from "../wallet/inMemoryWalletRepository.js";
 
-async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
+async function signedInApp(role: "SUBSCRIBER" | "ADMIN" | "ANALYST" = "SUBSCRIBER") {
   const footballRepository = new InMemoryFootballRepository();
   await footballRepository.upsertFixture({
     apiFootballFixtureId: 1001,
@@ -40,21 +40,23 @@ async function signedInApp(role: "SUBSCRIBER" | "ANALYST" = "SUBSCRIBER") {
     startFootballJobs: false,
   });
 
-  if (role === "ANALYST") {
+  if (role === "ANALYST" || role === "ADMIN") {
+    const id = role === "ANALYST" ? "analyst-football-user" : "admin-football-user";
+    const email = role === "ANALYST" ? "analyst@example.com" : "admin@example.com";
     userRepository.seedUser({
-      id: "analyst-football-user",
-      name: "Analyst User",
-      email: "analyst@example.com",
+      id,
+      name: `${role} User`,
+      email,
       passwordHash: "not-used",
-      role: "ANALYST",
+      role,
       status: "ACTIVE",
       createdAt: new Date().toISOString(),
     });
 
     return {
       app,
-      token: jwt.sign({ role: "ANALYST", email: "analyst@example.com" }, "test-secret", {
-        subject: "analyst-football-user",
+      token: jwt.sign({ role, email }, "test-secret", {
+        subject: id,
         expiresIn: "1d",
       }),
     };
@@ -171,7 +173,7 @@ describe("football routes", () => {
       .expect(200);
   });
 
-  it("protects manual sync for analysts and admins", async () => {
+  it("protects manual sync for admins and denies retired analyst accounts", async () => {
     const subscriber = await signedInApp("SUBSCRIBER");
     await request(subscriber.app)
       .post("/api/football/sync")
@@ -182,11 +184,17 @@ describe("football routes", () => {
     await request(analyst.app)
       .post("/api/football/sync")
       .set("Authorization", `Bearer ${analyst.token}`)
+      .expect(403);
+
+    const admin = await signedInApp("ADMIN");
+    await request(admin.app)
+      .post("/api/football/sync")
+      .set("Authorization", `Bearer ${admin.token}`)
       .expect(202);
 
-    await request(analyst.app)
+    await request(admin.app)
       .post("/api/football/sync/fixtures")
-      .set("Authorization", `Bearer ${analyst.token}`)
+      .set("Authorization", `Bearer ${admin.token}`)
       .expect(202)
       .expect((response) => {
         expect(response.body.result.jobName).toBe("fixtures");

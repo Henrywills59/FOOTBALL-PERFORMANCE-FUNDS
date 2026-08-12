@@ -95,7 +95,7 @@ const submissionBody = {
 };
 
 describe("analyst intelligence routes", () => {
-  it("requires analysts to be assigned before submitting intelligence", async () => {
+  it("denies retired analyst accounts at operational intelligence routes", async () => {
     const { app, users } = await testApp();
     const analystToken = seedUser(users, "ANALYST");
 
@@ -109,14 +109,13 @@ describe("analyst intelligence routes", () => {
   it("publishes only sanitized FPF intelligence to subscribers", async () => {
     const { adminRepository, app, users } = await testApp();
     const adminToken = seedUser(users, "ADMIN");
-    const analystToken = seedUser(users, "ANALYST");
     const subscriberToken = seedUser(users, "SUBSCRIBER");
 
     await request(app)
       .post("/api/admin/intelligence/assign")
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
-        analystId: "analyst-intelligence-user",
+        analystId: "admin-intelligence-user",
         fixtureId: "9001",
         leagueName: "Premier League",
         adminNotes: "Internal focus: verify injury status before kickoff.",
@@ -125,7 +124,7 @@ describe("analyst intelligence routes", () => {
 
     const created = await request(app)
       .post("/api/analyst/intelligence")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .send(submissionBody)
       .expect(201);
 
@@ -158,11 +157,11 @@ describe("analyst intelligence routes", () => {
 
   it("provides assistance from synchronized football data", async () => {
     const { app, users } = await testApp();
-    const analystToken = seedUser(users, "ANALYST");
+    const adminToken = seedUser(users, "ADMIN");
 
     const assistance = await request(app)
       .get("/api/analyst/fixtures/9001/assistance")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
 
     expect(assistance.body.teamFormSummary).toContain("North FC");
@@ -172,7 +171,6 @@ describe("analyst intelligence routes", () => {
   it("supports internal analyst academy workflow and blocks subscribers from analyst data", async () => {
     const { app, users } = await testApp();
     const adminToken = seedUser(users, "ADMIN");
-    const analystToken = seedUser(users, "ANALYST");
     const subscriberToken = seedUser(users, "SUBSCRIBER");
 
     await request(app)
@@ -214,7 +212,7 @@ describe("analyst intelligence routes", () => {
 
     await request(app)
       .post("/api/analyst/predictions")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .send({
         matchName: "North FC vs South FC",
         leagueName: "Premier League",
@@ -229,7 +227,7 @@ describe("analyst intelligence routes", () => {
 
     const performance = await request(app)
       .get("/api/analyst/performance")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
 
     expect(performance.body.reliability.analystReliabilityIndex).toBeGreaterThanOrEqual(0);
@@ -273,7 +271,7 @@ describe("analyst intelligence routes", () => {
     await request(app)
       .get("/api/war-room")
       .set("Authorization", `Bearer ${analystToken}`)
-      .expect(200);
+      .expect(403);
 
     await request(app)
       .get("/api/war-room")

@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { isRetiredApplicationRole } from "@fpf/shared";
 import type { AuthUser, UserRole } from "@fpf/shared";
 import { AuthError, AuthService } from "./authService.js";
 
@@ -36,7 +37,7 @@ export function requireAuth(authService: AuthService) {
 
 export function requireRole(roles: UserRole[]) {
   return (request: Request, _response: Response, next: NextFunction) => {
-    if (!request.user || !roles.includes(request.user.role)) {
+    if (!request.user || isRetiredApplicationRole(request.user.role) || !roles.includes(request.user.role)) {
       next(new AuthError("Forbidden", 403));
       return;
     }

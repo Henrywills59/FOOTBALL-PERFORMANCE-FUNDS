@@ -219,9 +219,9 @@ export function createAuthRouter(authService: AuthService) {
   router.get(
     "/dashboards/analyst",
     requireSignedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     (_request, response) => {
-      response.status(200).json({ title: "Analyst Dashboard" });
+      response.status(200).json({ title: "Internal Intelligence Dashboard" });
     },
   );
 

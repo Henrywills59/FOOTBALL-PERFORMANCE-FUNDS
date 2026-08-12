@@ -30,11 +30,11 @@ export function createPredictionWorkflowRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
-  const analystAccess = [signedIn, requireRole(["ANALYST", "ADMIN"])];
+  const operationsAccess = [signedIn, requireRole(["ADMIN"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
   const subscriberAccess = [signedIn, requireRole(["SUBSCRIBER", "ADMIN"])];
 
-  router.get("/prediction-workflow/queue", ...analystAccess, async (request, response, next) => {
+  router.get("/prediction-workflow/queue", ...operationsAccess, async (request, response, next) => {
     try {
       response.status(200).json(
         await input.predictionWorkflowService.listQueue({
@@ -47,7 +47,7 @@ export function createPredictionWorkflowRouter(input: {
     }
   });
 
-  router.post("/prediction-workflow/candidates", ...analystAccess, async (request, response, next) => {
+  router.post("/prediction-workflow/candidates", ...operationsAccess, async (request, response, next) => {
     try {
       const body = candidateSchema.parse(request.body);
       response.status(201).json({ item: await input.predictionWorkflowService.createCandidateFromDecision(body.fixtureId) });
@@ -56,7 +56,7 @@ export function createPredictionWorkflowRouter(input: {
     }
   });
 
-  router.get("/prediction-workflow/queue/:id", ...analystAccess, async (request, response, next) => {
+  router.get("/prediction-workflow/queue/:id", ...operationsAccess, async (request, response, next) => {
     try {
       const item = await input.predictionWorkflowService.getQueueItem(request.params.id);
       if (!item) {
@@ -69,7 +69,7 @@ export function createPredictionWorkflowRouter(input: {
     }
   });
 
-  router.post("/prediction-workflow/queue/:id/actions", ...analystAccess, async (request, response, next) => {
+  router.post("/prediction-workflow/queue/:id/actions", ...operationsAccess, async (request, response, next) => {
     try {
       const body = actionSchema.parse(request.body);
       const item = await input.predictionWorkflowService.applyAction(request.params.id, request.user!.id, body.action, {

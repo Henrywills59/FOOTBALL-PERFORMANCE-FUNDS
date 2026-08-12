@@ -81,10 +81,10 @@ export function createAnalystRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
-  const analystOnly = [signedIn, requireRole(["ANALYST"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
-  const warRoomAccess = [signedIn, requireRole(["ANALYST", "ADMIN"])];
-  const commandCentreAccess = [signedIn, requireRole(["ANALYST", "ADMIN", "CEO", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"])];
+  const analystOnly = adminOnly;
+  const warRoomAccess = adminOnly;
+  const commandCentreAccess = [signedIn, requireRole(["ADMIN", "CEO", "RISK_MANAGER", "CAPITAL_MANAGER", "SUPER_ADMINISTRATOR"])];
 
   router.post("/analyst-applications", ...adminOnly, async (request, response, next) => {
     try {

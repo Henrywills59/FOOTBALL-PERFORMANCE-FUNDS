@@ -106,7 +106,7 @@ export function createIntelligenceWorkflowRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
-  const operationsAccess = [signedIn, requireRole(["ADMIN", "ANALYST"])];
+  const operationsAccess = [signedIn, requireRole(["ADMIN"])];
   const adminOnly = [signedIn, requireRole(["ADMIN"])];
   const subscriberAccess = [signedIn, requireRole(["SUBSCRIBER", "ADMIN"])];
 

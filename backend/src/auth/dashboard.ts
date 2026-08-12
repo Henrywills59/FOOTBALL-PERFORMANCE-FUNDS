@@ -13,8 +13,8 @@ const dashboardRoutes: Record<UserRole, DashboardRoute> = {
   },
   ANALYST: {
     role: "ANALYST",
-    path: "/dashboard/analyst",
-    title: "Analyst Dashboard",
+    path: "/no-workspace",
+    title: "No Active Workspace",
   },
   ADMIN: {
     role: "ADMIN",

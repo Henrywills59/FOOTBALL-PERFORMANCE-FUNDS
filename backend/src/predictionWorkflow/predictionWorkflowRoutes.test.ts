@@ -93,21 +93,21 @@ describe("prediction workflow routes", () => {
       status: "SCHEDULED",
       raw: {},
     });
-    const analystToken = seedInternalUser(userRepository, "ANALYST");
+    const operationsToken = seedInternalUser(userRepository, "ADMIN");
 
     const queue = await request(app)
       .get("/api/prediction-workflow/queue?sort=priority")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${operationsToken}`)
       .expect(200);
     const itemId = queue.body.items[0].id as string;
     const approved = await request(app)
       .post(`/api/prediction-workflow/queue/${encodeURIComponent(itemId)}/actions`)
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${operationsToken}`)
       .send({ action: "APPROVE", reason: "Confidence acceptable for review." })
       .expect(200);
     const published = await request(app)
       .post(`/api/prediction-workflow/queue/${encodeURIComponent(itemId)}/actions`)
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${operationsToken}`)
       .send({ action: "PUBLISH", reason: "Final approval." })
       .expect(200);
 

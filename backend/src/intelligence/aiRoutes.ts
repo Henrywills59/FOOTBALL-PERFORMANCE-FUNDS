@@ -33,7 +33,7 @@ export function createAiIntelligenceRouter(input: {
 }) {
   const router = Router();
   const signedIn = requireAuth(input.authService);
-  const internalOnly = [signedIn, requireRole(["ANALYST", "ADMIN", "CEO", "RISK_MANAGER", "SUPER_ADMINISTRATOR"])];
+  const internalOnly = [signedIn, requireRole(["ADMIN", "CEO", "RISK_MANAGER", "SUPER_ADMINISTRATOR"])];
 
   router.get("/intelligence/ai/status", ...internalOnly, (_request, response) => {
     response.status(200).json(input.openAiProvider.status());

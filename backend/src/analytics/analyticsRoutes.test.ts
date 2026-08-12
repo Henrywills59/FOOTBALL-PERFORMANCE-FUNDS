@@ -73,15 +73,15 @@ describe("analytics routes", () => {
     await request(app).get("/api/analytics/executive").set("Authorization", `Bearer ${investorToken}`).expect(403);
   });
 
-  it("allows analysts to view only private analytics", async () => {
-    const { app, analystToken } = testApp();
+  it("allows admins to view private operational analytics", async () => {
+    const { app, adminToken } = testApp();
 
     const response = await request(app)
       .get("/api/analytics/analyst/me")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
 
-    expect(response.body.analyst.analystId).toBe("analyst-placeholder");
+    expect(response.body.analyst.analystId).toBeTruthy();
     expect(response.body.aiRecommendations.length).toBeGreaterThan(0);
     expect(response.body).not.toHaveProperty("subscriberAnalytics");
     expect(response.body).not.toHaveProperty("investorAnalytics");

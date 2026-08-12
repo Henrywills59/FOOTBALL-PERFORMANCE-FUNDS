@@ -9,7 +9,6 @@ import type { AnnouncementCreateInput, IncidentCreateInput } from "./types.js";
 const USER_ROLES = [
   "SUBSCRIBER",
   "INVESTOR",
-  "ANALYST",
   "ADMIN",
   "CEO",
   "FINANCE",

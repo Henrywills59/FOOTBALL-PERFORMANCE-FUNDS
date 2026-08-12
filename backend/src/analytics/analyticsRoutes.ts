@@ -12,7 +12,7 @@ export function createAnalyticsRouter({
 }) {
   const router = Router();
   const adminOnly = [requireAuth(authService), requireRole(["ADMIN"])];
-  const analystOnly = [requireAuth(authService), requireRole(["ANALYST"])];
+  const managementOnly = [requireAuth(authService), requireRole(["ADMIN"])];
 
   router.get("/analytics/executive", adminOnly, (_request, response) => {
     response.json(analyticsService.dashboard());
@@ -58,7 +58,7 @@ export function createAnalyticsRouter({
     response.json({ exports: analyticsService.dashboard().exportCenter });
   });
 
-  router.get("/analytics/analyst/me", analystOnly, (request, response) => {
+  router.get("/analytics/analyst/me", managementOnly, (request, response) => {
     response.json(analyticsService.analystPrivate(request.user?.id ?? "unknown-analyst"));
   });
 

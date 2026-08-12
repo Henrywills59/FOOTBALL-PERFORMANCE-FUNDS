@@ -364,7 +364,7 @@ function setMetaTag(name: string, content: string, attribute: "name" | "property
 const roleLabels: Record<UserRole, string> = {
   SUBSCRIBER: "Subscriber",
   INVESTOR: "Performance Partner",
-  ANALYST: "Analyst",
+  ANALYST: "Retired workspace",
   ADMIN: "Admin",
   CEO: "CEO",
   FINANCE: "Finance",

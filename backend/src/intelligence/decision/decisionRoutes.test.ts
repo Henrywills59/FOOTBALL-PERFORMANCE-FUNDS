@@ -109,7 +109,7 @@ describe("decision engine routes", () => {
       raw: {},
     });
     const subscriberToken = await register(app, "SUBSCRIBER");
-    const analystToken = seedInternalUser(userRepository, "ANALYST");
+    const operationsToken = seedInternalUser(userRepository, "ADMIN");
 
     const opportunities = await request(app)
       .get("/api/intelligence/decision/opportunities?limit=5")
@@ -117,7 +117,7 @@ describe("decision engine routes", () => {
       .expect(200);
     const recalculated = await request(app)
       .post("/api/intelligence/decision/recalculate")
-      .set("Authorization", `Bearer ${analystToken}`)
+      .set("Authorization", `Bearer ${operationsToken}`)
       .send({ fixtureIds: ["9201"] })
       .expect(200);
 

@@ -192,7 +192,7 @@ export function createFootballRouter(input: {
   router.post(
     "/football/sync",
     signedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     async (_request, response, next) => {
       try {
         await input.scheduler.runOnce();
@@ -206,7 +206,7 @@ export function createFootballRouter(input: {
   router.post(
     "/football/sync/fixtures",
     signedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     async (_request, response, next) => {
       try {
         const result = await input.syncService.syncFixtures();
@@ -266,7 +266,7 @@ export function createFootballRouter(input: {
   router.get(
     "/football/odds/competitions",
     signedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     async (_request, response, next) => {
       try {
         response.status(200).json(await input.syncService.listOddsCompetitions());
@@ -279,7 +279,7 @@ export function createFootballRouter(input: {
   router.get(
     "/football/odds/markets",
     signedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     (_request, response) => {
       response.status(200).json(input.syncService.oddsMarkets());
     },
@@ -288,7 +288,7 @@ export function createFootballRouter(input: {
   router.post(
     "/football/sync/odds",
     signedIn,
-    requireRole(["ANALYST", "ADMIN"]),
+    requireRole(["ADMIN"]),
     async (_request, response, next) => {
       try {
         await input.syncService.syncOdds();
