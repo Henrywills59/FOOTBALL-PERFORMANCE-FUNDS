@@ -165,7 +165,7 @@ function skipped(channel: DeliveryChannel, provider: string, missingVariables: s
 }
 
 export class EmailProvider {
-  private readonly provider = clean(process.env.EMAIL_PROVIDER, process.env.INFOBIP_API_KEY ? "INFOBIP" : "RESEND").toUpperCase();
+  private readonly provider = clean(process.env.EMAIL_PROVIDER, "RESEND").toUpperCase();
   private readonly apiKey = clean(process.env.EMAIL_API_KEY) || clean(process.env.RESEND_API_KEY) || undefined;
   private readonly from = clean(process.env.EMAIL_FROM, "Football Performance Fund <noreply@footballperformancefund.com>");
   private readonly endpoint = clean(process.env.EMAIL_API_URL, "https://api.resend.com/emails");
@@ -174,7 +174,7 @@ export class EmailProvider {
 
   status() {
     if (this.provider === "INFOBIP") return this.infobip.status("EMAIL");
-    const missingVariables = [!this.apiKey ? "EMAIL_API_KEY" : null, !this.from ? "EMAIL_FROM" : null].filter((item): item is string => Boolean(item));
+    const missingVariables = [!this.apiKey ? "RESEND_API_KEY" : null, !this.from ? "EMAIL_FROM" : null].filter((item): item is string => Boolean(item));
     return { channel: "EMAIL" as const, provider: this.provider, configured: missingVariables.length === 0, missingVariables };
   }
 
